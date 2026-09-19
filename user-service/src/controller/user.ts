@@ -36,7 +36,6 @@ export class UserController {
             return;
         }
 
-        console.log(requestingUserId, parsedUserId);
         if (requestingUserId !== parsedUserId && !(Role.Admin in roles)) {
             ctx.response.status = 403;
             ctx.response.body = { error: "insufficient permissions to get user" }

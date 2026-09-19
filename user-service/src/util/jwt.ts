@@ -35,21 +35,20 @@ export async function generateJwtTokenPair(userId: string, userRoles: Role[]) {
     return { accessToken, refreshToken };
 }
 
-type ValidationResult =
+export type ValidationResult =
     { success: true; payload: jose.JWTPayload; protectedHeader: jose.JWTHeaderParameters } |
-    { success: false; error: 'EXPIRED' | 'INVALID' };
+    { success: false; error: "EXPIRED" | "INVALID" };
 
 const tokenValidationHelper = async (token: string, key: KeyBytes): Promise<ValidationResult> => {
     try {
         const res = await jose.jwtVerify(token, key, {
-            algorithms: ['HS256']
+            algorithms: ["HS256"]
         });
         return { success: true, ...res };
     } catch (e) {
-        if (e instanceof jose.errors.JWTExpired) {
-            return { success: false, error: 'EXPIRED' };
-        }
-        return { success: false, error: 'INVALID' };
+        if (e instanceof jose.errors.JWTExpired)
+            return { success: false, error: "EXPIRED" };
+        return { success: false, error: "INVALID" };
     }
 };
 

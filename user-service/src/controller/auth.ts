@@ -3,16 +3,15 @@ import { z } from "zod";
 import { analysePasswordCategories } from "../util/password.ts";
 import config from "../config.ts";
 import { hashPassword, verifyPassword } from "../util/hash.ts";
-// import * as Users from "../prisma/users.ts";
 import { type IUserRepository } from "../prisma/users.ts";
 import { applyDbError } from "./common.ts";
-import { generateJwtTokenPair } from "../util/jwt.ts";
+import { generateJwtTokenPair, validateRefreshToken } from "../util/jwt.ts";
 import type { IRoleRepository } from "../prisma/roles.ts";
-import log from "../log.ts";
+import { genericJwtHandler } from "../middleware/auth.ts";
 
 // TODO: clarify if need to be specifically university email
 export const registrationSchema = z.object({
-    email: z.email('A valid email is required')
+    email: z.email("A valid email is required")
         .max(254),
     password: z.string()
         .min(config.password.minLength, `Password must be at least ${config.password.minLength} characters`)
@@ -24,10 +23,12 @@ export const registrationSchema = z.object({
 });
 
 export const loginSchema = z.object({
-    email: z.email('A valid email is required')
-        .max(254),
-    password: z.string()
-        .max(128),
+    email: z.email("A valid email is required").max(254),
+    password: z.string().max(128),
+});
+
+export const refreshTokenSchema = z.object({
+    refreshToken: z.string("Expected refresh token")
 });
 
 const GENERIC_LOGIN_ERROR = "supplied email/password is incorrect";
@@ -80,7 +81,36 @@ export class AuthController {
         }
     }
 
-    // TODO: /refresh: query refresh token in database and check if blacklisted. if ok, refresh both tokens
-    // TODO: /logout: blacklist refresh token, let access token expire
-}
+    async refreshToken(ctx: RouterContext<"/refresh">) {
+        const body = ctx.state.validatedBody as z.output<typeof refreshTokenSchema>;
+        
+        const reqRefreshToken = await validateRefreshToken(body.refreshToken);
+        const decodedToken = genericJwtHandler(ctx, reqRefreshToken);
+        if (!decodedToken)
+            return;
 
+        if (!decodedToken.payload.sub || decodedToken.payload.sub.trim().length === 0) {
+            ctx.response.status = 500;
+            ctx.response.body = { error: "server previously issued malformed token" };
+            return;
+        }
+        const userId = parseInt(decodedToken.payload.sub);
+
+        try {
+            const user = await this.userRepo.getUserByIdPublic(userId);
+            if (!user) {
+                ctx.response.status = 500;
+                ctx.response.body = { error: "server previously issued token with invalid user reference" };
+                return;
+            }
+
+            const tokens = await generateJwtTokenPair(user.id.toString(), user.roles);
+            ctx.response.body = tokens;
+        } catch (e) {
+            applyDbError(ctx, e);
+        }
+        
+    }
+
+    // TODO: /logout: blacklist refresh token, let access token expire. also handle in refreshToken
+}
