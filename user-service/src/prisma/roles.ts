@@ -1,0 +1,105 @@
+
+import log from "../log.ts";
+import { DbError, ErrorType } from "./common.ts";
+import { db } from "./db.ts";
+
+export type RawRoleRecord = typeof db.orm.public.Role._row;
+
+export interface IRoleRepository {
+    findRolesByName(roles: ReadonlySet<Role>): Promise<RoleMapping>;
+    assignRoles(userId: number, roles: ReadonlySet<Role>): Promise<void>;
+}
+
+export enum Role {
+    Admin = "admin",
+    Requestor = "requestor",
+    Courier = "courier",
+}
+
+type RoleMapping = { [role in Role]?: number };
+
+export function fromRawRole(raw: RawRoleRecord): Role | null {
+    const name = raw?.name;
+    if (!name)
+        return null;
+    return Object.values(Role).find(r => r === name) ?? null;
+}
+
+export function fromRawRoleThrows(raw: RawRoleRecord): Role {
+    const role = fromRawRole(raw);
+    if (!role)
+        throw new Error(`role record management is inconsistent, cannot find role: ${raw?.name} (${raw?.id})`);
+    return role;
+};
+
+export const findRolesByName = async (roles: ReadonlySet<Role>): Promise<RoleMapping> => {
+    const rolesArray = [...roles];
+    const foundRoles = await db.orm.public.Role
+        .where(u => u.name.in(rolesArray))
+        .all();    
+    if (foundRoles.length !== roles.size) {
+        throw new DbError({
+            status: ErrorType.Unknown,
+            isUserFault: false,
+            message: `unknown role supplied: ${roles}, found: ${JSON.stringify(foundRoles)}`
+        });
+    }
+    // this should never throw unless the database is broken
+    try {
+        const mapping: RoleMapping = {};
+        for (const v of foundRoles) {
+            mapping[fromRawRoleThrows(v)] = v.id;
+        }
+        return mapping;
+    } catch (e) {
+        throw new DbError({
+            status: ErrorType.Unknown,
+            isUserFault: false,
+            message: `${e}`
+        });
+    }
+};
+
+export const assignRoles = async (userId: number, roles: ReadonlySet<Role>): Promise<void> => {
+    const desiredRoles = await findRolesByName(roles);
+    
+    // number of roles should be very small, this should be fine
+    for (const roleId of Object.values(desiredRoles)) {
+        try {
+            await db.orm.public.UserRole.upsert({
+                create: { userId, roleId },
+                update: {}
+            });
+        } catch (e) {
+            throw new DbError({
+                status: ErrorType.Unknown,
+                isUserFault: false,
+                message: `unknown error: ${e}`
+            });
+        }
+    }
+};
+
+export const seedRoles = async (): Promise<void> => {
+    for (const name of Object.values(Role)) {
+        try {
+            await db.orm.public.Role.upsert({
+                create: { name },
+                update: {},
+                conflictOn: { name }
+            });
+        } catch (e) {
+            throw new DbError({
+                status: ErrorType.Unknown,
+                isUserFault: false,
+                message: `unknown error: ${e}`
+            });
+        }
+    }
+};
+
+const RoleRepo: IRoleRepository = {
+    assignRoles,
+    findRolesByName,
+};
+export default RoleRepo;
