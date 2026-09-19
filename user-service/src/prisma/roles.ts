@@ -18,15 +18,14 @@ export enum Role {
 
 type RoleMapping = { [role in Role]?: number };
 
-export function fromRawRole(raw: RawRoleRecord): Role | null {
-    const name = raw?.name;
-    if (!name)
-        return null;
-    return Object.values(Role).find(r => r === name) ?? null;
+export function fromRawRole(rawName: string): Role | null {
+    return Object.values(Role).find(r => r === rawName) ?? null;
 }
 
 export function fromRawRoleThrows(raw: RawRoleRecord): Role {
-    const role = fromRawRole(raw);
+    if (!raw)
+        throw new Error(`no record was specified`);
+    const role = fromRawRole(raw!.name);
     if (!role)
         throw new Error(`role record management is inconsistent, cannot find role: ${raw?.name} (${raw?.id})`);
     return role;

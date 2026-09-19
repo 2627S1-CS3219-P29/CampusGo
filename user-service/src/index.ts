@@ -3,6 +3,7 @@ import createAuthRouter from "./routes/auth.ts";
 import { connectDatabase } from "./prisma/db.ts";
 import log from "./log.ts";
 import { seedEssential } from "./prisma/seed.ts";
+import createUserRouter from "./routes/user.ts";
 
 const port = Number(Deno.env.get("PORT") ?? 3000);
 log.info(`starting on port ${port}`);
@@ -18,6 +19,7 @@ const createPublicRouter = () => {
         ctx.response.body = "ok";
     });
     router.use(createAuthRouter().routes());
+    router.use(createUserRouter().routes());
     return router;
 };
 

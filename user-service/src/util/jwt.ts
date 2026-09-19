@@ -21,8 +21,7 @@ export async function generateJwtTokenPair(userId: string, userRoles: Role[]) {
         .setSubject(userId)
         .setIssuer(config.jwt.issuer)
         .setIssuedAt()
-        // .setExpirationTime(config.jwt.accessTtl)
-        .setExpirationTime("1s")
+        .setExpirationTime(config.jwt.accessTtl)
         .sign(accessKey);
 
     const refreshToken = await new jose.SignJWT({ tokenType: 'refresh' })

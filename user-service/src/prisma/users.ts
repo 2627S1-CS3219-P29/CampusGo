@@ -8,10 +8,12 @@ import { fromRawRole, fromRawRoleThrows, type RawRoleRecord, type Role } from ".
 
 export type RawUserRecord = typeof db.orm.public.User._row;
 export type UserWithRoles = RawUserRecord & { roles: Role[] };
+export type PublicUserWithRoles = { id: number, createdAt: string, email: string, roles: Role[] };
 
 export interface IUserRepository {
     registerUser(email: string, hashedPassword: string): Promise<RawUserRecord>;
     getUserByEmail(email: string): Promise<UserWithRoles | null>;
+    getUserByIdPublic(id: number): Promise<PublicUserWithRoles | null>;
 }
 
 export const registerUser = async (email: string, hashedPassword: string): Promise<RawUserRecord> => {
@@ -57,23 +59,32 @@ export const getUserByEmail = async (email: string): Promise<UserWithRoles | nul
     }
 };
 
+/**
+ * Should not return info such as password hashes
+ */
+export const getUserByIdPublic = async (id: number): Promise<PublicUserWithRoles | null> => {
+    try {
+        const user = await db.orm.public.User.select("id", "email", "createdAt")
+            .where({ id })
+            .include("roles")
+            .first();
+        if (!user)
+            return null
+        const roles = user.roles.map(fromRawRoleThrows);
+        return { ...user, roles };
+    } catch (e) {
+        log.error(`unknown error looking up user by id (${id}): ${JSON.stringify(e)}`);
+        throw new DbError({
+            status: ErrorType.Unknown,
+            isUserFault: false,
+            message: `unknown error: ${e}`
+        })
+    }
+};
+
 const repo: IUserRepository = {
     registerUser,
     getUserByEmail,
+    getUserByIdPublic,
 };
 export default repo;    
-
-// export async function listUsers(limit = 10) {
-//   await seed();
-//   const users = await db.orm.public.User.select("id", "email", "username", "name", "createdAt").limit(limit).all();
-
-//   return users.map((user) => ({
-//     id: String(user.id),
-//     email: user.email,
-//     username: user.username ?? null,
-//     name: user.name ?? null,
-//     createdAt: user.createdAt,
-//   }));
-// }
-
-// export type StarterUser = Awaited<ReturnType<typeof listUsers>>[number];

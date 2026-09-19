@@ -48,7 +48,6 @@ export class AuthController {
         try {
             // FIXME: how to handle transaction with this pattern while still allowing for mocking?
             const registeredUser = await this.userRepo.registerUser(body.email, hashedPassword);
-            console.log(registeredUser);
             await this.roleRepo.assignRoles(registeredUser!.id, new Set(config.user.defaultRoles));
             ctx.response.body = "registration success";
         } catch (e) {
@@ -64,13 +63,13 @@ export class AuthController {
             if (!user) {
                 // email was not in the system
                 ctx.response.status = 401;
-                ctx.response.body = GENERIC_LOGIN_ERROR;
+                ctx.response.body = { error: GENERIC_LOGIN_ERROR };
                 return;
             }
             const doesPwMatch = await verifyPassword(user.hashedPassword, body.password);
             if (!doesPwMatch) {
                 ctx.response.status = 401;
-                ctx.response.body = GENERIC_LOGIN_ERROR;
+                ctx.response.body = { error: GENERIC_LOGIN_ERROR };
                 return;
             }
 
@@ -84,3 +83,4 @@ export class AuthController {
     // TODO: /refresh: query refresh token in database and check if blacklisted. if ok, refresh both tokens
     // TODO: /logout: blacklist refresh token, let access token expire
 }
+
