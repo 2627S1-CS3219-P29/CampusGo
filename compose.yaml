@@ -17,7 +17,7 @@ services:
       target: development
     profiles: ["dev"]
     ports:
-      - "3000:3000"
+      - "8001:8001"
     volumes:
       - ./user-service:/app
       - /app/node_modules
@@ -28,6 +28,7 @@ services:
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL}
+      PORT: 8001
     # command: deno task dev
     # workaround for docker in wsl
     command: deno run -A https://deno.land/x/denon/denon.ts dev

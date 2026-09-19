@@ -4,6 +4,8 @@ import { connectDatabase } from "./prisma/db.ts";
 import log from "./log.ts";
 import { seedEssential } from "./prisma/seed.ts";
 import createUserRouter from "./routes/user.ts";
+import { oakCors } from "https://deno.land/x/cors/mod.ts";
+
 
 const port = Number(Deno.env.get("PORT") ?? 3000);
 log.info(`starting on port ${port}`);
@@ -25,6 +27,16 @@ const createPublicRouter = () => {
 
 
 const app = new Application();
+
+if (process.env.NODE_ENV !== "production") {
+    // allow dev web client to call from different ports
+    app.use(
+        oakCors({
+            origin: "*"
+        }),
+    );
+}
+
 const publicRouter = createPublicRouter();
 app.use(publicRouter.routes());
 app.use(publicRouter.allowedMethods());

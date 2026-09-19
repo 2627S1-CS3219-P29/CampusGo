@@ -9,6 +9,7 @@ import { createApp } from 'vue'
 
 // Plugins
 import { registerPlugins } from '@/plugins'
+import { initCredentialWatcher } from './router/index.ts'
 
 // Components
 import App from './App.vue'
@@ -19,5 +20,6 @@ import 'unfonts.css'
 const app = createApp(App)
 
 registerPlugins(app)
+initCredentialWatcher();
 
 app.mount('#app')
