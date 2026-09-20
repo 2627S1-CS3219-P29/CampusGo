@@ -171,6 +171,13 @@
           },
           "User": {
             "fields": {
+              "contact": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "createdAt": {
                 "nullable": false,
                 "type": {
@@ -196,6 +203,13 @@
                 "nullable": false,
                 "type": {
                   "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "nickname": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
                   "kind": "scalar"
                 }
               }
@@ -232,6 +246,9 @@
             },
             "storage": {
               "fields": {
+                "contact": {
+                  "column": "contact"
+                },
                 "createdAt": {
                   "column": "createdAt"
                 },
@@ -243,6 +260,9 @@
                 },
                 "id": {
                   "column": "id"
+                },
+                "nickname": {
+                  "column": "nickname"
                 }
               },
               "namespaceId": "public",
@@ -464,6 +484,11 @@
             },
             "user": {
               "columns": {
+                "contact": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "createdAt": {
                   "codecId": "pg/timestamptz-string@1",
                   "default": {
@@ -490,6 +515,11 @@
                     "kind": "function"
                   },
                   "nativeType": "int4",
+                  "nullable": false
+                },
+                "nickname": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
                   "nullable": false
                 }
               },
@@ -623,7 +653,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "131b8659587b9ee72fc912ec75dd4d5f1a2886ee6e0112318514c1d319770865"
+    "storageHash": "4c198ee56b90b41ca3323af7fd68efc30a95542bf47f850b39281b8581b3b744"
   },
   "capabilities": {
     "postgres": {

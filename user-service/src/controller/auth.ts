@@ -4,22 +4,17 @@ import { analysePasswordCategories } from "../util/password.ts";
 import config from "../config.ts";
 import { hashPassword, verifyPassword } from "../util/hash.ts";
 import { type IUserRepository } from "../prisma/users.ts";
-import { applyDbError } from "./common.ts";
+import { applyDbError, commonPasswordSchema } from "./common.ts";
 import { generateJwtTokenPair, validateRefreshToken } from "../util/jwt.ts";
 import type { IRoleRepository } from "../prisma/roles.ts";
 import { genericJwtHandler } from "../middleware/auth.ts";
+import { generateRandomName } from "../util/name.ts";
 
 // TODO: clarify if need to be specifically university email
 export const registrationSchema = z.object({
     email: z.email("A valid email is required")
         .max(254),
-    password: z.string()
-        .min(config.password.minLength, `Password must be at least ${config.password.minLength} characters`)
-        .refine(
-            s => analysePasswordCategories(s).uniqueCategoriesPresent >= config.password.minUniqueCategories,
-            `Password must contain at least ${config.password.minUniqueCategories} unique categories`
-        )
-        .max(128),
+    password: commonPasswordSchema,
 });
 
 export const loginSchema = z.object({
@@ -46,9 +41,10 @@ export class AuthController {
     async registerUser(ctx: RouterContext<"/register">) {
         const body = ctx.state.validatedBody as z.output<typeof registrationSchema>;
         const hashedPassword = await hashPassword(body.password);
+        const defaultNickname = generateRandomName();
         try {
             // FIXME: how to handle transaction with this pattern while still allowing for mocking?
-            const registeredUser = await this.userRepo.registerUser(body.email, hashedPassword);
+            const registeredUser = await this.userRepo.registerUser(body.email, hashedPassword, defaultNickname);
             await this.roleRepo.assignRoles(registeredUser!.id, new Set(config.user.defaultRoles));
             ctx.response.body = "registration success";
         } catch (e) {

@@ -31,7 +31,8 @@ const config = {
         issuer: 'user-service',
     },
     user: {
-        defaultRoles: [Role.Courier, Role.Requestor]
+        defaultRoles: [Role.Courier, Role.Requestor],
+        nicknameMaxLength: 25,
     },
     dbConnectionString,
 };

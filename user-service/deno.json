@@ -1,7 +1,8 @@
 {
   "nodeModulesDir": "auto",
   "imports": {
-    "@oak/oak": "jsr:@oak/oak@^17.2.0"
+    "@oak/oak": "jsr:@oak/oak@^17.2.0",
+    "@std/path": "jsr:@std/path@^1.1.6"
   },
   "allowScripts": ["npm:argon2@0.45.1", "npm:esbuild@0.28.2", "npm:msgpackr-extract@3.0.4", "npm:workerd@1.20260704.1"]
 }

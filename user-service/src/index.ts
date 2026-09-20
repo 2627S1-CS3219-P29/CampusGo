@@ -5,6 +5,7 @@ import log from "./log.ts";
 import { seedEssential } from "./prisma/seed.ts";
 import createUserRouter from "./routes/user.ts";
 import { oakCors } from "https://deno.land/x/cors/mod.ts";
+import createRoleRouter from "./routes/role.ts";
 
 
 const port = Number(Deno.env.get("PORT") ?? 3000);
@@ -22,6 +23,7 @@ const createPublicRouter = () => {
     });
     router.use(createAuthRouter().routes());
     router.use(createUserRouter().routes());
+    router.use(createRoleRouter().routes());
     return router;
 };
 

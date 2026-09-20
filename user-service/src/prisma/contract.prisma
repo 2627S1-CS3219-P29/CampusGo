@@ -5,10 +5,10 @@ model User {
     email String @unique
     hashedPassword String
 
-    // TODO: profile picture (other profile details), requires s3 presigned storage
+    // TODO: profile picture, requires s3 presigned storage
     // profilePictureFileHash String?
-    // nickname String?
-    // contact String?
+    nickname String
+    contact String?
     
     createdAt TimestamptzString @default(now())
     

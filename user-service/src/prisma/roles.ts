@@ -8,6 +8,8 @@ export type RawRoleRecord = typeof db.orm.public.Role._row;
 export interface IRoleRepository {
     findRolesByName(roles: ReadonlySet<Role>): Promise<RoleMapping>;
     assignRoles(userId: number, roles: ReadonlySet<Role>): Promise<void>;
+    removeRoles(userId: number, roles: ReadonlySet<Role>): Promise<void>;
+    listRoles(): Promise<Role[]>;
 }
 
 export enum Role {
@@ -40,7 +42,7 @@ export const findRolesByName = async (roles: ReadonlySet<Role>): Promise<RoleMap
         throw new DbError({
             status: ErrorType.Unknown,
             isUserFault: false,
-            message: `unknown role supplied: ${roles}, found: ${JSON.stringify(foundRoles)}`
+            message: `unknown role supplied: ${roles}, found: ${foundRoles.map(r => r.name)}`
         });
     }
     // this should never throw unless the database is broken
@@ -67,7 +69,7 @@ export const assignRoles = async (userId: number, roles: ReadonlySet<Role>): Pro
         try {
             await db.orm.public.UserRole.upsert({
                 create: { userId, roleId },
-                update: {}
+                update: {},
             });
         } catch (e) {
             throw new DbError({
@@ -76,6 +78,42 @@ export const assignRoles = async (userId: number, roles: ReadonlySet<Role>): Pro
                 message: `unknown error: ${e}`
             });
         }
+    }
+};
+
+/**
+ * Missing role assignments are ignored
+ */
+export const removeRoles = async (userId: number, roles: ReadonlySet<Role>): Promise<void> => {
+    if (roles.size === 0)
+        return;
+
+    const desiredRoles = await findRolesByName(roles);
+    try {
+        for (const roleId of Object.values(desiredRoles)) {
+            await db.orm.public.UserRole
+                .where({ userId, roleId })
+                .delete();
+        }
+    } catch (e) {
+        throw new DbError({
+            status: ErrorType.Unknown,
+            isUserFault: false,
+            message: `unknown error: ${e}`
+        });
+    }
+};
+
+export const listRoles = async (): Promise<Role[]> => {
+    try {
+        const rawRoles = await db.orm.public.Role.all();
+        return rawRoles.map(fromRawRoleThrows);
+    } catch (e) {
+        throw new DbError({
+            status: ErrorType.Unknown,
+            isUserFault: false,
+            message: `unknown error: ${e}`
+        });
     }
 };
 
@@ -100,5 +138,7 @@ export const seedRoles = async (): Promise<void> => {
 const RoleRepo: IRoleRepository = {
     assignRoles,
     findRolesByName,
+    listRoles,
+    removeRoles,
 };
 export default RoleRepo;
