@@ -46,3 +46,9 @@ microservice (`user-service/`, `supplier-service/`, `order-service/`,
   one-service-per-folder skeleton** for core implementation.
 
 ---
+
+## Running
+the docker compose file is structured around splitting dev and production
+
+you can run dev via `docker compose --profile dev up -d --build`
+
