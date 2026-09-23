@@ -10,6 +10,17 @@
         <v-list-item to="/" prepend-icon="mdi-home" title="Dashboard" />
         <v-list-item to="/login" prepend-icon="mdi-lock" title="Login" />
       </v-list>
+
+      <template #append>
+        <v-list density="compact" nav>
+          <v-list-item
+            prepend-icon="mdi-account-circle"
+            title="Profile"
+            to="/profile"
+          />
+        </v-list>
+      </template>
+
     </v-navigation-drawer>
 
     <v-app-bar :order="-1">

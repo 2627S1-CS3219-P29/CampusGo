@@ -8,6 +8,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import Dashboard from '@/pages/dashboard.vue'
 import Login from '@/pages/login.vue'
+import Profile from '@/pages/profile.vue'
 import DashboardNavBar from '@/components/DashboardNavBar.vue'
 import { useAuthStore } from '@/stores/auth';
 import { watch } from 'vue';
@@ -18,6 +19,7 @@ const routes: RouteRecordRaw[] = [
         component: DashboardNavBar,
         children: [
             { path: "", name: "dashboard", component: Dashboard },
+            { path: "profile", name: "profile", component: Profile },
         ],
         meta: { isAuthRequired: true }
     },
