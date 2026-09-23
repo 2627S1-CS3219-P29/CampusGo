@@ -1,8 +1,22 @@
 <script lang="ts" setup>
+
+// TODO: Get the logged-in user’s ID from your authentication state.
+// Fetch their existing details with GET /public/user/${userId}.
+// Populate the form with those details.
+// On Save, validate and send the changes to PUT /public/user/${userId}
+
   import { ref } from 'vue'
   import { z } from 'zod'
+  import { useAuthStore } from '@/stores/auth'
+  import http from '@/api/http'
+  import type { UserProfile } from '@/api/user'
+  import { getUser } from '@/api/user'
+  import { updateUser } from '@/api/user'
+  import { onMounted } from 'vue'
 
+  const auth = useAuthStore()
   const NICKNAME_MAX_LENGTH = 25
+  let userId: string
 
   const profileSchema = z.object({
     nickname: z.string().max(25, 'Name must be 25 characters or fewer.'),
@@ -12,18 +26,37 @@
   const errors = ref<Record<string, string>>({})
 
   const fields = ref([
-    { id: 'name', label: 'Name', type: 'text', value: 'test' },
-    { id: 'email', label: 'Email', type: 'email', value: 'dasdsa' },
-    { id: 'phone', label: 'Phone', type: 'tel', value: 'dasdas' },
+    { id: 'name', label: 'Name', type: 'text', value: '' },
+    { id: 'email', label: 'Email', type: 'email', value: '' },
+    { id: 'phone', label: 'Phone', type: 'tel', value: '' },
   ])
 
   const isEditable = ref(false)
+
+  async function loadProfile(): Promise<void> {
+    if (!auth.userId) return
+
+    try {
+      userId = auth.userId
+      const user: UserProfile = await getUser(userId)
+
+      for (const field of fields.value) {
+        if (field.id === 'name') field.value = user.nickname
+        if (field.id === 'email') field.value = user.email
+        if (field.id === 'phone') field.value = user.contact ?? ''
+      }
+    } catch (error) {
+      console.error('Error loading profile', error)
+    }
+  }
+
+  onMounted(loadProfile)
 
   function handleEdit(): void {
     isEditable.value = true
   }
 
-  function handleSave(): void {
+  async function handleSave(): void {
     errors.value = {}
 
     const result = profileSchema.safeParse({
@@ -38,9 +71,13 @@
       }
       return
     }
-    // TODO: send result.data to PUT /user/:id.
-    // It contains { nickname, contact }.
-    // Exit edit mode only after the API request succeeds.
+
+    try {
+      await updateUser(userId, result.data)
+    } catch (error) {
+      console.error('Error updating user', error)
+    }
+    isEditable.value = false
   }
 
 </script>
@@ -49,7 +86,7 @@
   <main class="min-h-full bg-gray-50 px-4 py-8">
     <section
       aria-labelledby="profile-heading"
-      class="mx-auto max-w-xl rounded-2xl bg-white p-6 shadow-sm"
+      class="mx-auto max-w-xl rounded-2xl bg-white p-6 pb-6 shadow-sm"
     >
 
       <div class="flex flex-row align-center justify-between bg-white">
@@ -78,6 +115,8 @@
           <input
             :id="field.id"
             v-model="field.value"
+            :aria-describedby="errors[field.id] ? `${field.id}-error` : undefined"
+            :aria-invalid="Boolean(errors[field.id])"
             class="
               w-full rounded-lg border border-solid border-gray-300 bg-white
               px-3 py-2.5 text-base text-gray-900
@@ -92,15 +131,24 @@
 
         </div>
       </div>
-      <div class="mt-8 flex justify-end">
-        <v-btn
-          color="primary"
-          :disabled="!isEditable"
-          type="button"
-          @click="handleSave"
-        >
-          Save
-        </v-btn>
+
+      <div class="flex flex-row justify-between">
+        <div class="mt-8 text-red-600">
+          <span v-for="(error, fieldId) in errors" :key="fieldId" class="block">
+            {{ error }}
+          </span>
+        </div>
+
+        <div class="mt-8 flex justify-end">
+          <v-btn
+            color="primary"
+            :disabled="!isEditable"
+            type="button"
+            @click="handleSave"
+          >
+            Save
+          </v-btn>
+        </div>
       </div>
     </section>
   </main>
