@@ -1,0 +1,10 @@
+{
+    "imports": {
+        "@oak/oak": "jsr:@oak/oak@^17.2.0",
+        "@std/csv": "jsr:@std/csv@1.0.4",
+        "@std/path": "jsr:@std/"
+    },
+    "tasks": {
+        "dev": "deno run -A --watch src/index.ts"
+    }
+}
