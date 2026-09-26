@@ -1,6 +1,5 @@
 import { type RouterContext } from "@oak/oak";
 import { z } from "zod";
-import { analysePasswordCategories } from "../util/password.ts";
 import config from "../config.ts";
 import { hashPassword, verifyPassword } from "../util/hash.ts";
 import { type IUserRepository } from "../prisma/users.ts";
@@ -12,13 +11,12 @@ import { generateRandomName } from "../util/name.ts";
 
 // TODO: clarify if need to be specifically university email
 export const registrationSchema = z.object({
-    email: z.email("A valid email is required")
-        .max(254),
+    email: z.email("A valid email is required").max(254).toLowerCase(),
     password: commonPasswordSchema,
 });
 
 export const loginSchema = z.object({
-    email: z.email("A valid email is required").max(254),
+    email: z.email("A valid email is required").max(254).toLowerCase(),
     password: z.string().max(128),
 });
 
@@ -32,7 +30,7 @@ const GENERIC_LOGIN_ERROR = "supplied email/password is incorrect";
 export class AuthController {
     userRepo: IUserRepository;
     roleRepo: IRoleRepository;
-    
+
     constructor(userRepo: IUserRepository, roleRepo: IRoleRepository) {
         this.userRepo = userRepo;
         this.roleRepo = roleRepo;
@@ -79,7 +77,7 @@ export class AuthController {
 
     async refreshToken(ctx: RouterContext<"/refresh">) {
         const body = ctx.state.validatedBody as z.output<typeof refreshTokenSchema>;
-        
+
         const reqRefreshToken = await validateRefreshToken(body.refreshToken);
         const decodedToken = genericJwtHandler(ctx, reqRefreshToken);
         if (!decodedToken)
@@ -105,7 +103,7 @@ export class AuthController {
         } catch (e) {
             applyDbError(ctx, e);
         }
-        
+
     }
 
     // TODO: /logout: blacklist refresh token, let access token expire. also handle in refreshToken
