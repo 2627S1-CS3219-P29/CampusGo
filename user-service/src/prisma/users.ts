@@ -30,8 +30,9 @@ export interface IUserRepository {
 const viewProfileValidFields: Parameters<typeof db.orm.public.User.select> = ["id", "email", "createdAt", "nickname", "contact"];
 
 export const registerUser = async (email: string, hashedPassword: string, nickname: string): Promise<RawUserRecord> => {
+    const emailLowercased = email.toLowerCase();
     try {
-        const user = await db.orm.public.User.create({ email, hashedPassword, nickname });
+        const user = await db.orm.public.User.create({ email: emailLowercased, hashedPassword, nickname });
         log.debug(`email was registered: ${email}`);
         return user;
     } catch (e) {
@@ -54,8 +55,9 @@ export const registerUser = async (email: string, hashedPassword: string, nickna
 };
 
 export const getUserByEmail = async (email: string): Promise<UserWithRoles | null> => {
+    const emailLowercased = email.toLowerCase();
     try {
-        const user = await db.orm.public.User.where({ email })
+        const user = await db.orm.public.User.where({ email: emailLowercased })
             .include("roles")
             .first();
         if (!user)
@@ -189,4 +191,4 @@ const repo: IUserRepository = {
     listUsers,
     updateUserPassword,
 };
-export default repo;    
+export default repo;
