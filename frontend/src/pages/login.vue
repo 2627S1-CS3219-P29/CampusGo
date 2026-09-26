@@ -205,6 +205,7 @@
 <script setup lang="ts">
 import { analysePasswordCategories } from '@/util/password'
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { z } from 'zod'
 import { register } from "@/api/auth";
 import { formatApiError } from '@/util/zodErrorFormatter';
@@ -303,7 +304,7 @@ onBeforeUnmount(() => {
 
 watch(mode, () => nextTick(syncHeight));
 
-// ui actions 
+// ui actions
 function notify(color: 'error' | 'success', text: string) {
   snackbar.color = color;
   snackbar.text = text;
@@ -335,6 +336,14 @@ function goToLogin() {
 // integration
 const authStore = useAuthStore();
 const router = useRouter();
+const route = useRoute();
+
+onMounted(() => {
+  if (route.query.message === 'logged-out') {
+    notify('success', 'Successfully logged out.');
+    router?.replace({ name: 'login' });
+  }
+});
 
 async function handleLogin() {
   const errors = validate(loginSchema, loginForm);

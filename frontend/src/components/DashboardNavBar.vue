@@ -9,6 +9,7 @@
       <v-list density="compact" nav>
         <v-list-item to="/" prepend-icon="mdi-home" title="Dashboard" />
         <v-list-item to="/login" prepend-icon="mdi-lock" title="Login" />
+        <v-list-item to="/logout" prepend-icon="mdi-logout" title="Logout" />
       </v-list>
     </v-navigation-drawer>
 
