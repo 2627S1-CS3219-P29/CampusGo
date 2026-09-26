@@ -20,7 +20,14 @@ export const useAuthStore = defineStore("auth", () => {
     }
 
     const logout = async () => {
-        tokenStorage.clearTokens();
+        const refresh = refreshToken.value;
+            try {
+                if (refresh) await AuthApi.logout(refresh);
+            } catch (error) {
+                console.error('Failed to revoke refresh token on server', error);
+            } finally {
+                tokenStorage.clearTokens();
+            }
     }
 
     return { accessToken, refreshToken, isAuthenticated, login, logout };

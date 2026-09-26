@@ -8,6 +8,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import Dashboard from '@/pages/dashboard.vue'
 import Login from '@/pages/login.vue'
+import Logout from '@/pages/logout.vue'
 import DashboardNavBar from '@/components/DashboardNavBar.vue'
 import { useAuthStore } from '@/stores/auth';
 import { watch } from 'vue';
@@ -22,6 +23,7 @@ const routes: RouteRecordRaw[] = [
         meta: { isAuthRequired: true }
     },
     { path: '/login', name: "login", component: Login },
+    { path: '/logout', name: "logout", component: Logout },
 ];
 
 const router = createRouter({

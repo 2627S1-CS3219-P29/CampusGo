@@ -7,6 +7,8 @@ import createUserRouter from "./routes/user.ts";
 import { oakCors } from "https://deno.land/x/cors/mod.ts";
 import createRoleRouter from "./routes/role.ts";
 
+const dbConnectionString = Deno.env.get("DATABASE_URL");
+console.log(dbConnectionString)
 
 const port = Number(Deno.env.get("PORT") ?? 3000);
 log.info(`starting on port ${port}`);
