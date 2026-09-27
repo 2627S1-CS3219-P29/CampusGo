@@ -2,7 +2,9 @@
 
 export enum ErrorType {
     Unknown,
-    ConstraintViolation
+    ConstraintViolation,
+    NotFound,
+    Custom,
 };
 
 export interface Params {

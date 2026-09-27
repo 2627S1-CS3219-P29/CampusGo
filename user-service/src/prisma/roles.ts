@@ -7,6 +7,7 @@ export type RawRoleRecord = typeof db.orm.public.Role._row;
 
 export interface IRoleRepository {
     findRolesByName(roles: ReadonlySet<Role>): Promise<RoleMapping>;
+    assignAdminByInvite(userId: number, code: string): Promise<void>;
     assignRoles(userId: number, roles: ReadonlySet<Role>): Promise<void>;
     removeRoles(userId: number, roles: ReadonlySet<Role>): Promise<void>;
     listRoles(): Promise<Role[]>;
@@ -51,6 +52,71 @@ export const findRolesByName = async (roles: ReadonlySet<Role>): Promise<RoleMap
             status: ErrorType.Unknown,
             isUserFault: false,
             message: `${e}`
+        });
+    }
+};
+
+/**
+ * Enforces constraint that:
+ *   - user cannot be already an admin
+ *   - code is not expired and exists
+ *   - code is not already used
+ */
+export const assignAdminByInvite = async (userId: number, code: string): Promise<void> => {
+    const adminRoleId = (await findRolesByName(new Set([Role.Admin]))).admin!;
+
+    try {
+        const inviteEntry = await db.orm.public.AdminInviteCode.where({ code }).first();
+        if (!inviteEntry) {
+            // invalid invite id
+            throw new DbError({
+                status: ErrorType.NotFound,
+                isUserFault: true,
+                message: `unknown invite code supplied: ${code}`
+            });
+        }
+
+        const codeExpiresAt = new Date(inviteEntry.expiresAt);
+        const timeNow = Date.now();
+        // do not concern ourselves with edge case of expiry after this block, it is reasonable enough behaviour as is
+        if (timeNow > codeExpiresAt.getTime()) {
+            // expired invite
+            throw new DbError({
+                status: ErrorType.Custom,
+                isUserFault: true,
+                message: `supplied code is expired: ${code}`
+            });
+        }
+
+        const plan = db.raw.sql`
+            INSERT INTO "userRole" ("userId", "roleId", "sourceInviteId")
+            SELECT ${userId}, ${adminRoleId}, ${inviteEntry.id}
+            FROM "adminInviteCode"
+            WHERE "adminInviteCode".id = ${inviteEntry.id}
+                AND NOT EXISTS (
+                    SELECT 1 
+                    FROM "userRole"
+                    WHERE ("userRole"."userId" = ${userId} AND "userRole"."roleId" = ${adminRoleId})
+                        OR "userRole"."sourceInviteId" = ${inviteEntry.id}
+                );
+        `.affectedCount().build();
+
+        const { affectedRows } = await db.runtime().execute(plan);
+        if (affectedRows === 0) {
+            // user was either already admin (race condition), or invite was already taken (more likely)
+            throw new DbError({
+                status: ErrorType.Custom,
+                isUserFault: true,
+                message: `invite code was either used, or you were already an admin`
+            });
+        }
+    } catch (e) {
+        if (e instanceof DbError)
+            throw e;
+        throw new DbError({
+            status: ErrorType.Unknown,
+            isUserFault: false,
+            message: `unknown error: ${e}`
         });
     }
 };
@@ -134,5 +200,6 @@ const RoleRepo: IRoleRepository = {
     findRolesByName,
     listRoles,
     removeRoles,
+    assignAdminByInvite,
 };
 export default RoleRepo;

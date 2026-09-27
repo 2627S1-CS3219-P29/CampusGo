@@ -41,10 +41,10 @@
                   "kind": "scalar"
                 }
               },
-              "createdById": {
-                "nullable": true,
+              "expiresAt": {
+                "nullable": false,
                 "type": {
-                  "codecId": "pg/int4@1",
+                  "codecId": "pg/timestamptz-string@1",
                   "kind": "scalar"
                 }
               },
@@ -72,22 +72,6 @@
                   "model": "UserRole",
                   "namespace": "public"
                 }
-              },
-              "createdBy": {
-                "cardinality": "N:1",
-                "nullable": true,
-                "on": {
-                  "localFields": [
-                    "createdById"
-                  ],
-                  "targetFields": [
-                    "id"
-                  ]
-                },
-                "to": {
-                  "model": "User",
-                  "namespace": "public"
-                }
               }
             },
             "storage": {
@@ -98,8 +82,8 @@
                 "createdAt": {
                   "column": "createdAt"
                 },
-                "createdById": {
-                  "column": "createdById"
+                "expiresAt": {
+                  "column": "expiresAt"
                 },
                 "id": {
                   "column": "id"
@@ -394,10 +378,10 @@
                   "nativeType": "timestamptz",
                   "nullable": false
                 },
-                "createdById": {
-                  "codecId": "pg/int4@1",
-                  "nativeType": "int4",
-                  "nullable": true
+                "expiresAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "nativeType": "timestamptz",
+                  "nullable": false
                 },
                 "id": {
                   "codecId": "pg/int4@1",
@@ -409,34 +393,8 @@
                   "nullable": false
                 }
               },
-              "foreignKeys": [
-                {
-                  "source": {
-                    "columns": [
-                      "createdById"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "adminInviteCode"
-                  },
-                  "target": {
-                    "columns": [
-                      "id"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "user"
-                  }
-                }
-              ],
-              "indexes": [
-                {
-                  "columns": [
-                    "createdById"
-                  ],
-                  "name": "adminInviteCode_createdById_idx_8bf640ed",
-                  "prefix": "adminInviteCode_createdById_idx",
-                  "unique": false
-                }
-              ],
+              "foreignKeys": [],
+              "indexes": [],
               "primaryKey": {
                 "columns": [
                   "id"
@@ -653,7 +611,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "4c198ee56b90b41ca3323af7fd68efc30a95542bf47f850b39281b8581b3b744"
+    "storageHash": "d4c4121ef37cfa7704c3900b2c4b10801f1ed6be786ca13d8f67985a4d00abfb"
   },
   "capabilities": {
     "postgres": {

@@ -43,7 +43,7 @@ describe("AuthController.registerUser", () => {
         const hasher = makeHasher({
             hashPassword: async (pw: string) => `hashed:${pw}`,
         });
-        const controller = new AuthController(userRepo, roleRepo, hasher, {} as never);
+        const controller = new AuthController(userRepo, roleRepo, {} as never, hasher, {} as never, {} as never);
         const ctx = new FakeCtx({
             validatedBody: { email: TEST_EMAIL, password: TEST_PASSWORD },
         });
@@ -66,7 +66,7 @@ describe("AuthController.registerUser", () => {
         });
         const roleRepo = makeRoleRepo();
         const hasher = makeHasher();
-        const controller = new AuthController(userRepo, roleRepo, hasher, {} as never);
+        const controller = new AuthController(userRepo, roleRepo, {} as never, hasher, {} as never, {} as never);
         const ctx = new FakeCtx({
             validatedBody: { email: TEST_EMAIL, password: TEST_PASSWORD },
         });
@@ -84,7 +84,7 @@ describe("AuthController.login", () => {
             getUserByEmail: spy(async () => null),
         });
         const hasher = makeHasher();
-        const controller = new AuthController(userRepo, makeRoleRepo(), hasher, {} as never);
+        const controller = new AuthController(userRepo, makeRoleRepo(), {} as never, hasher, {} as never, {} as never);
         const ctx = new FakeCtx({
             validatedBody: { email: MISSING_EMAIL, password: TEST_PASSWORD },
         });
@@ -102,7 +102,7 @@ describe("AuthController.login", () => {
         const hasher = makeHasher({
             verifyPassword: async () => false,
         });
-        const controller = new AuthController(userRepo, makeRoleRepo(), hasher, {} as never);
+        const controller = new AuthController(userRepo, makeRoleRepo(), {} as never, hasher, {} as never, {} as never);
         const ctx = new FakeCtx({
             validatedBody: { email: TEST_EMAIL, password: WRONG_PASSWORD },
         });
@@ -123,7 +123,7 @@ describe("AuthController.login", () => {
         });
         const jwtGenTokens = spy(async () => DEFAULT_TOKEN_PAIR);
         const jwtService = makeJwtService({ generateJwtTokenPair: jwtGenTokens });
-        const controller = new AuthController(userRepo, makeRoleRepo(), hasher, jwtService);
+        const controller = new AuthController(userRepo, makeRoleRepo(), {} as never, hasher, jwtService, {} as never);
 
         const ctx = new FakeCtx({
             validatedBody: { email: TEST_EMAIL, password: CORRECT_PASSWORD },
@@ -141,7 +141,7 @@ describe("AuthController.refreshToken", () => {
         const jwtService = makeJwtService({
             validateRefreshToken: async () => ({ success: false, error: "INVALID" }),
         });
-        const controller = new AuthController(makeUserRepo(), makeRoleRepo(), makeHasher(), jwtService);
+        const controller = new AuthController(makeUserRepo(), makeRoleRepo(), {} as never, makeHasher(), jwtService, {} as never);
         const ctx = new FakeCtx({
             validatedBody: { refreshToken: INVALID_REFRESH_TOKEN },
         });
@@ -156,7 +156,7 @@ describe("AuthController.refreshToken", () => {
         const jwtService = makeJwtService({
             validateRefreshToken: async () => ({ success: false, error: "EXPIRED" }),
         });
-        const controller = new AuthController(makeUserRepo(), makeRoleRepo(), makeHasher(), jwtService);
+        const controller = new AuthController(makeUserRepo(), makeRoleRepo(), {} as never, makeHasher(), jwtService, {} as never);
         const ctx = new FakeCtx({
             validatedBody: { refreshToken: EXPIRED_REFRESH_TOKEN },
         });
@@ -172,7 +172,7 @@ describe("AuthController.refreshToken", () => {
             validateRefreshToken: async () => validJwtTokenResult,
         });
         const userRepo = makeUserRepo({ getUserByIdPublic: spy(async () => null) });
-        const controller = new AuthController(userRepo, makeRoleRepo(), makeHasher(), jwtService);
+        const controller = new AuthController(userRepo, makeRoleRepo(), {} as never, makeHasher(), jwtService, {} as never);
         const ctx = new FakeCtx({
             validatedBody: { refreshToken: VALID_REFRESH_TOKEN },
         });
@@ -194,7 +194,7 @@ describe("AuthController.refreshToken", () => {
         const userRepo = makeUserRepo({
             getUserByIdPublic: spy(async () => publicUser),
         });
-        const controller = new AuthController(userRepo, makeRoleRepo(), makeHasher(), jwtService);
+        const controller = new AuthController(userRepo, makeRoleRepo(), {} as never, makeHasher(), jwtService, {} as never);
         const ctx = new FakeCtx({
             validatedBody: { refreshToken: VALID_REFRESH_TOKEN },
         });
