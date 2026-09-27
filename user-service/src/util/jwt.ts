@@ -1,6 +1,6 @@
 import * as jose from "jose";
 import config from "../config.ts";
-import type { Role } from "../prisma/roles.ts";
+import type { Role } from "../prisma/common.ts";
 
 type KeyBytes = Uint8Array<ArrayBuffer>;
 
@@ -8,14 +8,25 @@ type KeyBytes = Uint8Array<ArrayBuffer>;
 const accessKey = await new TextEncoder().encode(config.jwt.accessKey);
 const refreshKey = await new TextEncoder().encode(config.jwt.refreshKey);
 
-/**
- * Generates a pair of JWT tokens (Access and Refresh) for a user.
- *
- * @param userId - The unique identifier of the user being authenticated.
- * @param userRoles - Array of string roles assigned to the user (embedded in accessToken).
- * @returns Object containing both the Access Token and Refresh Token.
- */
-export async function generateJwtTokenPair(userId: string, userRoles: Role[]) {
+export interface JwtTokenPair {
+    accessToken: string;
+    refreshToken: string;
+}
+
+export interface IJwtService {
+    /**
+     * Generates a pair of JWT tokens (Access and Refresh) for a user.
+     *
+     * @param userId - The unique identifier of the user being authenticated.
+     * @param userRoles - Array of string roles assigned to the user (embedded in accessToken).
+     * @returns Object containing both the Access Token and Refresh Token.
+     */
+    generateJwtTokenPair(userId: string, userRoles: Role[]): Promise<JwtTokenPair>;
+    validateAccessToken(token: string): Promise<ValidationResult>;
+    validateRefreshToken(token: string): Promise<ValidationResult>;
+}
+
+async function generateJwtTokenPair(userId: string, userRoles: Role[]) {
     const accessToken = await new jose.SignJWT({ role: userRoles })
         .setProtectedHeader({ alg: 'HS256' })
         .setSubject(userId)
@@ -52,10 +63,16 @@ const tokenValidationHelper = async (token: string, key: KeyBytes): Promise<Vali
     }
 };
 
-export function validateAccessToken(token: string): Promise<ValidationResult> {
+function validateAccessToken(token: string): Promise<ValidationResult> {
     return tokenValidationHelper(token, accessKey);
 }
 
-export function validateRefreshToken(token: string): Promise<ValidationResult> {
+function validateRefreshToken(token: string): Promise<ValidationResult> {
     return tokenValidationHelper(token, refreshKey);
 }
+
+export const defaultJwtService: IJwtService = {
+    generateJwtTokenPair,
+    validateAccessToken,
+    validateRefreshToken,
+};

@@ -1,6 +1,7 @@
 import type { RouterContext } from "@oak/oak";
-import { validateAccessToken, type ValidationResult } from "../util/jwt.ts";
-import { fromRawRole, type Role } from "../prisma/roles.ts";
+import { defaultJwtService, type IJwtService, type ValidationResult } from "../util/jwt.ts";
+import { fromRawRole } from "../prisma/roles.ts";
+import type { Role } from "../prisma/common.ts";
 
 /**
  * Chcecks if user roles has enough to cover everything in rolesRequired.
@@ -28,14 +29,7 @@ export const genericJwtHandler = <R extends string>(ctx: RouterContext<R>, valid
     return validationResult;
 }
 
-/**
- * On success, decoded jwt payload is in `ctx.state.jwtPayload`
- * - `401` when `Authorization` header is missing, not a `Bearer` token or token is expired/malformed.
- * - `403` when defined roles are not met by user
- *
- * @param rolesRequired Token must have at least these roles to be authorised
- */
-export const authenticationMiddleware = (rolesRequired: ReadonlySet<Role>) =>
+export const authenticationMiddlewareWithJwtProvider = (jwtService: IJwtService, rolesRequired: ReadonlySet<Role>) =>
     async <R extends string>(ctx: RouterContext<R>, next: () => Promise<unknown>) => {
         const authHeader = ctx.request.headers.get("authorization");
         if (!authHeader?.startsWith('Bearer ')) {
@@ -45,7 +39,7 @@ export const authenticationMiddleware = (rolesRequired: ReadonlySet<Role>) =>
         }
 
         const bearerToken = authHeader.slice("Bearer ".length).trim();
-        const validationResult = await validateAccessToken(bearerToken);
+        const validationResult = await jwtService.validateAccessToken(bearerToken);
         const decodedJwt = genericJwtHandler(ctx, validationResult);
         if (!decodedJwt)
             return;
@@ -53,7 +47,7 @@ export const authenticationMiddleware = (rolesRequired: ReadonlySet<Role>) =>
         const parsedRoles = userRoles.map(fromRawRole).filter(r => r !== null);
         const isAuthorisedAction = checkSufficientPrivileges(rolesRequired, parsedRoles);
         decodedJwt.payload.role = parsedRoles; // now this is actually ensured to be valid
-        
+
         ctx.state.jwtPayload = decodedJwt.payload;
         if (!isAuthorisedAction) {
             ctx.response.status = 403;
@@ -62,3 +56,13 @@ export const authenticationMiddleware = (rolesRequired: ReadonlySet<Role>) =>
         }
         await next();
     };
+
+/**
+ * On success, decoded jwt payload is in `ctx.state.jwtPayload`
+ * - `401` when `Authorization` header is missing, not a `Bearer` token or token is expired/malformed.
+ * - `403` when defined roles are not met by user
+ *
+ * @param rolesRequired Token must have at least these roles to be authorised
+ */
+export const authenticationMiddleware = (rolesRequired: ReadonlySet<Role>) =>
+    authenticationMiddlewareWithJwtProvider(defaultJwtService, rolesRequired);

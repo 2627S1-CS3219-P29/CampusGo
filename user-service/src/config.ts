@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { Role } from "./prisma/roles.ts";
+import { Role } from "./prisma/common";
 
 function required(name: string): string {
     const value = process.env[name];
