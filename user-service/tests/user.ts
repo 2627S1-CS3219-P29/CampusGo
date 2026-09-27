@@ -5,7 +5,7 @@ import { describe, it } from "@std/testing/bdd";
 import { assertEquals } from "@std/assert";
 import { spy, stub } from "@std/testing/mock";
 import { UserController } from "../src/controller/user.ts";
-import { ADMIN_PAYLOAD, FakeCtx, makePublicUser, makeRoleRepo, makeUserRepo, TEST_REQUESTOR_ID, USER_PAYLOAD } from "./util.ts";
+import { ADMIN_PAYLOAD, FakeCtx, makePublicUser, makeRoleRepo, makeUserRepo, TEST_ADMIN_ID, TEST_REQUESTOR_ID, USER_PAYLOAD } from "./util.ts";
 import { JWTPayload } from "jose";
 import { IRoleRepository } from "../src/prisma/roles.ts";
 import { IUserRepository } from "../src/prisma/users.ts";
@@ -73,6 +73,22 @@ describe("UserController.getUser", () => {
         assertEquals(ctx.response.body, publicUser);
     });
 
+    it("allows an admin to access another admin's record", async () => {
+        const adminUser = makePublicUser(Number(OTHER_USER_ID), { roles: [Role.Admin] });
+        const userRepo = makeUserRepo({
+            getUserByIdPublic: spy(async () => adminUser),
+        });
+        const controller = new UserController(userRepo, {} as never, {} as never);
+        const ctx = new FakeCtx({
+            params: { id: OTHER_USER_ID },
+            jwtPayload: ADMIN_PAYLOAD,
+        });
+
+        await controller.getUser(ctx.asCtx());
+
+        assertEquals(ctx.response.body, adminUser);
+    });
+
     it("returns 404 when the user does not exist", async () => {
         const userRepo = makeUserRepo({
             getUserByIdPublic: spy(async () => null),
@@ -91,6 +107,7 @@ describe("UserController.getUser", () => {
 });
 
 describe("UserController.updateUserRole", () => {
+    // assumption: user is an admin, enforced by the middleware within the router
     it("allows editing valid fields on self", async () => {
         const userRepo = makeUserRepo({
             getUserByIdPublic: spy(async () => publicUser),
@@ -109,18 +126,6 @@ describe("UserController.updateUserRole", () => {
         assertEquals(ctx.response.status, 200);
         assertEquals(removeRoles.calls.length, 1);
         assertEquals(assignRoles.calls.length, 1);
-    });
-
-    it("rejects non-admin editing someone else", async () => {
-        const userController = new UserController(makeUserRepo(), {} as never, {} as never);
-        const ctx = new FakeCtx({
-            params: { id: OTHER_USER_ID },
-            jwtPayload: USER_PAYLOAD,
-            validatedBody: { [Role.Courier]: true },
-        });
-
-        await userController.updateUserRole(ctx.asCtx());
-        assertEquals(ctx.response.status, 403);
     });
 
     it("rejects self edit admin role", async () => {
