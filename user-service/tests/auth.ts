@@ -1,8 +1,11 @@
+// AI assistance (27/9/2026): deepseek
+// generated unit tests given mock functions and example tests. picked, cleaned up code and added some missing tests on top
+
 import { describe, it } from "@std/testing/bdd";
 import { assertEquals } from "@std/assert";
 import { spy, stub } from "@std/testing/mock";
 import { AuthController } from "../src/controller/auth.ts";
-import { FakeCtx, makeHasher, makeJwtService, makeRoleRepo, makeUserRepo } from "./util.ts";
+import { DEFAULT_TOKEN_PAIR, FakeCtx, makeHasher, makeJwtService, makePublicUser, makeRoleRepo, makeUserRepo, TEST_ADMIN_ID, TEST_EMAIL, TEST_HASHED_PASSWORD, TEST_PASSWORD } from "./util.ts";
 import { JWTPayload } from "jose";
 import { IRoleRepository } from "../src/prisma/roles.ts";
 import { IUserRepository } from "../src/prisma/users.ts";
@@ -10,24 +13,29 @@ import { DbError, ErrorType, Role } from "../src/prisma/common.ts";
 import config from "../src/config.ts";
 import { ValidationResult } from "../src/util/jwt.ts";
 
-const publicUser = {
-    id: 1,
-    email: "a@b.com",
-    nickname: "A",
-    contact: null,
-    createdAt: "",
-    roles: [Role.Requestor],
-};
 
-const validJwtTokenResult: ValidationResult = ({ success: true, payload: { sub: "1" } }) as never;
+const publicUser = makePublicUser(1);
+const validJwtTokenResult: ValidationResult = {
+    success: true,
+    payload: { sub: TEST_ADMIN_ID },
+} as never;
+
+const NEW_USER_ID = 10;
+const MISSING_EMAIL = "missing@example.com";
+const WRONG_PASSWORD = "wrong";
+const CORRECT_PASSWORD = "correct";
+const INVALID_REFRESH_TOKEN = "invalid token";
+const EXPIRED_REFRESH_TOKEN = "expired token";
+const VALID_REFRESH_TOKEN = "valid jwt";
+const NEW_TOKEN_PAIR = { accessToken: "newAccess", refreshToken: "newRefresh" };
 
 describe("AuthController.registerUser", () => {
     it("registers a user and assigns default roles", async () => {
         const userRepo = makeUserRepo({
             registerUser: spy(async (email: string, hashedPassword: string, nickname: string) => {
-                assertEquals(email, "test@example.com");
-                assertEquals(hashedPassword, "hashed:secret123");
-                return { id: 42 } as never;
+                assertEquals(email, TEST_EMAIL);
+                assertEquals(hashedPassword, TEST_HASHED_PASSWORD);
+                return { id: NEW_USER_ID } as never;
             }),
         });
         const assignRolesSpy = spy(async () => {});
@@ -37,13 +45,13 @@ describe("AuthController.registerUser", () => {
         });
         const controller = new AuthController(userRepo, roleRepo, hasher, {} as never);
         const ctx = new FakeCtx({
-            validatedBody: { email: "test@example.com", password: "secret123" },
+            validatedBody: { email: TEST_EMAIL, password: TEST_PASSWORD },
         });
 
         await controller.registerUser(ctx.asCtx());
 
         assertEquals(ctx.response.body, "registration success");
-        assertEquals(assignRolesSpy.calls[0].args, [42, new Set(config.user.defaultRoles)]);
+        assertEquals(assignRolesSpy.calls[0].args, [NEW_USER_ID, new Set(config.user.defaultRoles)]);
     });
 
     it("returns 400 when email is already registered", async () => {
@@ -60,7 +68,7 @@ describe("AuthController.registerUser", () => {
         const hasher = makeHasher();
         const controller = new AuthController(userRepo, roleRepo, hasher, {} as never);
         const ctx = new FakeCtx({
-            validatedBody: { email: "a@b.com", password: "secret123" },
+            validatedBody: { email: TEST_EMAIL, password: TEST_PASSWORD },
         });
 
         await controller.registerUser(ctx.asCtx());
@@ -78,7 +86,7 @@ describe("AuthController.login", () => {
         const hasher = makeHasher();
         const controller = new AuthController(userRepo, makeRoleRepo(), hasher, {} as never);
         const ctx = new FakeCtx({
-            validatedBody: { email: "missing@example.com", password: "secret" },
+            validatedBody: { email: MISSING_EMAIL, password: TEST_PASSWORD },
         });
 
         await controller.login(ctx.asCtx());
@@ -96,7 +104,7 @@ describe("AuthController.login", () => {
         });
         const controller = new AuthController(userRepo, makeRoleRepo(), hasher, {} as never);
         const ctx = new FakeCtx({
-            validatedBody: { email: "a@b.com", password: "wrong" },
+            validatedBody: { email: TEST_EMAIL, password: WRONG_PASSWORD },
         });
 
         await controller.login(ctx.asCtx());
@@ -106,7 +114,6 @@ describe("AuthController.login", () => {
     });
 
     it("returns tokens on successful login", async () => {
-        const tokenPair = { accessToken: "access", refreshToken: "refresh" };
         const userRepo = makeUserRepo({
             getUserByEmail: spy(async () =>
                 ({ id: 1, hashedPassword: "hash", roles: [Role.Admin] } as never)),
@@ -114,18 +121,18 @@ describe("AuthController.login", () => {
         const hasher = makeHasher({
             verifyPassword: async () => true
         });
-        const jwtGenTokens = spy(async () => tokenPair);
+        const jwtGenTokens = spy(async () => DEFAULT_TOKEN_PAIR);
         const jwtService = makeJwtService({ generateJwtTokenPair: jwtGenTokens });
         const controller = new AuthController(userRepo, makeRoleRepo(), hasher, jwtService);
 
         const ctx = new FakeCtx({
-            validatedBody: { email: "a@b.com", password: "correct" },
+            validatedBody: { email: TEST_EMAIL, password: CORRECT_PASSWORD },
         });
 
         await controller.login(ctx.asCtx());
 
-        assertEquals(ctx.response.body, tokenPair);
-        assertEquals(jwtGenTokens.calls[0].args, ["1", [Role.Admin]]);
+        assertEquals(ctx.response.body, DEFAULT_TOKEN_PAIR);
+        assertEquals(jwtGenTokens.calls[0].args, [TEST_ADMIN_ID, [Role.Admin]]);
     });
 });
 
@@ -136,7 +143,7 @@ describe("AuthController.refreshToken", () => {
         });
         const controller = new AuthController(makeUserRepo(), makeRoleRepo(), makeHasher(), jwtService);
         const ctx = new FakeCtx({
-            validatedBody: { refreshToken: "invalid token" },
+            validatedBody: { refreshToken: INVALID_REFRESH_TOKEN },
         });
 
         await controller.refreshToken(ctx.asCtx());
@@ -151,7 +158,7 @@ describe("AuthController.refreshToken", () => {
         });
         const controller = new AuthController(makeUserRepo(), makeRoleRepo(), makeHasher(), jwtService);
         const ctx = new FakeCtx({
-            validatedBody: { refreshToken: "expired token" },
+            validatedBody: { refreshToken: EXPIRED_REFRESH_TOKEN },
         });
 
         await controller.refreshToken(ctx.asCtx());
@@ -167,7 +174,7 @@ describe("AuthController.refreshToken", () => {
         const userRepo = makeUserRepo({ getUserByIdPublic: spy(async () => null) });
         const controller = new AuthController(userRepo, makeRoleRepo(), makeHasher(), jwtService);
         const ctx = new FakeCtx({
-            validatedBody: { refreshToken: "valid jwt" },
+            validatedBody: { refreshToken: VALID_REFRESH_TOKEN },
         });
 
         await controller.refreshToken(ctx.asCtx());
@@ -179,8 +186,7 @@ describe("AuthController.refreshToken", () => {
     });
 
     it("returns a fresh token pair on success", async () => {
-        const tokenPair = { accessToken: "newAccess", refreshToken: "newRefresh" };
-        const generateJwtTokenPair = spy(async () => tokenPair);
+        const generateJwtTokenPair = spy(async () => NEW_TOKEN_PAIR);
         const jwtService = makeJwtService({
             validateRefreshToken: async () => validJwtTokenResult,
             generateJwtTokenPair,
@@ -190,12 +196,12 @@ describe("AuthController.refreshToken", () => {
         });
         const controller = new AuthController(userRepo, makeRoleRepo(), makeHasher(), jwtService);
         const ctx = new FakeCtx({
-            validatedBody: { refreshToken: "valid jwt" },
+            validatedBody: { refreshToken: VALID_REFRESH_TOKEN },
         });
 
         await controller.refreshToken(ctx.asCtx());
 
-        assertEquals(ctx.response.body, tokenPair);
-        assertEquals(generateJwtTokenPair.calls[0].args, ["1", [Role.Requestor]]);
+        assertEquals(ctx.response.body, NEW_TOKEN_PAIR);
+        assertEquals(generateJwtTokenPair.calls[0].args, [String(publicUser.id), [Role.Requestor]]);
     });
 });

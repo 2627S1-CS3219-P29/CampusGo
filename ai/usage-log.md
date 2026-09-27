@@ -21,3 +21,67 @@ provide a typescript function to nicely format an error message in bulleted form
 - Output used (login.vue): most of the template and stylesheet was copied. state code was stripped of irrelevant code (mock data), the rest of the styling code was inspected as left intact. the fancy responsive password field was too complicated so it was removed. finally, integration was done by hooking up error handling, login and register apis/stores.
 - Output used (zodErrorFormatter.ts): the second prompt was for the formatting of server side validation errors/general errors in the popup notification. the code is somewhat small and looks reasonable, so this was used with little modification.
 
+# 27/9/2026
+- Tool used: deepseek chat
+- Mode: Generation
+- Prompt:
+```
+given the following sample containing some tests in deno + typescript, write tests for the remainder of the controllers provided.
+
+CONTROLLERS, RELEVANT INTERFACES AND MIDDLEWARE ATTACHED IN CONTEXT
+
+describe("UserController.updateUserRole", () => {
+    it("admin can grant admin to another user", async () => {
+        const roleRepo  = {
+            assignRoles: spy(async () => {}),
+            removeRoles: spy(async () => {}),
+        };
+        const userRepo: Partial<IUserRepository> = {
+            // should not care about the value
+            getUserByIdPublic: spy(async (_id: number) => ({} as never))
+        };
+        const userController = new UserController(makeUserRepo(userRepo), makeRoleRepo(roleRepo), {} as never);
+        const ctx = new FakeCtx({
+            params: { id: "9" },
+            jwtPayload: adminPayload,
+            validatedBody: { [Role.Admin]: true },
+        });
+
+        await userController.updateUserRole(ctx.asCtx());
+
+        assertEquals(ctx.response.body, "updated");
+        assertEquals(roleRepo.assignRoles.calls[0].args, [9, new Set([Role.Admin])]);
+        assertEquals(roleRepo.removeRoles.calls.length, 0);
+    });
+    
+    ...
+});
+
+... MORE MANUALLY WRITTEN TESTS PASSED AS EXAMPLES
+
+// mock password hashing
+export function makeHasher(overrides: Partial<IPasswordHash> = {}): IPasswordHash {
+    return {
+        hashPassword: overrides.hashPassword ?? (async (pw: string) => `hashed:${pw}`),
+        verifyPassword: overrides.verifyPassword ?? (async () => true),
+    };
+}
+... REST OF THE MOCK GENERATING UTILITY DEFINITIONS
+```
+- Output used: tests were selectively picked from the list of generated ones. many were irrelevant and tested external library functionality (they were removed). the accepted ones were manually inspected and manually refactored to be easier to read (lots of duplicate). some additional tests that were missing were added (e.g. a user being able to edit own role)
+
+example of irrelevant tests: the other tests already cover this indirectly by failing if zod rejects them, which is dependent on the scheme
+```
+it("strips extra fields when schema is strict", async () => {
+    const strict = z.object({ name: z.string() }).strict();
+    const mw = validateBody(strict);
+    const ctx = new FakeCtx({ bodyJson: { name: "hello", extra: true } });
+    const next = spy(async () => {});
+
+    await mw(ctx.asCtx(), next);
+
+    // zod strict() rejects unknown keys — so this should 400
+    assertEquals(ctx.response.status, 400);
+    assertEquals(next.calls.length, 0);
+});
+```

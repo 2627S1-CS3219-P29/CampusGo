@@ -1,10 +1,37 @@
 import type { RouterContext } from "@oak/oak";
 import type { JWTPayload } from "jose";
-import type { IUserRepository } from "../src/prisma/users.ts";
+import type { IUserRepository, PublicUserWithRoles } from "../src/prisma/users.ts";
 import { IRoleRepository } from "../src/prisma/roles.ts";
 import { IPasswordHash } from "../src/util/hash.ts";
 import { IJwtService, JwtTokenPair, ValidationResult } from "../src/util/jwt.ts";
 import { Role } from "../src/prisma/common.ts";
+
+// common test constants
+export const TEST_EMAIL = "test@example.com";
+export const TEST_PASSWORD = "secret123";
+export const TEST_HASHED_PASSWORD = `hashed:${TEST_PASSWORD}`;
+export const TEST_NICKNAME = "A";
+export const TEST_USER_ID = 1;
+export const TEST_OTHER_USER_ID = 2;
+export const TEST_ADMIN_ID = "1";
+export const TEST_REQUESTOR_ID = "2";
+
+export const DEFAULT_TOKEN_PAIR: JwtTokenPair = { accessToken: "access", refreshToken: "refresh" };
+
+export const ADMIN_PAYLOAD: JWTPayload = { sub: TEST_ADMIN_ID, role: [Role.Admin] };
+export const USER_PAYLOAD: JWTPayload = { sub: TEST_REQUESTOR_ID, role: [Role.Requestor] };
+
+export function makePublicUser(id: number, overrides: Partial<PublicUserWithRoles> = {}): PublicUserWithRoles {
+    return {
+        id,
+        email: "a@b.com",
+        nickname: "A",
+        contact: null,
+        createdAt: "",
+        roles: [Role.Requestor],
+        ...overrides,
+    };
+}
 
 // mock password hashing
 export function makeHasher(overrides: Partial<IPasswordHash> = {}): IPasswordHash {
@@ -47,7 +74,7 @@ export const makeRoleRepo = (overrides: Partial<IRoleRepository> = {}): IRoleRep
     makeGenericMockRepo("role", overrides);
 
 // oak request/response context mocking
-type CtxOpts = {
+export type CtxOpts = {
     params?: Record<string, string>;
     jwtPayload?: JWTPayload;
     validatedBody?: unknown;
