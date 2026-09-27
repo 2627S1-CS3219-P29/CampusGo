@@ -2,6 +2,7 @@
 import log from "../log.ts";
 import { DbError, ErrorType, Role } from "./common.ts";
 import { db } from "./db.ts";
+import Constants from "./constants.ts";
 
 export type RawRoleRecord = typeof db.orm.public.Role._row;
 
@@ -65,6 +66,12 @@ export const findRolesByName = async (roles: ReadonlySet<Role>): Promise<RoleMap
 export const assignAdminByInvite = async (userId: number, code: string): Promise<void> => {
     const adminRoleId = (await findRolesByName(new Set([Role.Admin]))).admin!;
 
+    const inviteUsedOrAdminErr = () => new DbError({
+        status: ErrorType.Custom,
+        isUserFault: true,
+        message: `invite code was either used, or you were already an admin`
+    });
+
     try {
         const inviteEntry = await db.orm.public.AdminInviteCode.where({ code }).first();
         if (!inviteEntry) {
@@ -104,15 +111,17 @@ export const assignAdminByInvite = async (userId: number, code: string): Promise
         const { affectedRows } = await db.runtime().execute(plan);
         if (affectedRows === 0) {
             // user was either already admin (race condition), or invite was already taken (more likely)
-            throw new DbError({
-                status: ErrorType.Custom,
-                isUserFault: true,
-                message: `invite code was either used, or you were already an admin`
-            });
+            throw inviteUsedOrAdminErr();
         }
     } catch (e) {
         if (e instanceof DbError)
             throw e;
+        const ex = e as { sqlState?: string };
+        if (ex.sqlState == Constants.uniqueConstraintViolated) {
+            // edge case: another user uses invite after "not exists" check
+            // this will trigger a constraint error as the invite code id is unique within the col
+            throw inviteUsedOrAdminErr();
+        }
         throw new DbError({
             status: ErrorType.Unknown,
             isUserFault: false,

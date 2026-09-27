@@ -14,7 +14,7 @@ export const generateNewInviteCode = async (code: string, expiresAt: Date): Prom
         const ex = e as { sqlState?: string };
         if (ex.sqlState == Constants.uniqueConstraintViolated) {
             // this should be highly unlikely if code has very high entropy (uuid)
-            log.warn(`attempt to create duplicate invite code was blocked: ${code}`);
+            log.warn(`attempt to create duplicate invite code was blocked`);
             throw new DbError({
                 status: ErrorType.ConstraintViolation,
                 isUserFault: false,
