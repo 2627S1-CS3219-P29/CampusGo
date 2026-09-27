@@ -133,29 +133,22 @@ export class UserController {
 
 
     /**
-     * Allows user to add/remove own courier/requestor roles
      * Allows admin to (un)assign others as admin
+     * User should be disallowed from editing their own role
      * No user may not add/revoke their own admin role
      */
     async updateUserRole(ctx: RouterContext<"/:id/role">) {
         const body = ctx.state.validatedBody as z.output<typeof userUpdateRoleSchema>;
         const { id } = ctx.params;
-        const roles = ctx.state.jwtPayload.role as Role[];
+        // const roles = ctx.state.jwtPayload.role as Role[];
         const requestingUserId = parseInt((<JWTPayload>ctx.state.jwtPayload).sub!);
 
         const parsedUserId = this.validateIdCommon(ctx, id);
         if (parsedUserId === null)
             return;
 
-        const isAdmin = roles.includes(Role.Admin);
+        // user may not add/revoke their own admin role
         const isSelf = requestingUserId === parsedUserId;
-        if (!isSelf && !isAdmin) {
-            ctx.response.status = 403;
-            ctx.response.body = { error: "insufficient permissions to update user roles" };
-            return;
-        }
-
-        // No user may not add/revoke their own admin role
         if (isSelf && body[Role.Admin] !== undefined) {
             ctx.response.status = 403;
             ctx.response.body = { error: "cannot add or remove your own admin role" };

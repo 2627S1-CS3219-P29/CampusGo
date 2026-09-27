@@ -31,7 +31,7 @@ const createUserRouter = () => {
 
     router.patch(
         "/:id/role",
-        authenticationMiddleware(new Set()),
+        authenticationMiddleware(new Set([Role.Admin])),
         validateBody(userUpdateRoleSchema),
         async ctx => {
             await userController.updateUserRole(ctx);

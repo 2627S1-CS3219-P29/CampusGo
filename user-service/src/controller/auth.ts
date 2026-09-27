@@ -8,6 +8,10 @@ import type { IRoleRepository } from "../prisma/roles.ts";
 import { genericJwtHandler } from "../middleware/auth.ts";
 import { generateRandomName } from "../util/name.ts";
 import type { IJwtService } from "../util/jwt.ts";
+import type { IInviteRepository } from "../prisma/invite.ts";
+import type { IInviteCodeGenerator } from "../util/invite.ts";
+import { Role } from "../prisma/common.ts";
+import type { JWTPayload } from "jose";
 
 // TODO: clarify if need to be specifically university email
 export const registrationSchema = z.object({
@@ -24,20 +28,28 @@ export const refreshTokenSchema = z.object({
     refreshToken: z.string("Expected refresh token")
 });
 
+export const acceptInviteCodeSchema = z.object({
+    code: z.string()
+});
+
 const GENERIC_LOGIN_ERROR = "supplied email/password is incorrect";
 
 // TODO: unit testing
 export class AuthController {
     userRepo: IUserRepository;
     roleRepo: IRoleRepository;
+    inviteRepo: IInviteRepository;
     hasher: IPasswordHash;
     jwtService: IJwtService;
+    inviteGenerator: IInviteCodeGenerator
 
-    constructor(userRepo: IUserRepository, roleRepo: IRoleRepository, hasher: IPasswordHash, jwtService: IJwtService) {
+    constructor(userRepo: IUserRepository, roleRepo: IRoleRepository, inviteRepo: IInviteRepository, hasher: IPasswordHash, jwtService: IJwtService, inviteGenerator: IInviteCodeGenerator) {
         this.userRepo = userRepo;
         this.roleRepo = roleRepo;
+        this.inviteRepo = inviteRepo;
         this.hasher = hasher;
         this.jwtService = jwtService;
+        this.inviteGenerator = inviteGenerator;
     }
 
     async registerUser(ctx: RouterContext<"/register">) {
@@ -104,6 +116,43 @@ export class AuthController {
 
             const tokens = await this.jwtService.generateJwtTokenPair(user.id.toString(), user.roles);
             ctx.response.body = tokens;
+        } catch (e) {
+            applyDbError(ctx, e);
+        }
+
+    }
+
+    async generateInviteCode(ctx: RouterContext<"/invite">) {
+        // TODO: retry logic
+        const { code, expiresAt } = this.inviteGenerator.generateCode(config.adminInviteCodeExpiryTime);
+        try {
+            await this.inviteRepo.generateNewInviteCode(code, expiresAt);
+            ctx.response.body = code;
+        } catch (e) {
+            applyDbError(ctx, e);
+        }
+    }
+
+    /**
+     * Any unexpired and unclaimed code will be accepted, provided
+     * the requesting user is not already admin (checked eagerly)
+     */
+    async acceptInviteCode(ctx: RouterContext<string>) {
+        const body = ctx.state.validatedBody as z.output<typeof acceptInviteCodeSchema>;
+        const roles = ctx.state.jwtPayload.role as Role[];
+        const requestingUserId = parseInt((<JWTPayload>ctx.state.jwtPayload).sub!);
+
+        // the model call will also check, but this will give a clearer error message
+        const isAdmin = roles.includes(Role.Admin);
+        if (isAdmin) {
+            ctx.response.status = 403;
+            ctx.response.body = { error: "already an admin" };
+            return;
+        }
+
+        try {
+            await this.roleRepo.assignAdminByInvite(requestingUserId, body.code);
+            ctx.response.body = "invitation claimed";
         } catch (e) {
             applyDbError(ctx, e);
         }

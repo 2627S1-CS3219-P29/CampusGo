@@ -34,6 +34,7 @@ const config = {
         defaultRoles: [Role.Courier, Role.Requestor],
         nicknameMaxLength: 25,
     },
+    adminInviteCodeExpiryTime: 24 * 60 * 60, // seconds
     dbConnectionString,
 };
 
