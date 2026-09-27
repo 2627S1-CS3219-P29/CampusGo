@@ -1,8 +1,8 @@
 import { db } from "./db.ts";
 import log from "../log.ts";
 import Constants from "./constants.ts";
-import { DbError, ErrorType } from "./common.ts";
-import { fromRawRole, fromRawRoleThrows, type RawRoleRecord, type Role } from "./roles.ts";
+import { DbError, ErrorType, Role } from "./common.ts";
+import { fromRawRoleThrows } from "./roles.ts";
 
 // export { db };
 

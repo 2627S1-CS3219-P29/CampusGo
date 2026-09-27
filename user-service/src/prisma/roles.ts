@@ -1,6 +1,6 @@
 
 import log from "../log.ts";
-import { DbError, ErrorType } from "./common.ts";
+import { DbError, ErrorType, Role } from "./common.ts";
 import { db } from "./db.ts";
 
 export type RawRoleRecord = typeof db.orm.public.Role._row;
@@ -10,12 +10,6 @@ export interface IRoleRepository {
     assignRoles(userId: number, roles: ReadonlySet<Role>): Promise<void>;
     removeRoles(userId: number, roles: ReadonlySet<Role>): Promise<void>;
     listRoles(): Promise<Role[]>;
-}
-
-export enum Role {
-    Admin = "admin",
-    Requestor = "requestor",
-    Courier = "courier",
 }
 
 type RoleMapping = { [role in Role]?: number };
@@ -37,7 +31,7 @@ export const findRolesByName = async (roles: ReadonlySet<Role>): Promise<RoleMap
     const rolesArray = [...roles];
     const foundRoles = await db.orm.public.Role
         .where(u => u.name.in(rolesArray))
-        .all();    
+        .all();
     if (foundRoles.length !== roles.size) {
         throw new DbError({
             status: ErrorType.Unknown,
@@ -63,7 +57,7 @@ export const findRolesByName = async (roles: ReadonlySet<Role>): Promise<RoleMap
 
 export const assignRoles = async (userId: number, roles: ReadonlySet<Role>): Promise<void> => {
     const desiredRoles = await findRolesByName(roles);
-    
+
     // number of roles should be very small, this should be fine
     for (const roleId of Object.values(desiredRoles)) {
         try {

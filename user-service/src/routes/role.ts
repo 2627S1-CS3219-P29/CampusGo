@@ -1,7 +1,8 @@
 import { Router, type RouterContext } from "@oak/oak";
-import RoleRepo, { Role } from "../prisma/roles.ts";
+import RoleRepo from "../prisma/roles.ts";
 import { authenticationMiddleware } from "../middleware/auth.ts";
 import { RoleController } from "../controller/roles.ts";
+import { Role } from "../prisma/common.ts";
 
 const roleController = new RoleController(RoleRepo);
 const createRoleRouter = () => {
