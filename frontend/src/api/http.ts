@@ -27,7 +27,7 @@ async function tryRefreshToken() {
     const client = axios.create({ baseURL: BASE_URL });
 
     try {
-        const res = await client.post("/public/auth/refresh", {
+        const res = await client.post("/public/user/auth/refresh", {
             refreshToken: tokens.refresh
         });
         const { accessToken, refreshToken } = res.data;

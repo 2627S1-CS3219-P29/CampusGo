@@ -1,6 +1,10 @@
+// ensure no db import dependency so that circular import cannot happen
+
 export enum ErrorType {
     Unknown,
-    ConstraintViolation
+    ConstraintViolation,
+    NotFound,
+    Custom,
 };
 
 export interface Params {
@@ -18,4 +22,10 @@ export class DbError extends Error {
         this.status = param.status ?? ErrorType.Unknown;
         this.isUserFault = param.isUserFault ?? false;
     }
+}
+
+export enum Role {
+    Admin = "admin",
+    Requestor = "requestor",
+    Courier = "courier",
 }

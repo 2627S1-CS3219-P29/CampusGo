@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { Role } from "./prisma/roles.ts";
+import { Role } from "./prisma/common";
 
 function required(name: string): string {
     const value = process.env[name];
@@ -34,6 +34,7 @@ const config = {
         defaultRoles: [Role.Courier, Role.Requestor],
         nicknameMaxLength: 25,
     },
+    adminInviteCodeExpiryTime: 24 * 60 * 60, // seconds
     dbConnectionString,
 };
 

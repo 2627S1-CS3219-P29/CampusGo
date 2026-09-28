@@ -48,6 +48,10 @@ export default defineConfig({
     ],
   },
   server: {
-    port: 3000,
+    hmr: {
+      clientPort: 8000, // same port as nginx edge container
+      protocol: 'ws',
+    },
+    watch: { usePolling: true, interval: 500 } // for wsl
   },
 })

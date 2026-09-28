@@ -1,4 +1,4 @@
-<!-- AI assistance (19/6/2026): deepseek -->
+<!-- AI assistance (19/9/2026): deepseek -->
 <!-- generate styling and layout of page with dynamic elements. I cleaned up the code + formatting and did the missing pieces of integration. -->
 <template>
   <v-container class="auth-page" fluid>
@@ -303,7 +303,7 @@ onBeforeUnmount(() => {
 
 watch(mode, () => nextTick(syncHeight));
 
-// ui actions 
+// ui actions
 function notify(color: 'error' | 'success', text: string) {
   snackbar.color = color;
   snackbar.text = text;

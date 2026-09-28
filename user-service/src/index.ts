@@ -1,10 +1,9 @@
 import { Application, Router } from "@oak/oak";
-import createAuthRouter from "./routes/auth.ts";
+import { createAuthRouter, createPrivateAuthRouter } from "./routes/auth.ts";
 import { connectDatabase } from "./prisma/db.ts";
 import log from "./log.ts";
 import { seedEssential } from "./prisma/seed.ts";
 import createUserRouter from "./routes/user.ts";
-import { oakCors } from "https://deno.land/x/cors/mod.ts";
 import createRoleRouter from "./routes/role.ts";
 
 
@@ -18,7 +17,7 @@ await seedEssential();
 
 const createPublicRouter = () => {
     const router = new Router({ prefix: "/public" });
-    router.get("/health", (ctx) => {
+    router.get("/health", ctx => {
         ctx.response.body = "ok";
     });
     router.use(createAuthRouter().routes());
@@ -27,20 +26,20 @@ const createPublicRouter = () => {
     return router;
 };
 
+const createPrivateRouter = () => {
+    const router = new Router({ prefix: "/private" });
+    router.use(createPrivateAuthRouter().routes());
+    return router;
+};
 
 const app = new Application();
-
-if (process.env.NODE_ENV !== "production") {
-    // allow dev web client to call from different ports
-    app.use(
-        oakCors({
-            origin: "*"
-        }),
-    );
-}
 
 const publicRouter = createPublicRouter();
 app.use(publicRouter.routes());
 app.use(publicRouter.allowedMethods());
+
+const privateRouter = createPrivateRouter();
+app.use(privateRouter.routes());
+app.use(privateRouter.allowedMethods());
 
 app.listen({ port });

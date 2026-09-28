@@ -1,29 +1,35 @@
 import { type RouterContext } from "@oak/oak";
 import { z } from "zod";
-import { analysePasswordCategories } from "../util/password.ts";
 import config from "../config.ts";
-import { hashPassword, verifyPassword } from "../util/hash.ts";
+import { type IPasswordHash } from "../util/hash.ts";
 import { type IUserRepository } from "../prisma/users.ts";
 import { applyDbError, commonPasswordSchema } from "./common.ts";
-import { generateJwtTokenPair, validateRefreshToken } from "../util/jwt.ts";
 import type { IRoleRepository } from "../prisma/roles.ts";
 import { genericJwtHandler } from "../middleware/auth.ts";
 import { generateRandomName } from "../util/name.ts";
+import type { IJwtService } from "../util/jwt.ts";
+import type { IInviteRepository } from "../prisma/invite.ts";
+import type { IInviteCodeGenerator } from "../util/invite.ts";
+import { Role } from "../prisma/common.ts";
+import type { JWTPayload } from "jose";
 
 // TODO: clarify if need to be specifically university email
 export const registrationSchema = z.object({
-    email: z.email("A valid email is required")
-        .max(254),
+    email: z.email("A valid email is required").max(254).toLowerCase(),
     password: commonPasswordSchema,
 });
 
 export const loginSchema = z.object({
-    email: z.email("A valid email is required").max(254),
+    email: z.email("A valid email is required").max(254).toLowerCase(),
     password: z.string().max(128),
 });
 
 export const refreshTokenSchema = z.object({
     refreshToken: z.string("Expected refresh token")
+});
+
+export const acceptInviteCodeSchema = z.object({
+    code: z.string()
 });
 
 const GENERIC_LOGIN_ERROR = "supplied email/password is incorrect";
@@ -32,15 +38,23 @@ const GENERIC_LOGIN_ERROR = "supplied email/password is incorrect";
 export class AuthController {
     userRepo: IUserRepository;
     roleRepo: IRoleRepository;
-    
-    constructor(userRepo: IUserRepository, roleRepo: IRoleRepository) {
+    inviteRepo: IInviteRepository;
+    hasher: IPasswordHash;
+    jwtService: IJwtService;
+    inviteGenerator: IInviteCodeGenerator
+
+    constructor(userRepo: IUserRepository, roleRepo: IRoleRepository, inviteRepo: IInviteRepository, hasher: IPasswordHash, jwtService: IJwtService, inviteGenerator: IInviteCodeGenerator) {
         this.userRepo = userRepo;
         this.roleRepo = roleRepo;
+        this.inviteRepo = inviteRepo;
+        this.hasher = hasher;
+        this.jwtService = jwtService;
+        this.inviteGenerator = inviteGenerator;
     }
 
     async registerUser(ctx: RouterContext<"/register">) {
         const body = ctx.state.validatedBody as z.output<typeof registrationSchema>;
-        const hashedPassword = await hashPassword(body.password);
+        const hashedPassword = await this.hasher.hashPassword(body.password);
         const defaultNickname = generateRandomName();
         try {
             // FIXME: how to handle transaction with this pattern while still allowing for mocking?
@@ -63,14 +77,14 @@ export class AuthController {
                 ctx.response.body = { error: GENERIC_LOGIN_ERROR };
                 return;
             }
-            const doesPwMatch = await verifyPassword(user.hashedPassword, body.password);
+            const doesPwMatch = await this.hasher.verifyPassword(user.hashedPassword, body.password);
             if (!doesPwMatch) {
                 ctx.response.status = 401;
                 ctx.response.body = { error: GENERIC_LOGIN_ERROR };
                 return;
             }
 
-            const tokens = await generateJwtTokenPair(user.id.toString(), user.roles);
+            const tokens = await this.jwtService.generateJwtTokenPair(user.id.toString(), user.roles);
             ctx.response.body = tokens;
         } catch (e) {
             applyDbError(ctx, e);
@@ -79,8 +93,8 @@ export class AuthController {
 
     async refreshToken(ctx: RouterContext<"/refresh">) {
         const body = ctx.state.validatedBody as z.output<typeof refreshTokenSchema>;
-        
-        const reqRefreshToken = await validateRefreshToken(body.refreshToken);
+
+        const reqRefreshToken = await this.jwtService.validateRefreshToken(body.refreshToken);
         const decodedToken = genericJwtHandler(ctx, reqRefreshToken);
         if (!decodedToken)
             return;
@@ -100,12 +114,49 @@ export class AuthController {
                 return;
             }
 
-            const tokens = await generateJwtTokenPair(user.id.toString(), user.roles);
+            const tokens = await this.jwtService.generateJwtTokenPair(user.id.toString(), user.roles);
             ctx.response.body = tokens;
         } catch (e) {
             applyDbError(ctx, e);
         }
-        
+
+    }
+
+    async generateInviteCode(ctx: RouterContext<"/invite">) {
+        // TODO: retry logic
+        const { code, expiresAt } = this.inviteGenerator.generateCode(config.adminInviteCodeExpiryTime);
+        try {
+            await this.inviteRepo.generateNewInviteCode(code, expiresAt);
+            ctx.response.body = code;
+        } catch (e) {
+            applyDbError(ctx, e);
+        }
+    }
+
+    /**
+     * Any unexpired and unclaimed code will be accepted, provided
+     * the requesting user is not already admin (checked eagerly)
+     */
+    async acceptInviteCode(ctx: RouterContext<string>) {
+        const body = ctx.state.validatedBody as z.output<typeof acceptInviteCodeSchema>;
+        const roles = ctx.state.jwtPayload.role as Role[];
+        const requestingUserId = parseInt((<JWTPayload>ctx.state.jwtPayload).sub!);
+
+        // the model call will also check, but this will give a clearer error message
+        const isAdmin = roles.includes(Role.Admin);
+        if (isAdmin) {
+            ctx.response.status = 403;
+            ctx.response.body = { error: "already an admin" };
+            return;
+        }
+
+        try {
+            await this.roleRepo.assignAdminByInvite(requestingUserId, body.code);
+            ctx.response.body = "invitation claimed";
+        } catch (e) {
+            applyDbError(ctx, e);
+        }
+
     }
 
     // TODO: /logout: blacklist refresh token, let access token expire. also handle in refreshToken

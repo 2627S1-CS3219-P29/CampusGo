@@ -7,7 +7,7 @@ export interface LoginResponse {
 
 export async function login(email: string, password: string) {
     const res = await client.post(
-        "/public/auth/login",
+        "/public/user/auth/login",
         { email, password },
         { shouldSkipAuthHeader: true }
     );
@@ -16,7 +16,7 @@ export async function login(email: string, password: string) {
 
 export async function register(email: string, password: string) {
     await client.post(
-        "/public/auth/register",
+        "/public/user/auth/register",
         { email, password },
         { shouldSkipAuthHeader: true }
     );

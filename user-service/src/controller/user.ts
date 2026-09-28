@@ -2,10 +2,11 @@ import z, { ZodError } from "zod";
 import type { IUserRepository } from "../prisma/users.ts";
 import type { RouterContext } from "@oak/oak";
 import { applyDbError, commonPasswordSchema } from "./common.ts";
-import { Role, type IRoleRepository } from "../prisma/roles.ts";
+import { type IRoleRepository } from "../prisma/roles.ts";
 import type { JWTPayload } from "jose";
 import config from "../config.ts";
-import { hashPassword, verifyPassword } from "../util/hash.ts";
+import { type IPasswordHash } from "../util/hash.ts";
+import { Role } from "../prisma/common.ts";
 
 const idReqSchema = z.coerce.number().int("expected valid id format");
 
@@ -25,10 +26,12 @@ export const userUpdateRoleSchema = z.partialRecord(z.enum(Role), z.boolean());
 export class UserController {
     userRepo: IUserRepository;
     roleRepo: IRoleRepository;
-    
-    constructor(userRepo: IUserRepository, roleRepo: IRoleRepository) {
+    hasher: IPasswordHash;
+
+    constructor(userRepo: IUserRepository, roleRepo: IRoleRepository, hasher: IPasswordHash) {
         this.userRepo = userRepo;
         this.roleRepo = roleRepo;
+        this.hasher = hasher;
     }
 
     validateIdCommon<R extends string>(ctx: RouterContext<R>, rawId: string): number | null {
@@ -38,7 +41,7 @@ export class UserController {
         } catch (e) {
             ctx.response.status = 400;
             if (e instanceof ZodError) {
-                ctx.response.body = { 
+                ctx.response.body = {
                     error: "url schema violation",
                     details: z.treeifyError(e)
                 };
@@ -130,29 +133,22 @@ export class UserController {
 
 
     /**
-     * Allows user to add/remove own courier/requestor roles
      * Allows admin to (un)assign others as admin
+     * User should be disallowed from editing their own role
      * No user may not add/revoke their own admin role
      */
     async updateUserRole(ctx: RouterContext<"/:id/role">) {
         const body = ctx.state.validatedBody as z.output<typeof userUpdateRoleSchema>;
         const { id } = ctx.params;
-        const roles = ctx.state.jwtPayload.role as Role[];
+        // const roles = ctx.state.jwtPayload.role as Role[];
         const requestingUserId = parseInt((<JWTPayload>ctx.state.jwtPayload).sub!);
 
         const parsedUserId = this.validateIdCommon(ctx, id);
         if (parsedUserId === null)
             return;
 
-        const isAdmin = roles.includes(Role.Admin);
+        // user may not add/revoke their own admin role
         const isSelf = requestingUserId === parsedUserId;
-        if (!isSelf && !isAdmin) {
-            ctx.response.status = 403;
-            ctx.response.body = { error: "insufficient permissions to update user roles" };
-            return;
-        }
-
-        // No user may not add/revoke their own admin role
         if (isSelf && body[Role.Admin] !== undefined) {
             ctx.response.status = 403;
             ctx.response.body = { error: "cannot add or remove your own admin role" };
@@ -196,9 +192,9 @@ export class UserController {
     // we could shift this into the auth controller too
     /**
     * Password change flow:
-    * - User: existing password, new password 
+    * - User: existing password, new password
     * - Admin: new password
-    * 
+    *
     * An admin can change the password without providing the old password.
     * This allows manual a password recovery mechanism without sending any email
      */
@@ -235,7 +231,7 @@ export class UserController {
                     return;
                 }
 
-                const ok = await verifyPassword(user.hashedPassword, body.existingPassword);
+                const ok = await this.hasher.verifyPassword(user.hashedPassword, body.existingPassword);
                 if (!ok) {
                     ctx.response.status = 401;
                     ctx.response.body = { error: "existing password is incorrect" };
@@ -248,7 +244,7 @@ export class UserController {
         }
 
         try {
-            const hashedPassword = await hashPassword(body.newPassword);
+            const hashedPassword = await this.hasher.hashPassword(body.newPassword);
             const updated = await this.userRepo.updateUserPassword(parsedUserId, hashedPassword);
 
             if (!updated) {
