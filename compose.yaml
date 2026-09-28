@@ -103,5 +103,19 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL}
 
+  # supplier service
+  supplier_db:
+    image: postgres:18-alpine
+    container_name: supplier_postgres_db
+    networks: [private_net]
+    environment:
+      POSTGRES_PASSWORD: ${SUPPLIER_DB_PW}
+      POSTGRES_DB: suppliers
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - supplier_pgdata:/var/lib/postgresql
+
 volumes:
   user_pgdata:
+  supplier_pgdata:
