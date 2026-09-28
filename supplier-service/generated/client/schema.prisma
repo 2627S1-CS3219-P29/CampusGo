@@ -1,0 +1,33 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../generated/client"
+  binaryTargets = ["native"]
+}
+
+model Supplier {
+  id                  Int     @id @default(autoincrement())
+  name                String  @unique
+  type                String  @default("Food")
+  building            String
+  floor               String
+  locationDescription String
+  latitude            Float   @default(0.0)
+  longitude           Float   @default(0.0)
+  startingTime        String  @default("0900hrs")
+  closingTime         String  @default("1800hrs")
+  imageUrl            String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([building])
+  @@index([type])
+}
