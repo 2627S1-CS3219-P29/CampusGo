@@ -34,11 +34,14 @@
     <v-main class="fullscreen">
       <router-view /> 
     </v-main>
+
+    <global-alerts/>
   </v-layout>
 </template>
 
 <script lang="ts" setup>
 import { ref } from 'vue';
+import GlobalAlerts from './GlobalAlerts.vue';
 
 const isNavbarOpened = ref(false);
 </script>
