@@ -126,32 +126,147 @@ change and a JSON snapshot of the supplier. It is written in the same transactio
 change, so a supplier can't change without leaving a log entry. The service only ever
 inserts into this table.
 
+
 ## Query patterns
+
+All list queries run as **one SQL statement** in
+[src/prisma/suppliers.ts](src/prisma/suppliers.ts). Each filter is optional, and leaving
+it out turns its condition off, so search, filters, sort and pagination combine freely
+(FR 6.7). Deleted suppliers are always excluded.
 
 | Query | Used for | How it runs |
 | --- | --- | --- |
 | Get one supplier by id | Supplier details (FR 6.1), order service lookups | Primary key |
-| List suppliers, paginated and sorted by name A–Z or Z–A | Supplier list (FR 6, 6.3.1) | `ORDER BY lower(name)` uses the `supplier_name_active` index. Pagination uses `LIMIT`/`OFFSET`, which is fine at 1,000 rows |
-| Search by name | Search box (FR 6.2) | `lower(name) LIKE lower('%' \|\| $q \|\| '%')`. At 1,000 rows a scan takes well under a millisecond. If it ever grows much larger, a `pg_trgm` index would speed it up |
-| Filter by type | Store / Facility / Landmark chips (FR 6.4.1) | Index on `type` |
-| Filter to suppliers open now | "Open now" filter (FR 6.4.2) | Compares the Singapore time right now, `(now() AT TIME ZONE 'Asia/Singapore')::time`, against `opensAt` and `closesAt`, handling hours that run past midnight. Suppliers with no hours listed are left out |
-| List suppliers at a landmark | Landmark details, delete and re-type checks (FR 5.10, 5.11) | Index on `locationId` |
-| Search, sort and filter together | FR 6.7 | All of the above combine as `AND` conditions in one query |
-| Audit history of a supplier | Admin audit view | Index on `supplierAuditLog.supplierId` |
+| Search by name | Search box (FR 6.2) | Case-insensitive substring match: `lower(name) LIKE '%' \|\| $q \|\| '%'`. `%` and `_` in the input are escaped, so they match literally. At 1,000 rows a scan takes well under a millisecond. A `pg_trgm` index is the next step if the data ever grows much larger |
+| Filter by type, one or more | Store / Facility / Landmark chips (FR 6.4.1) | `type = ANY($types)`, using the index on `type` |
+| Filter to suppliers open now | "Open now" filter (FR 6.4.2) | Compares the current Singapore time, `(now() AT TIME ZONE 'Asia/Singapore')::time`, with `opensAt` and `closesAt`, including hours that run past midnight. Suppliers with no hours listed are left out. Every result also carries an `isOpenNow` flag |
+| List suppliers at a landmark | Landmark details, delete and re-type checks (FR 5.10, 5.11) | `locationId = $id`, using the index on `locationId` |
+| Sort by name, A–Z or Z–A | Sort control (FR 6.3.1) | `ORDER BY lower(name)`, ties broken by `id` so pages stay stable |
+| Paginate | Supplier list | `LIMIT`/`OFFSET`, plus a `count(*)` with the same `WHERE` for the total. Offset paging is fine at 1,000 rows and lets the UI jump straight to any page |
+| Location name | Showing "Smooy @ COM3" | A self-join on `supplier`, so no second request is needed |
+
+## API
+
+The gateway serves the service at `/api/public/supplier/…` through the edge
+(`localhost:8000`), or `localhost:8080/public/supplier/…` directly. Other services reach
+the private routes on the gateway's private listener, `localhost:8081/private/supplier/…`.
+
+| Method and path | Who can call it | What it does |
+| --- | --- | --- |
+| `GET /public/suppliers` | Any signed-in user | List live suppliers. Query parameters below |
+| `GET /public/suppliers/:id` | Any signed-in user | One live supplier. 404 if it doesn't exist or was deleted |
+| `POST /public/suppliers` | Admin | Create a supplier *(access control in place, handler added in point 3; returns 501 for now)* |
+| `PATCH /public/suppliers/:id` | Admin | Update a supplier *(as above)* |
+| `DELETE /public/suppliers/:id` | Admin | Soft-delete a supplier *(as above)* |
+| `GET /private/suppliers/:id` | Other services only | One supplier, **including deleted ones**, e.g. the order service showing an old errand. Not reachable through the public gateway |
+| `GET /public/health` | Anyone | Liveness check |
+
+**List query parameters.** All are optional. Unknown or invalid parameters return a 400
+that names the bad field.
+
+| Parameter | Example | Meaning |
+| --- | --- | --- |
+| `q` | `q=mart` | Name contains this text, ignoring case (up to 100 characters) |
+| `type` | `type=store,facility` | Any of `store`, `facility`, `landmark`, comma-separated |
+| `openNow` | `openNow=true` | Only suppliers open right now |
+| `locationId` | `locationId=14` | Only suppliers at this landmark |
+| `sort` | `sort=-name` | `name` for A–Z (the default), `-name` for Z–A |
+| `page`, `pageSize` | `page=2&pageSize=20` | 1-based page number. Page size defaults to 20, maximum 100 |
+
+**List response:**
+
+```json
+{
+  "items": [{
+    "id": 17, "name": "Smooy", "type": "store",
+    "description": "Frozen yoghurt within The Terrace",
+    "location": { "id": 14, "name": "COM3" },
+    "openingHours": { "opensAt": "09:00", "closesAt": "17:00" },
+    "isOpenNow": false,
+    "createdAt": "2026-09-28T16:25:28.607Z", "updatedAt": "2026-09-28T16:25:28.607Z", "deletedAt": null
+  }],
+  "page": 1, "pageSize": 20, "total": 6, "totalPages": 1
+}
+```
+
+### Access control with identity from the user service
+
+The user service handles login. It signs a short-lived (15 minute) **access token**, a
+JWT, that carries the user id (`sub`) and their roles (`role: ["admin", "requestor",
+"courier"]`). The frontend sends it on every call as `Authorization: Bearer <token>`.
+
+The supplier service **checks the token itself** in
+[src/middleware/auth.ts](src/middleware/auth.ts), without calling the user service:
+
+1. It verifies the signature with the access-token secret shared with the user service,
+   and checks that the issuer is `user-service`. A forged or edited token, such as one
+   where someone added `admin` to their roles, fails the signature check.
+2. It reads the user id and roles from the verified token.
+3. Each route declares the roles it needs. Browsing needs none beyond being signed in;
+   create, update and delete need `admin`.
+
+| Situation | Response |
+| --- | --- |
+| No token, expired token, bad signature or wrong issuer | **401** `{"error": "missing bearer token"}` or `"access token expired"` or `"access token is of invalid format"`. The frontend refreshes the token and retries |
+| Valid token without the required role, e.g. a courier trying to create a supplier | **403** `{"error": "insufficient permissions to perform action"}` |
+
+Every 401 and 403 is logged with the user id (when known), method and path (FR 4.3.2).
+
+**Why check tokens locally instead of asking the user service on every request:**
+
+- **Speed.** Browsing suppliers is the busiest path (NFR 4). Checking a signature takes
+  microseconds and adds no network call.
+- **Independence.** The supplier list keeps working even if the user service is
+  restarting.
+- **The downside is a delay on role changes.** A role change or account suspension
+  takes effect only when the user's current access token expires, at most 15 minutes
+  later. We accept that for supplier data. If it becomes a problem, the user service
+  could keep a list of revoked tokens.
+
+Because the secret is shared, any service that holds it could also *sign* tokens. A
+stronger setup has the user service sign with a private key (RS256 or EdDSA) and publish
+the matching public key, so other services can verify tokens but never create them.
+We've noted this as a later improvement to the user service.
+
+### Example calls
+
+These were run against the stack, using real tokens from the user service's login:
+
+```bash
+TOKEN=...   # accessToken from POST /api/public/user/auth/login
+API=http://localhost:8080/public/supplier/suppliers
+
+curl -H "Authorization: Bearer $TOKEN" "$API?q=mart"                          # search
+curl -H "Authorization: Bearer $TOKEN" "$API?type=store,facility&sort=-name"  # filter + sort
+curl -H "Authorization: Bearer $TOKEN" "$API?openNow=true"                    # open right now
+curl -H "Authorization: Bearer $TOKEN" "$API?locationId=14"                   # at a landmark
+curl -H "Authorization: Bearer $TOKEN" "$API?pageSize=3&page=2"               # page 2
+curl -H "Authorization: Bearer $TOKEN" "$API/17"                              # by id
+
+curl "$API"                                              # 401, no token
+curl -X POST -H "Authorization: Bearer $TOKEN" "$API"    # 403 for a non-admin
+```
 
 ## Run locally
 
-Start the database: `docker compose --profile dev up -d supplier_db`. It listens on
-`localhost:5433`.
+With Docker, `docker compose --profile dev up -d --build` starts everything. The supplier
+service is also exposed directly on `localhost:8002`.
 
-Create `.env` in this folder:
+To run it outside Docker:
 
-```bash
-DATABASE_URL=postgresql://postgres:mysecretpassword@localhost:5433/suppliers
-```
+1. Start the database: `docker compose --profile dev up -d supplier_db`. It listens on
+   `localhost:5433`.
+2. Create `.env` in this folder. `JWT_ACCESS_SECRET` must match the root `.env` so that
+   tokens from the user service verify:
 
-Apply the schema: `deno task db:init` the first time, and `deno task db:update` after
-changes.
+   ```bash
+   DATABASE_URL=postgresql://postgres:mysecretpassword@localhost:5433/suppliers
+   JWT_ACCESS_SECRET=<same value as the root .env>
+   ```
+
+3. Apply the schema: `deno task db:init` the first time, and `deno task db:update` after
+   changes.
+4. Start the service: `deno task dev`.
 
 After editing `src/prisma/contract.prisma`, run `deno task contract:emit` to regenerate
 `contract.json` and `contract.d.ts`.

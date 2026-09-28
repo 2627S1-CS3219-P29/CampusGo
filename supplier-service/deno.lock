@@ -23,6 +23,7 @@
     "npm:@prisma/orm-postgres@8.0.0-rc.11": "8.0.0-rc.11_@prisma+cli-engine@0.4.0_@prisma+management-api-sdk@1.69.0_typanion@3.14.0_vite@8.3.1__@types+node@26.1.2__esbuild@0.28.2",
     "npm:@types/node@^25.6.2": "25.9.8",
     "npm:dotenv@^17.4.2": "17.4.2",
+    "npm:jose@^6.2.12": "6.2.12",
     "npm:path-to-regexp@^6.3.0": "6.3.0",
     "npm:prisma@8.0.0-rc.15": "8.0.0-rc.15_@types+node@25.9.8_pg@8.22.0_typanion@3.14.0_vite@8.3.1__@types+node@25.9.8__esbuild@0.28.2__yaml@2.9.1_vitest@4.1.11__@types+node@25.9.8__vite@8.3.1___@types+node@25.9.8___esbuild@0.28.2___yaml@2.9.1__esbuild@0.28.2__yaml@2.9.1",
     "npm:winston@^3.19.0": "3.19.0",
@@ -1305,7 +1306,7 @@
       "integrity": "sha512-YxCtF+zAJPAqsQuheZddz5FnCmT13cGcM3IBatlGSBjLQfI79qKP7P7Hiz4RfR14gOAEbR3C9sG9n15WIPZlgQ==",
       "dependencies": [
         "@prisma/orm-framework",
-        "@prisma/orm-toolchain@8.0.0-rc.11_@prisma+cli-engine@0.4.0_vite@8.3.1__@types+node@26.1.2__esbuild@0.28.2_@prisma+management-api-sdk@1.69.0_@types+node@26.1.2_typanion@3.14.0",
+        "@prisma/orm-toolchain",
         "@standard-schema/spec",
         "arktype",
         "pathe",
@@ -1328,7 +1329,7 @@
         "@prisma/orm-family-sql",
         "@prisma/orm-framework",
         "@prisma/orm-target-postgres",
-        "@prisma/orm-toolchain@8.0.0-rc.11_@prisma+cli-engine@0.4.0_vite@8.3.1__@types+node@26.1.2__esbuild@0.28.2_@prisma+management-api-sdk@1.69.0_@types+node@26.1.2_typanion@3.14.0",
+        "@prisma/orm-toolchain",
         "@types/node@26.1.2",
         "@types/pg",
         "pathe",
@@ -1340,7 +1341,7 @@
       "dependencies": [
         "@prisma/orm-family-sql",
         "@prisma/orm-framework",
-        "@prisma/orm-toolchain@8.0.0-rc.11_@prisma+cli-engine@0.4.0_vite@8.3.1__@types+node@26.1.2__esbuild@0.28.2_@prisma+management-api-sdk@1.69.0_@types+node@26.1.2_typanion@3.14.0",
+        "@prisma/orm-toolchain",
         "@standard-schema/spec",
         "@types/node@26.1.2",
         "@types/pg",
@@ -1348,34 +1349,6 @@
         "pathe",
         "pg",
         "pg-cursor"
-      ]
-    },
-    "@prisma/orm-toolchain@8.0.0-rc.11_@prisma+cli-engine@0.4.0_vite@8.3.1__@types+node@25.9.8__esbuild@0.28.2__yaml@2.9.1_@prisma+management-api-sdk@1.69.0_@types+node@25.9.8_typanion@3.14.0": {
-      "integrity": "sha512-/8FvYYZrSw+RtpZVSUVlGNZukDLL3vOjwW7px57rDiuayt4NKg+84m4T/mdH6UV/6Zjx9mqw5jEdksIvARocVA==",
-      "dependencies": [
-        "@prisma/cli-engine",
-        "@prisma/orm-framework",
-        "@vercel/detect-agent",
-        "arktype",
-        "c12",
-        "ci-info",
-        "clipanion",
-        "closest-match",
-        "colorette",
-        "esbuild",
-        "jsonc-parser",
-        "package-manager-detector",
-        "pathe",
-        "prettier",
-        "string-width@8.3.0",
-        "strip-ansi",
-        "vite@8.3.1_@types+node@25.9.8_esbuild@0.28.2_yaml@2.9.1",
-        "vscode-languageserver",
-        "vscode-languageserver-textdocument",
-        "wrap-ansi@10.0.2"
-      ],
-      "optionalPeers": [
-        "vite@8.3.1_@types+node@25.9.8_esbuild@0.28.2_yaml@2.9.1"
       ]
     },
     "@prisma/orm-toolchain@8.0.0-rc.11_@prisma+cli-engine@0.4.0_vite@8.3.1__@types+node@26.1.2__esbuild@0.28.2_@prisma+management-api-sdk@1.69.0_@types+node@26.1.2_typanion@3.14.0": {
@@ -2551,6 +2524,9 @@
     "jju@1.4.0": {
       "integrity": "sha512-8wb9Yw966OSxApiCt0K3yNJL8pnNeIv+OEq2YMidz4FKP6nonSRoOXc80iXY4JaN2FC11B9qsNmDsm+ZOfMROA=="
     },
+    "jose@6.2.12": {
+      "integrity": "sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw=="
+    },
     "js-base64@3.9.4": {
       "integrity": "sha512-PtOMXpEGuP0RRiRXsjzHzl44dMHxSu2CPvAhinupR1tBa88me+1DPqsobl7eupn5UukjLkln1ZnAOAOXOrYG0Q=="
     },
@@ -3004,7 +2980,7 @@
         "@prisma/composer-cli",
         "@prisma/compute-sdk",
         "@prisma/management-api-sdk",
-        "@prisma/orm-toolchain@8.0.0-rc.11_@prisma+cli-engine@0.4.0_vite@8.3.1__@types+node@25.9.8__esbuild@0.28.2__yaml@2.9.1_@prisma+management-api-sdk@1.69.0_@types+node@25.9.8_typanion@3.14.0",
+        "@prisma/orm-toolchain",
         "@vercel/detect-agent",
         "better-result",
         "cross-spawn",
@@ -3668,6 +3644,7 @@
         "npm:@prisma/orm-postgres@8.0.0-rc.11",
         "npm:@types/node@^25.6.2",
         "npm:dotenv@^17.4.2",
+        "npm:jose@^6.2.12",
         "npm:prisma@8.0.0-rc.15",
         "npm:winston@^3.19.0",
         "npm:zod@^4.6.5"

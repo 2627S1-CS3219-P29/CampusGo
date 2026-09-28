@@ -1,6 +1,37 @@
+import { Application, Router } from "@oak/oak";
 import { connectDatabase } from "./prisma/db.ts";
 import log from "./log.ts";
+import createSupplierRouter, { createPrivateSupplierRouter } from "./routes/supplier.ts";
 
-// placeholder entry point until the API is added
+const port = Number(Deno.env.get("PORT") ?? 3000);
+log.info(`starting on port ${port}`);
+
+// ensure database is ready so that first request is not slow
 await connectDatabase();
-log.info("supplier database connected");
+
+const createPublicRouter = () => {
+    const router = new Router({ prefix: "/public" });
+    router.get("/health", ctx => {
+        ctx.response.body = "ok";
+    });
+    router.use(createSupplierRouter().routes());
+    return router;
+};
+
+const createPrivateRouter = () => {
+    const router = new Router({ prefix: "/private" });
+    router.use(createPrivateSupplierRouter().routes());
+    return router;
+};
+
+const app = new Application();
+
+const publicRouter = createPublicRouter();
+app.use(publicRouter.routes());
+app.use(publicRouter.allowedMethods());
+
+const privateRouter = createPrivateRouter();
+app.use(privateRouter.routes());
+app.use(privateRouter.allowedMethods());
+
+app.listen({ port });
