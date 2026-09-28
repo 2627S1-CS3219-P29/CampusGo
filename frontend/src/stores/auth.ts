@@ -12,6 +12,23 @@ export const useAuthStore = defineStore("auth", () => {
         refreshToken.value = tokens?.refresh ?? null
     });
 
+    const userId = computed<string | null>(() => {
+        if (!accessToken.value) return null;
+
+        try {
+            const encoded = accessToken.value.split('.')[1];
+            if (!encoded) return null;
+
+            const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+            const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+            const payload = JSON.parse(atob(padded));
+
+            return typeof payload.sub === 'string' ? payload.sub : null;
+        } catch {
+            return null;
+        }
+    });
+
     const isAuthenticated = computed(() => accessToken.value !== null);
 
     const login = async (email: string, password: string) => {
@@ -23,5 +40,5 @@ export const useAuthStore = defineStore("auth", () => {
         tokenStorage.clearTokens();
     }
 
-    return { accessToken, refreshToken, isAuthenticated, login, logout };
+    return { accessToken, refreshToken, userId, isAuthenticated, login, logout };
 });
