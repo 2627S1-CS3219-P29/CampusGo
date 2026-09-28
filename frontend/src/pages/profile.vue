@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 
 // TODO: Get the logged-in user’s ID from your authentication state.
-// Fetch their existing details with GET /public/user/${userId}.
+// Fetch their existing details with GET /api/public/user/user/${userId}.
 // Populate the form with those details.
-// On Save, validate and send the changes to PUT /public/user/${userId}
+// On Save, validate and send the changes to PUT /api/public/user/user/${userId}
 
   import { ref } from 'vue'
   import { z } from 'zod'
@@ -56,7 +56,7 @@
     isEditable.value = true
   }
 
-  async function handleSave(): void {
+  async function handleSave(): Promise<void> {
     errors.value = {}
 
     const result = profileSchema.safeParse({

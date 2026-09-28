@@ -8,7 +8,7 @@ export interface UserProfile {
 }
 
 export async function getUser(id: string) {
-  const response = await client.get<UserProfile>(`/public/user/${id}`)
+  const response = await client.get<UserProfile>(`/public/user/user/${id}`)
   return response.data
 }
 
@@ -16,5 +16,5 @@ export async function updateUser(
   id: string,
   body: { nickname: string, contact: string | null },
 ) {
-  await client.put(`/public/user/${id}`, body)
+  await client.put(`/public/user/user/${id}`, body)
 }
