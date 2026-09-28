@@ -104,16 +104,26 @@ A `CHECK` constraint can only see one row, so these rules live in the API:
   that stores point at is rejected. Deleting a landmark soft-deletes its stores and
   facilities in the same transaction, which is how we read "cascade" in FR 5.11.
 - **Deleting a supplier with an ongoing errand (FR 5.8).** Before deleting, the service
-  asks the order service whether any open errand references the supplier, and rejects
-  the delete with an explanation if one does.
+  asks the order service whether any open errand references the supplier (or, for a
+  landmark, any supplier located at it), and rejects the delete with an explanation if
+  one does. *The order service doesn't exist yet, so
+  [src/util/orderService.ts](src/util/orderService.ts) currently always allows the
+  delete. Connecting it is a one-function change once the order service has the
+  endpoint.*
+
+Every write runs in one transaction that **locks the rows it depends on**. For example,
+creating a store locks its landmark `FOR SHARE`, and deleting a landmark locks it
+`FOR UPDATE`. A store can therefore never be created at a landmark that is being deleted
+at the same moment.
 
 ### Soft delete and preserving history (FR 5.9)
 
 A delete sets `deletedAt` rather than removing the row, so supplier ids stored in old
 errands still resolve. Every read filters on `"deletedAt" IS NULL`. Because `name` is
-unique across all rows, a deleted supplier's name can't be reused as it is. The API
-should either rename the row on delete (e.g. append `#<id>`) or tell the admin to
-restore the old supplier.
+unique across all rows, a deleted supplier's name stays reserved. The API tells the admin
+so (`409`, *"COM3" belongs to a deleted supplier, choose another name*). We chose this
+over renaming the row on delete so that old errands keep showing the name the supplier
+had at the time.
 
 As a second safeguard, the order service should also copy the supplier's name and
 location into the errand when it is created. A completed errand then shows the details
@@ -155,9 +165,9 @@ the private routes on the gateway's private listener, `localhost:8081/private/su
 | --- | --- | --- |
 | `GET /public/suppliers` | Any signed-in user | List live suppliers. Query parameters below |
 | `GET /public/suppliers/:id` | Any signed-in user | One live supplier. 404 if it doesn't exist or was deleted |
-| `POST /public/suppliers` | Admin | Create a supplier *(access control in place, handler added in point 3; returns 501 for now)* |
-| `PATCH /public/suppliers/:id` | Admin | Update a supplier *(as above)* |
-| `DELETE /public/suppliers/:id` | Admin | Soft-delete a supplier *(as above)* |
+| `POST /public/suppliers` | Admin | Create a supplier. **201** with the supplier and a `Location` header |
+| `PATCH /public/suppliers/:id` | Admin | Change some fields. **200** with the updated supplier |
+| `DELETE /public/suppliers/:id` | Admin | Soft-delete a supplier, and everything at it if it's a landmark. **200** `{"deletedIds": [...]}` |
 | `GET /private/suppliers/:id` | Other services only | One supplier, **including deleted ones**, e.g. the order service showing an old errand. Not reachable through the public gateway |
 | `GET /public/health` | Anyone | Liveness check |
 
@@ -188,6 +198,37 @@ that names the bad field.
   "page": 1, "pageSize": 20, "total": 6, "totalPages": 1
 }
 ```
+
+### Creating and updating suppliers
+
+`POST` takes the fields below. `PATCH` takes any subset of them, and sending `null`
+clears an optional field. Any other field, such as `id` or `createdBy`, is rejected, so
+admins can't set server-managed columns.
+
+| Field | Rules |
+| --- | --- |
+| `name` | Required. Trimmed, 1–100 characters, unique ignoring case |
+| `type` | Required. `store`, `facility` or `landmark` |
+| `description` | Optional, up to 500 characters. Blank is stored as `null` |
+| `locationId` | Required for stores and facilities, and must be a live landmark. Not allowed for landmarks |
+| `openingHours` | Optional `{ "opensAt": "HH:MM", "closesAt": "HH:MM" }` in 24-hour time. The two times must differ, and `closesAt` earlier than `opensAt` means open past midnight. Not allowed for landmarks |
+
+On `PATCH`, the rules are checked against **the stored supplier with the patch applied**.
+Changing a store to a landmark therefore also requires `"locationId": null` and
+`"openingHours": null`.
+
+**Errors name the fields at fault** (FR 5.5.4), so the UI can show each message next to
+its input:
+
+```json
+{ "error": "invalid supplier", "fields": { "locationId": ["A store must be located at a landmark"] } }
+```
+
+| Status | When |
+| --- | --- |
+| 400 | A field is missing or invalid, or an unknown field was sent. Details are in `fields`, or in `errors` for problems that aren't about one field |
+| 404 | No live supplier with that id |
+| 409 | The name is taken (by a live or deleted supplier); a landmark that others are located at would change type (FR 5.10); or an ongoing errand blocks a delete (FR 5.8) |
 
 ### Access control with identity from the user service
 
@@ -245,6 +286,15 @@ curl -H "Authorization: Bearer $TOKEN" "$API/17"                              # 
 
 curl "$API"                                              # 401, no token
 curl -X POST -H "Authorization: Bearer $TOKEN" "$API"    # 403 for a non-admin
+
+# as an admin
+JSON='Content-Type: application/json'
+curl -X POST -H "Authorization: Bearer $ADMIN" -H "$JSON" \
+  -d '{"name":"COM3","type":"landmark","description":"School of Computing"}' "$API"
+curl -X POST -H "Authorization: Bearer $ADMIN" -H "$JSON" \
+  -d '{"name":"Smooy","type":"store","locationId":1,"openingHours":{"opensAt":"09:00","closesAt":"17:00"}}' "$API"
+curl -X PATCH -H "Authorization: Bearer $ADMIN" -H "$JSON" -d '{"description":"Frozen yoghurt"}' "$API/2"
+curl -X DELETE -H "Authorization: Bearer $ADMIN" "$API/1"   # {"deletedIds":[1,2]}, Smooy goes with its landmark
 ```
 
 ## Run locally

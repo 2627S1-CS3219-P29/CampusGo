@@ -1,17 +1,17 @@
 import { Router, type RouterContext } from "@oak/oak";
 import SupplierRepo from "../prisma/suppliers.ts";
-import { listSuppliersQuerySchema, SupplierController } from "../controller/supplier.ts";
+import {
+    createSupplierSchema,
+    listSuppliersQuerySchema,
+    SupplierController,
+    updateSupplierSchema,
+} from "../controller/supplier.ts";
 import { authenticationMiddleware } from "../middleware/auth.ts";
-import { validateQuery } from "../middleware/schema.ts";
+import { validateBody, validateQuery } from "../middleware/schema.ts";
+import { defaultOrderServiceClient } from "../util/orderService.ts";
 import { Role } from "../common.ts";
 
-const supplierController = new SupplierController(SupplierRepo);
-
-// write handlers are added with the CRUD work; the guard is already in place
-const notImplemented = (ctx: RouterContext<string>) => {
-    ctx.response.status = 501;
-    ctx.response.body = { error: "not implemented yet" };
-};
+const supplierController = new SupplierController(SupplierRepo, defaultOrderServiceClient);
 
 const createSupplierRouter = () => {
     const router = new Router({ prefix: "/suppliers" });
@@ -27,9 +27,27 @@ const createSupplierRouter = () => {
     });
 
     // only admins manage supplier records (FR 5)
-    router.post("/", authenticationMiddleware(new Set([Role.Admin])), notImplemented);
-    router.patch("/:id", authenticationMiddleware(new Set([Role.Admin])), notImplemented);
-    router.delete("/:id", authenticationMiddleware(new Set([Role.Admin])), notImplemented);
+    router.post(
+        "/",
+        authenticationMiddleware(new Set([Role.Admin])),
+        validateBody(createSupplierSchema),
+        async ctx => {
+            await supplierController.createSupplier(ctx as RouterContext<"/">);
+        }
+    );
+
+    router.patch(
+        "/:id",
+        authenticationMiddleware(new Set([Role.Admin])),
+        validateBody(updateSupplierSchema),
+        async ctx => {
+            await supplierController.updateSupplier(ctx);
+        }
+    );
+
+    router.delete("/:id", authenticationMiddleware(new Set([Role.Admin])), async ctx => {
+        await supplierController.deleteSupplier(ctx);
+    });
 
     return router;
 };
