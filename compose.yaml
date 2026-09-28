@@ -18,6 +18,7 @@ services:
       - private_net
     depends_on:
       - user_${PROFILE}
+      - supplier_${PROFILE}
 
   edge_dev:
     image: nginx:1.31-alpine
@@ -103,5 +104,54 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL}
 
+  # supplier service
+  supplier_db:
+    image: postgres:18-alpine
+    container_name: supplier_postgres_db
+    networks: [private_net]
+    environment:
+      POSTGRES_PASSWORD: ${SUPPLIER_DB_PW}
+      POSTGRES_DB: suppliers
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - supplier_pgdata:/var/lib/postgresql
+  supplier_dev:
+    build:
+      context: ./supplier-service
+      target: development
+      network: host
+    profiles: ["dev"]
+    ports:
+      - "8002:3000"
+    volumes:
+      - ./supplier-service:/app
+      - /app/node_modules
+    networks:
+      private_net:
+        aliases:
+          - supplier_api
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: ${SUPPLIER_DB_URL}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+    # workaround for docker in wsl
+    command: deno run -A https://deno.land/x/denon/denon.ts dev
+  supplier_prod:
+    build:
+      context: ./supplier-service
+      target: production
+      network: host
+    profiles: ["prod"]
+    networks:
+      private_net:
+        aliases:
+          - supplier_api
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${SUPPLIER_DB_URL}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+
 volumes:
   user_pgdata:
+  supplier_pgdata:
