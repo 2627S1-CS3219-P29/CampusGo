@@ -122,11 +122,16 @@ export class AuthController {
 
     }
 
-    async generateInviteCode(ctx: RouterContext<"/invite">) {
+    async generateInviteCodeNoCtx() {
         // TODO: retry logic
         const { code, expiresAt } = this.inviteGenerator.generateCode(config.adminInviteCodeExpiryTime);
+        await this.inviteRepo.generateNewInviteCode(code, expiresAt);
+        return code;
+    }
+
+    async generateInviteCode(ctx: RouterContext<"/invite">) {
         try {
-            await this.inviteRepo.generateNewInviteCode(code, expiresAt);
+            const code = await this.generateInviteCodeNoCtx();
             ctx.response.body = code;
         } catch (e) {
             applyDbError(ctx, e);
