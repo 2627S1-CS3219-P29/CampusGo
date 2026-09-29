@@ -29,11 +29,11 @@ export const openingHoursSchema = z.object({
 
 export const supplierFieldSchemas = {
     name: z.string().trim().min(1, "Name is required").max(100, "Name must be at most 100 characters"),
-    type: z.enum(SupplierType, "Type must be one of store, facility or landmark"),
+    type: z.enum(SupplierType, "Type must be one of food, shopping, printing or coffee"),
     // blank descriptions are stored as null
     description: z.string().trim().max(500, "Description must be at most 500 characters")
         .transform(s => s.length > 0 ? s : null).nullable(),
-    locationId: z.number().int().positive("Location must be a supplier id").nullable(),
+    locationId: z.number().int().positive("Location must be a positive location id").nullable(),
     openingHours: openingHoursSchema.nullable(),
 };
 
@@ -43,13 +43,8 @@ export const supplierFieldSchemas = {
  */
 export function checkCrossFieldRules(s: SupplierFields): FieldErrors {
     const errors: FieldErrors = {};
-    if (s.type === SupplierType.Landmark) {
-        if (s.locationId !== null)
-            errors.locationId = ["A landmark cannot be located at another landmark"];
-        if (s.openingHours !== null)
-            errors.openingHours = ["A landmark cannot have opening hours"];
-    } else if (s.locationId === null) {
-        errors.locationId = [`A ${s.type} must be located at a landmark`];
+    if (s.locationId === null) {
+        errors.locationId = ["A supplier must have a location"];
     }
     return errors;
 }

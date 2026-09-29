@@ -140,7 +140,7 @@ export const listSuppliers = async (filter: SupplierFilter): Promise<SupplierPag
     const listPlan = db.raw.sql`
         SELECT ${selectColumns()}
         FROM supplier s
-        LEFT JOIN supplier l ON l.id = s."locationId"
+        LEFT JOIN location l ON l.id = s."locationId"
         WHERE ${where}
         ORDER BY
             CASE WHEN ${bool(filter.sortDescending)} THEN lower(s.name) END DESC,
@@ -167,7 +167,7 @@ export const findSupplierById = async (id: number, includeDeleted = false): Prom
     const plan = db.raw.sql`
         SELECT ${selectColumns()}
         FROM supplier s
-        LEFT JOIN supplier l ON l.id = s."locationId"
+        LEFT JOIN location l ON l.id = s."locationId"
         WHERE s.id = ${int(id)} AND (${bool(includeDeleted)} OR s."deletedAt" IS NULL)
     `.returnsRow(rowSpec).build();
 
@@ -189,8 +189,7 @@ const lockedRowSpec = {
 
 /**
  * Locks a live supplier for the rest of the transaction. FOR UPDATE when we are
- * about to change it, FOR SHARE when we only need it to stay as it is (e.g. the
- * landmark a new store points at, so a concurrent delete waits for us)
+ * about to change it, FOR SHARE when we only need it to stay as it is.
  */
 const lockLiveSupplier = async (tx: Tx, id: number, mode: "update" | "share"): Promise<SupplierFields & { id: number } | null> => {
     const plan = mode === "update"
@@ -213,15 +212,14 @@ const lockLiveSupplier = async (tx: Tx, id: number, mode: "update" | "share"): P
     };
 };
 
-const assertValidLandmark = async (tx: Tx, locationId: number, selfId?: number) => {
-    const invalid = (msg: string) => new SupplierError(ErrorType.Invalid, "invalid supplier", { locationId: [msg] });
-    if (locationId === selfId)
-        throw invalid("A supplier cannot be located at itself");
-    const landmark = await lockLiveSupplier(tx, locationId, "share");
-    if (!landmark)
-        throw invalid(`No supplier with id ${locationId}`);
-    if (landmark.type !== SupplierType.Landmark)
-        throw invalid(`"${landmark.name}" is a ${landmark.type}, not a landmark`);
+const assertValidLocation = async (tx: Tx, locationId: number) => {
+    const plan = db.raw.sql`SELECT id FROM location WHERE id = ${int(locationId)} FOR SHARE`
+        .returnsRow({ id: "pg/int4@1" }).build();
+    const [location] = await tx.query(plan);
+    if (!location)
+        throw new SupplierError(ErrorType.Invalid, "invalid supplier", {
+            locationId: [`No location with id ${locationId}`],
+        });
 };
 
 // gives a clearer message than the unique constraint would; the constraint still guards races
@@ -238,13 +236,6 @@ const assertNameAvailable = async (tx: Tx, name: string, selfId?: number) => {
             : `A supplier named "${clash.name}" already exists`;
         throw new SupplierError(ErrorType.Conflict, "supplier name already in use", { name: [msg] });
     }
-};
-
-const liveSuppliersAt = async (tx: Tx, landmarkId: number): Promise<number[]> => {
-    const plan = db.raw.sql`
-        SELECT id FROM supplier WHERE "locationId" = ${int(landmarkId)} AND "deletedAt" IS NULL
-        ORDER BY id FOR UPDATE`.returnsRow({ id: "pg/int4@1" }).build();
-    return (await tx.query(plan)).map(r => r.id);
 };
 
 // FR 5.12: written in the same transaction as the change it records
@@ -277,7 +268,7 @@ export const createSupplier = (fields: SupplierFields, actorUserId: number): Pro
     inTransaction(async tx => {
         await assertNameAvailable(tx, fields.name);
         if (fields.locationId !== null)
-            await assertValidLandmark(tx, fields.locationId);
+            await assertValidLocation(tx, fields.locationId);
 
         const [{ id }] = await tx.query(db.raw.sql`
             INSERT INTO supplier (name, type, description, "locationId", "opensAt", "closesAt", "createdBy", "updatedBy")
@@ -293,8 +284,7 @@ export const createSupplier = (fields: SupplierFields, actorUserId: number): Pro
     });
 
 /**
- * Applies `patch` over the stored supplier and re-checks the rules on the result,
- * so e.g. turning a store into a landmark must also clear its location
+ * Applies `patch` over the stored supplier and re-checks the rules on the result.
  */
 export const updateSupplier = (id: number, patch: Partial<SupplierFields>, actorUserId: number): Promise<void> =>
     inTransaction(async tx => {
@@ -314,19 +304,10 @@ export const updateSupplier = (id: number, patch: Partial<SupplierFields>, actor
         if (hasErrors(errors))
             throw new SupplierError(ErrorType.Invalid, "invalid supplier", errors);
 
-        // FR 5.10: a landmark that others are located at must stay a landmark
-        if (current.type === SupplierType.Landmark && merged.type !== SupplierType.Landmark) {
-            const dependants = await liveSuppliersAt(tx, id);
-            if (dependants.length > 0) {
-                throw new SupplierError(ErrorType.Conflict, "landmark is in use", {
-                    type: [`${dependants.length} supplier(s) are located at this landmark, move or delete them first`],
-                });
-            }
-        }
         if (merged.name !== current.name)
             await assertNameAvailable(tx, merged.name, id);
         if (merged.locationId !== null && merged.locationId !== current.locationId)
-            await assertValidLandmark(tx, merged.locationId, id);
+            await assertValidLocation(tx, merged.locationId);
 
         await tx.execute(db.raw.sql`
             UPDATE supplier SET
@@ -344,7 +325,7 @@ export const updateSupplier = (id: number, patch: Partial<SupplierFields>, actor
     });
 
 /**
- * Soft delete. Deleting a landmark also deletes the suppliers located at it (FR 5.11).
+ * Soft delete a supplier while retaining its location.
  * `guard` may veto the delete, e.g. when an errand is still ongoing (FR 5.8)
  *
  * @returns ids of every supplier deleted, the requested one first
@@ -355,8 +336,7 @@ export const deleteSupplier = (id: number, actorUserId: number, guard: DeleteGua
         if (!target)
             throw new SupplierError(ErrorType.NotFound, "supplier not found");
 
-        const dependants = target.type === SupplierType.Landmark ? await liveSuppliersAt(tx, id) : [];
-        const ids = [id, ...dependants];
+        const ids = [id];
 
         const veto = await guard(ids);
         if (veto)

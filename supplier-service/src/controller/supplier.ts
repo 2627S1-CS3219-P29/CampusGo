@@ -14,7 +14,7 @@ const { defaultPageSize, maxPageSize, maxSearchLength } = config.supplier;
 // query strings are always text, so coerce and validate here
 export const listSuppliersQuerySchema = z.object({
     q: z.string().trim().max(maxSearchLength).optional(),
-    // comma separated, e.g. type=store,facility
+    // comma separated, e.g. type=food,coffee
     type: z.string()
         .transform(s => s.split(",").map(t => t.trim()).filter(t => t.length > 0))
         .pipe(z.array(z.enum(SupplierType)))
@@ -127,7 +127,7 @@ export class SupplierController {
     }
 
     /**
-     * Admin-only: soft delete a supplier, and everything located at it if it is a landmark
+     * Admin-only: soft delete a supplier
      */
     async deleteSupplier(ctx: RouterContext<"/:id">) {
         const id = parseId(ctx);

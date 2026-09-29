@@ -2,9 +2,10 @@
 
 enum SupplierType {
     @@type("pg/text@1")
-    Store = "store"
-    Facility = "facility"
-    Landmark = "landmark"
+    Food = "food"
+    Shopping = "shopping"
+    Printing = "printing"
+    Coffee = "coffee"
 }
 
 enum SupplierAuditAction {
@@ -14,16 +15,31 @@ enum SupplierAuditAction {
     Delete = "delete"
 }
 
+// Intended CSV seed mapping (source column -> model field):
+//   Name                 -> name (trim whitespace)
+//   Type                 -> type (SupplierType array; Food/Coffee -> [food, coffee])
+//   Building             -> Location.name (normalize, then look up or create the location)
+//   Floor                -> floor (integer; blank -> null)
+//   Location Description -> description (trim whitespace; blank -> null)
+//   StartingTime         -> opensAt (0900hrs -> 09:00)
+//   ClosingTime          -> closesAt (1800hrs -> 18:00; overnight hours allowed)
+//   ImageURL             -> imageUrl (direct image URL; blank -> null)
+//   Latitude, Longitude  -> omitted
+// Categories: food, shopping, printing, coffee. Split CSV Type on "/" and lowercase.
+// Normalize building aliases (e.g. Com2 -> Com 2) before looking up locations.
+// Set Supplier.locationId to the ID of the matching Location.
+// Opening and closing times must either both be provided or both be null.
 model Supplier {
     id Int @id @default(autoincrement())
     name String @unique
-    type SupplierType
+    type SupplierType[]
+    floor Int?
+    imageUrl String?
     description String?
 
-    // stores/facilities sit at a landmark; landmarks are locations themselves
-    locationId Int?
-    location Supplier? @relation("SupplierLocation", fields: [locationId], references: [id])
-    suppliersAtLocation Supplier[] @relation("SupplierLocation")
+    // each supplier belongs to a building or location
+    locationId Int
+    location Location @relation(fields: [locationId], references: [id])
 
     // local campus time "HH:MM[:SS]"; both null when there are no opening hours.
     // closesAt < opensAt means the supplier is open past midnight
@@ -40,15 +56,15 @@ model Supplier {
 
     auditLogs SupplierAuditLog[]
 
-    @@check(expression: "(type = 'landmark') = (\"locationId\" IS NULL)", name: "supplier_location_by_type")
     @@check(expression: "(\"opensAt\" IS NULL) = (\"closesAt\" IS NULL)", name: "supplier_hours_paired")
-    @@check(expression: "type <> 'landmark' OR \"opensAt\" IS NULL", name: "supplier_landmark_no_hours")
-    @@check(expression: "length(btrim(name)) > 0", name: "supplier_name_not_blank")
+    @@check(expression: "length(btrim(name)) > 0", name: "supplier_name_not_blank") // prevents empty string as supplier name
+}
 
-    // names are unique case-insensitively among live suppliers (FR 5.5.1), also backs sort by name
-    @@index(expression: "lower(name)", unique: true, where: "(\"deletedAt\" IS NULL)", name: "supplier_name_active")
-    @@index([type])
-    @@index([locationId])
+model Location {
+    id Int @id @default(autoincrement())
+    name String @unique
+
+    suppliers Supplier[]
 }
 
 // append-only history of supplier changes (FR 5.12)

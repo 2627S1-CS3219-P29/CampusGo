@@ -320,3 +320,39 @@ To run it outside Docker:
 
 After editing `src/prisma/contract.prisma`, run `deno task contract:emit` to regenerate
 `contract.json` and `contract.d.ts`.
+
+## Import CSV seed data
+
+After applying the current schema (including the `Location` table and array-valued
+supplier `type`), run the importer manually. It validates the whole CSV, creates
+missing locations, and inserts suppliers plus audit records in one transaction.
+Existing supplier names are skipped case-insensitively, including deleted rows;
+reruns do not overwrite edits or restore deleted suppliers.
+
+From `supplier-service`, preview without database access:
+
+```bash
+deno task seed ../data/csv/supplier-seed-data.csv --dry-run
+```
+
+To import locally, configure `DATABASE_URL` in this service's `.env` and pass an
+existing user ID for audit attribution:
+
+```bash
+deno task seed ../data/csv/supplier-seed-data.csv --actor-id=1
+```
+
+Replace `1` with the intended user's ID. The user service owns these IDs; the
+importer validates their format but cannot verify that the user exists.
+
+For Docker, run from the directory containing `compose.yaml`:
+
+```bash
+docker compose --profile dev cp ./data/csv/supplier-seed-data.csv supplier_dev:/tmp/supplier-seed-data.csv
+docker compose --profile dev exec supplier_dev deno task seed /tmp/supplier-seed-data.csv --dry-run
+docker compose --profile dev exec supplier_dev deno task seed /tmp/supplier-seed-data.csv --actor-id=1
+```
+
+`Food/Coffee` becomes `["food", "coffee"]`. Building aliases are normalized before
+location lookup. If existing locations normalize to the same name, the import
+fails rather than choosing an ambiguous location.
