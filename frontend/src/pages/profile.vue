@@ -13,6 +13,7 @@
   import { getUser } from '@/api/user'
   import { updateUser } from '@/api/user'
   import { onMounted } from 'vue'
+import AdminInviteForm from '@/components/AdminInviteForm.vue'
 
   const auth = useAuthStore()
   const NICKNAME_MAX_LENGTH = 25
@@ -101,6 +102,20 @@
       <p class="mt-2 text-sm text-gray-500">
         View and update your personal details.
       </p>
+      
+      <v-theme-provider theme="light">
+        <v-expansion-panels variant="accordion">
+          <v-expansion-panel v-if="!auth.isAdmin">
+            <v-expansion-panel-title>
+              <span class="text-subtitle-1 font-weight-medium">Admin Invitation Programme</span>
+            </v-expansion-panel-title>
+  
+            <v-expansion-panel-text>
+              <admin-invite-form/>
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+        </v-expansion-panels>
+      </v-theme-provider>
 
       <div class="mt-8 space-y-5">
         <div

@@ -19,7 +19,7 @@ export class ApiError extends Error {
 	}
 }
 
-async function tryRefreshToken() {
+export async function tryRefreshToken() {
 	const tokens = TokenStore.getTokens()
 	if (!tokens)
         throw new Error("no tokens available to refresh");

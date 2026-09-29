@@ -13,6 +13,7 @@
     "migration:plan": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 migration plan",
     "migration:show": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 migration show",
     "migration:status": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 migration status",
+    "admin:gen-invite": "deno run -A --env-file=.env src/index.ts --gen-invite",
     "start": "deno run -A --env-file=.env src/index.ts"
   },
   "dependencies": {
