@@ -3,6 +3,7 @@
 // Convert each field, trim names and descriptions, map each CSV category 
 // to the supplier categories
 
+// AI-generated(edited by <Jun Yi>)
 import { parse } from "jsr:@std/csv@1";
 import { SupplierType } from "../common.ts";
 
