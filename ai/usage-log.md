@@ -85,3 +85,10 @@ it("strips extra fields when schema is strict", async () => {
     assertEquals(next.calls.length, 0);
 });
 ```
+# 29/9/2026
+- Tool used: codex chat
+- Mode: Generation
+- Prompt:
+```
+Generate code to help me seed locations from the csv first then proceed to seed the suppliers, follow the format given by the comments given in the contract.prisma
+```
