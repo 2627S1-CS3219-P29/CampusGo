@@ -193,9 +193,6 @@
 //         }
 //     }
 // }
-
-// TODO: Add error handling.
-// TODO: Add validation schemas.
 // TODO: Add supplier update functionality.
 
 import type { Context } from "@oak/oak";
@@ -210,6 +207,8 @@ export const fetchAllSuppliers = async (ctx: Context) => {
 }
 
 export const fetchSupplier = async (ctx: Context, id: number) => {
+
+    // check if id is a positive int
     if (!Number.isInteger(id) || id <= 0) {
         ctx.response.status = 400;
         ctx.response.body = {
@@ -223,6 +222,7 @@ export const fetchSupplier = async (ctx: Context, id: number) => {
         .where({ id: id })
         .first();
 
+        // check if supplier record doesn't exist/has been soft-deleted
         if (!supplier || supplier.deletedAt !== null) {
             ctx.response.status = 404
             ctx.response.body = {
@@ -244,18 +244,9 @@ export const fetchSupplier = async (ctx: Context, id: number) => {
 
 export const createSupplier = async (ctx: Context) => {
 
-    let body;
-    const actorUserId = 1; // change this to get the user id of the caller
-
-    try {
-        body = await ctx.request.body.json();
-    } catch {
-        ctx.response.status = 400;
-        ctx.response.body = {
-            error: "Request body must be valid JSON"
-        }
-        return;
-    }
+    // get validatedBody, returned from validateBody(schema) in routes
+    const body = ctx.state.validatedBody
+    const actorUserId = ctx.state.user.id; 
 
     try {
         const supplier = await db.orm.public.Supplier.create({
@@ -281,6 +272,7 @@ export const createSupplier = async (ctx: Context) => {
 }
 
 export const deleteSupplier = async (ctx: Context, id: number) => {
+    // check if id is a positive int
     if (!Number.isInteger(id) || id <= 0) {
         ctx.response.status = 400;
         ctx.response.body = {
@@ -294,6 +286,7 @@ export const deleteSupplier = async (ctx: Context, id: number) => {
             .where({ id: id })
             .first()
 
+        // check if supplier doesn't exist/has been soft-deleted
         if (!supplier || supplier.deletedAt !== null) {
             ctx.response.status = 404;
             ctx.response.body = {
@@ -303,12 +296,13 @@ export const deleteSupplier = async (ctx: Context, id: number) => {
         }
         const now = new Date().toISOString();
 
+        const actorUserId = ctx.state.id;
         await db.orm.public.Supplier
             .where({ id: id })
             .update({
                 deletedAt: now,
                 updatedAt: now,
-                // updatedBy: userId
+                updatedBy: actorUserId
             });
 
             ctx.response.status = 204;
