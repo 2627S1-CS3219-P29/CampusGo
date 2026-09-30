@@ -210,20 +210,55 @@ export const fetchAllSuppliers = async (ctx: Context) => {
 }
 
 export const fetchSupplier = async (ctx: Context, id: number) => {
-    const supplier = await db.orm.public.Supplier
+    if (!Number.isInteger(id) || id <= 0) {
+        ctx.response.status = 400;
+        ctx.response.body = {
+            error: "Supplier ID must be a positive integer"
+        }
+        return;
+    }
+
+    try {
+        const supplier = await db.orm.public.Supplier
         .where({ id: id })
         .first();
 
-    ctx.response.status = 200;
-    ctx.response.body = supplier;
+        if (!supplier || supplier.deletedAt !== null) {
+            ctx.response.status = 404
+            ctx.response.body = {
+                error: "Supplier with specified ID not found"
+            }
+            return;
+        }
+
+        ctx.response.status = 200;
+        ctx.response.body = supplier;
+    } catch (error) {
+        console.error("Failed to fetch supplier:", error);
+        ctx.response.status = 500;
+        ctx.response.body = { 
+            error: "Internal server error" 
+        }
+    }
 }
 
 export const createSupplier = async (ctx: Context) => {
-    const body = await ctx.request.body.json();
-    const actorUserId = 1;
 
-    const supplier = await db.orm.public.Supplier.
-        create({
+    let body;
+    const actorUserId = 1; // change this to get the user id of the caller
+
+    try {
+        body = await ctx.request.body.json();
+    } catch {
+        ctx.response.status = 400;
+        ctx.response.body = {
+            error: "Request body must be valid JSON"
+        }
+        return;
+    }
+
+    try {
+        const supplier = await db.orm.public.Supplier.create({
             name: body.name,
             type: body.type,
             locationId: body.locationId,
@@ -235,15 +270,52 @@ export const createSupplier = async (ctx: Context) => {
             createdBy: actorUserId,
             updatedBy: actorUserId,
         })
-
-    ctx.response.status = 201;
-    ctx.response.body = supplier;
+        ctx.response.status = 201;
+        ctx.response.body = supplier;
+        } catch {
+            ctx.response.status = 500;
+            ctx.response.body = {
+                error: "Internal server error"
+            }
+        }
 }
 
 export const deleteSupplier = async (ctx: Context, id: number) => {
-    await db.orm.public.Supplier
-        .where({ id: id })
-        .delete()
+    if (!Number.isInteger(id) || id <= 0) {
+        ctx.response.status = 400;
+        ctx.response.body = {
+            error: "Supplier ID must be a positive integer"
+        }
+        return;
+    }
 
-        ctx.response.status = 204;
+    try {
+        const supplier = await db.orm.public.Supplier
+            .where({ id: id })
+            .first()
+
+        if (!supplier || supplier.deletedAt !== null) {
+            ctx.response.status = 404;
+            ctx.response.body = {
+                error: "Supplier with specified ID not found"
+            }
+            return;
+        }
+        const now = new Date().toISOString();
+
+        await db.orm.public.Supplier
+            .where({ id: id })
+            .update({
+                deletedAt: now,
+                updatedAt: now,
+                // updatedBy: userId
+            });
+
+            ctx.response.status = 204;
+    } catch {
+        ctx.response.status = 500;
+        ctx.response.body = {
+            error: "Internal server error"
+        }
+    }
 }

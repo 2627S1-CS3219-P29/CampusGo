@@ -72,23 +72,34 @@
 
 import { Router } from "@oak/oak";
 import { fetchAllSuppliers, fetchSupplier, createSupplier, deleteSupplier } from "../controller/supplier.ts";
+import { authenticationMiddleware } from "../middleware/auth.ts";
+import { Role } from "../common.ts";
 
 const router = new Router({ prefix: "/suppliers" });
 
-router.get("/", async ctx => {
-    // return list of suppliers
-    await fetchAllSuppliers(ctx);
-});
+router.get(
+    "/",
+    authenticationMiddleware(new Set()),
+    fetchAllSuppliers
+);
 
-router.get("/:id", async ctx => {
-    await fetchSupplier(ctx, Number(ctx.params.id))
+router.get(
+    "/:id",
+    authenticationMiddleware(new Set()), 
+    async ctx => {
+        await fetchSupplier(ctx, Number(ctx.params.id))
 })
 
-router.post("/", async ctx => {
-    await createSupplier(ctx);
-})
+router.post(
+    "/", 
+    authenticationMiddleware(new Set([Role.Admin])),
+    createSupplier
+)
 
-router.delete("/:id", async ctx => {
+router.delete(
+    "/:id",
+    authenticationMiddleware(new Set([Role.Admin])),
+    async ctx => {
     await deleteSupplier(ctx, Number(ctx.params.id));
 })
 
