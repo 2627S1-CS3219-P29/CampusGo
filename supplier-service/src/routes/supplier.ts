@@ -67,21 +67,17 @@
 // export default createSupplierRouter;
 
 // TODO: Attach request validation middleware.
-// TODO: Add the supplier update route
-// TODO: Add filtering, sorting, pagination.
 
 import { Router } from "@oak/oak";
-import { fetchAllSuppliers, fetchSupplier, createSupplier, deleteSupplier } from "../controller/supplier.ts";
+import { fetchAllSuppliers, fetchSupplier, createSupplier, updateSupplier, deleteSupplier } from "../controller/supplier.ts";
 import { authenticationMiddleware } from "../middleware/auth.ts";
 import { Role } from "../common.ts";
 import { validateBody, validateQuery } from "../middleware/schema.ts";
-import { createSupplierSchema, listSuppliersQuerySchema } from "../schema/supplier.ts";
+import { createSupplierSchema, listSuppliersQuerySchema, updateSupplierSchema } from "../schema/supplier.ts";
 
 const router = new Router({ prefix: "/suppliers" });
 
-// get list of all suppliers
-// TODO: add filtering, sorting, pagination in the controller. then, add validation
-// with a new schema for listSuppliersQuerySchema
+// get a page of live suppliers, optionally searched by name, filtered by location and sorted
 router.get(
     "/",
     authenticationMiddleware(new Set()),
@@ -104,6 +100,15 @@ router.post(
     validateBody(createSupplierSchema),
     createSupplier
 )
+
+// update some fields of supplier with specified id
+router.patch(
+    "/:id",
+    authenticationMiddleware(new Set([Role.Admin])),
+    validateBody(updateSupplierSchema),
+    async ctx => {
+    await updateSupplier(ctx, Number(ctx.params.id));
+})
 
 // delete supplier with specified id
 router.delete(

@@ -39,6 +39,7 @@
 
 import { Application, Router } from "@oak/oak";
 import supplierRouter from "./routes/supplier.ts";
+import locationRouter from "./routes/location.ts";
 import { connectDatabase } from "./prisma/db.ts";
 
 await connectDatabase();
@@ -50,6 +51,7 @@ publicRouter.get("/health", ctx => {
 });
 
 publicRouter.use(supplierRouter.routes());
+publicRouter.use(locationRouter.routes());
 
 const privateRouter = new Router({ prefix: "/private" });
 // Add private endpoints here later.
