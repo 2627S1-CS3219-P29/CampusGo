@@ -197,13 +197,65 @@
 
 import type { Context } from "@oak/oak";
 import { db } from "../prisma/db.ts";
+import type { ListSuppliersQuery } from "../schema/supplier.ts"
 
 export const fetchAllSuppliers = async (ctx: Context) => {
-    const suppliers = await db.orm.public.Supplier
-        .all();
+    // name, locationid, sortby, sortorder, page 
+    
+    const query = ctx.state.validatedQuery as ListSuppliersQuery;
+    const limit = 20;
+    const offset = (query.page - 1) * limit
 
-    ctx.response.status = 200;
-    ctx.response.body = suppliers;
+    try {
+        // filter out deleted suppliers
+        let supplierQuery = db.orm.public.Supplier
+            .where({ deletedAt: null });
+
+        // filter by locationId(if specified)
+        if (query.locationId !== undefined) {
+            supplierQuery = supplierQuery
+                .where({ locationId: query.locationId })
+        }
+
+        // filter by supplier name(if specified)
+        if (query.name !== undefined) {
+            supplierQuery = supplierQuery.where(
+                supplier => supplier.name.ilike(`%${query.name}%`)
+            );
+        }
+
+        // count total suppliers
+        const { total } = await supplierQuery.aggregate(agg => ({
+            total: agg.count(),
+        }));
+
+        // determine if sort by name or id, asc or desc, then sort accordingly, applying offset and limit
+        const suppliers = await supplierQuery
+            .orderBy(supplier => {
+            let field;
+            if (query.sortBy === "name" ) {
+                field = supplier.name
+            } else {
+                field = supplier.id;
+            } 
+            return query.sortOrder === "asc" ? field.asc() : field.desc()})
+            .offset(offset)
+            .limit(limit)
+            .all();
+
+        ctx.response.status = 200;
+        ctx.response.body = {
+            data: suppliers,
+            pagination: {
+                page: query.page,
+                limit,
+                total, 
+                totalPage: Math.ceil(total / limit)
+            },
+        };
+    } catch {
+        ctx.response.status = 500;
+    }
 }
 
 export const fetchSupplier = async (ctx: Context, id: number) => {

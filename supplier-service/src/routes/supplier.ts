@@ -74,8 +74,8 @@ import { Router } from "@oak/oak";
 import { fetchAllSuppliers, fetchSupplier, createSupplier, deleteSupplier } from "../controller/supplier.ts";
 import { authenticationMiddleware } from "../middleware/auth.ts";
 import { Role } from "../common.ts";
-import { validateBody } from "../middleware/schema.ts";
-import { createSupplierSchema } from "../schema/supplier.ts";
+import { validateBody, validateQuery } from "../middleware/schema.ts";
+import { createSupplierSchema, listSuppliersQuerySchema } from "../schema/supplier.ts";
 
 const router = new Router({ prefix: "/suppliers" });
 
@@ -85,6 +85,7 @@ const router = new Router({ prefix: "/suppliers" });
 router.get(
     "/",
     authenticationMiddleware(new Set()),
+    validateQuery(listSuppliersQuerySchema),
     fetchAllSuppliers
 );
 
@@ -111,5 +112,7 @@ router.delete(
     async ctx => {
     await deleteSupplier(ctx, Number(ctx.params.id));
 })
+
+
 
 export default router;

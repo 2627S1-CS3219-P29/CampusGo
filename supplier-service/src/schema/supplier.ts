@@ -22,3 +22,19 @@ export const createSupplierSchema = z.object({
             path: ["closesAt"],
     },
 );
+
+// allows optional searching by name, filtering by location,
+// sorting by name, sort order, and pageNumber
+// page limit set to 20 is handled in the controller
+export const listSuppliersQuerySchema = z.object({
+    name: z.string().trim().min(1).optional(),
+    locationId: z.coerce.number().int().positive().optional(),
+
+    sortBy: z.enum(["id", "name"]).default("id"),
+    sortOrder: z.enum(["asc", "desc"]).default("asc"),
+
+    page: z.coerce.number().int().positive().default(1),
+}).strict();
+
+export type ListSuppliersQuery =
+    z.infer<typeof listSuppliersQuerySchema>;
