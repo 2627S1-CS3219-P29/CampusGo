@@ -64,6 +64,7 @@ model Location {
     id Int @id @default(autoincrement())
     name String @unique
 
+    deletedAt TimestamptzString?
     suppliers Supplier[]
 }
 

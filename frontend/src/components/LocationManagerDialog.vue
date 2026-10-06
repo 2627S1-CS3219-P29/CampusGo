@@ -145,8 +145,12 @@
     } catch (error) {
       // e.g. 409 when the name already exists
       const data = axios.isAxiosError(error) ? error.response?.data : undefined
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
       if (data?.fields?.name) {
         addError.value = data.fields.name
+      } else if (status === 409) {
+        // names are unique, including buildings that were deleted
+        addError.value = ['A building with this name already exists (it may have been deleted)']
       } else {
         console.error('Error adding building', error)
         alertStore.error(data?.error ?? 'Could not add building')

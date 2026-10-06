@@ -112,7 +112,7 @@ export async function createLocation (name: string) {
   return response.data
 }
 
-// admin only, refused while any supplier uses the location
+// admin only, soft delete, refused while any supplier uses the location
 export async function deleteLocation (id: number) {
   await client.delete(`/public/supplier/locations/${id}`)
 }

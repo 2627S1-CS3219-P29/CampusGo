@@ -306,8 +306,9 @@ const rejectField = (ctx: Context, status: 400 | 409, field: string, message: st
     }
 }
 
+// deleted locations can no longer be given to suppliers
 const locationExists = async (locationId: number) =>
-    Boolean(await db.orm.public.Location.where({ id: locationId }).first());
+    Boolean(await db.orm.public.Location.where({ id: locationId, deletedAt: null }).first());
 
 /**
  * Names are unique across all suppliers, including soft-deleted ones.
