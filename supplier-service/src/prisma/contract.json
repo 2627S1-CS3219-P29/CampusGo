@@ -63,6 +63,13 @@
         "models": {
           "Location": {
             "fields": {
+              "deletedAt": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              },
               "id": {
                 "nullable": false,
                 "type": {
@@ -97,6 +104,9 @@
             },
             "storage": {
               "fields": {
+                "deletedAt": {
+                  "column": "deletedAt"
+                },
                 "id": {
                   "column": "id"
                 },
@@ -397,6 +407,11 @@
           "table": {
             "location": {
               "columns": {
+                "deletedAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "nativeType": "timestamptz",
+                  "nullable": true
+                },
                 "id": {
                   "codecId": "pg/int4@1",
                   "default": {
@@ -696,7 +711,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "2e62875caccab084c109ad295dee8455876b3c15d314cc4d7523985305a9c17a"
+    "storageHash": "9357d3089b7013134fb5595d1f4722bcbf03dfda3345c1f22710774db8c064cc"
   },
   "capabilities": {
     "postgres": {

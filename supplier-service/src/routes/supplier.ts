@@ -95,7 +95,8 @@ router.get(
     authenticationMiddleware(new Set()), 
     async ctx => {
         await fetchSupplier(ctx, Number(ctx.params.id))
-})
+    }
+)
 
 // create new supplier
 router.post(
@@ -110,9 +111,8 @@ router.delete(
     "/:id",
     authenticationMiddleware(new Set([Role.Admin])),
     async ctx => {
-    await deleteSupplier(ctx, Number(ctx.params.id));
-})
-
-
+        await deleteSupplier(ctx, Number(ctx.params.id));
+    }
+)
 
 export default router;
