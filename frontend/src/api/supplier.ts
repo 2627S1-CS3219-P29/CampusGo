@@ -10,6 +10,8 @@ export type SupplierType = typeof SUPPLIER_TYPES[number]
 export interface Location {
   id: number
   name: string
+  // set when soft-deleted; GET /locations only returns live ones, so always null there
+  deletedAt: string | null
 }
 
 // a supplier row as stored by the supplier service
