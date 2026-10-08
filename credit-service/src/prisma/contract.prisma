@@ -1,0 +1,23 @@
+// use prisma-8
+
+model UserCredits {
+  id      Int @id @default(autoincrement())
+  balance Int
+}
+
+model CreditsOnHold {
+  id          Int              @id @default(autoincrement())
+  errandId    Int
+  requesterId Int
+  supplierId  Int
+  amount      Int
+  status      CreditHoldStatus
+}
+
+enum CreditHoldStatus {
+  @@type("pg/text@1")
+
+  HELD     = "HELD"
+  RELEASED = "RELEASED"
+  REFUNDED = "REFUNDED"
+}
