@@ -2,9 +2,9 @@ import type { DbTxUnion } from "./db.ts";
 import type { IInviteRepository } from "./invite.ts";
 import type { IRoleRepository } from "./roles.ts";
 import type { IUserRepository } from "./users.ts";
-import RoleRepo from "../prisma/roles.ts";
-import InviteRepo from "../prisma/invite.ts";
-import UserRepo from "../prisma/users.ts";
+import { RoleRepository } from "../prisma/roles.ts";
+import { InviteRepository } from "../prisma/invite.ts";
+import { UserRepository } from "../prisma/users.ts";
 import { OutboxRepository, type IOutboxRepository } from "./outbox.ts";
 
 export interface Repos {
@@ -20,11 +20,10 @@ export interface IRepoFactory {
 
 class RepoFactory implements IRepoFactory {
     buildRepos(db: DbTxUnion): Repos {
-        // TODO: refactor other repos to use this pattern
         return {
-            invite: InviteRepo,
-            role: RoleRepo,
-            user: UserRepo,
+            invite: new InviteRepository(db),
+            role: new RoleRepository(db),
+            user: new UserRepository(db),
             outbox: new OutboxRepository(db),
         };
     }
