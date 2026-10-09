@@ -26,8 +26,10 @@ Seed the databse with dummy UI testing data:
 Ensure you are still in the order-service directory, then boot API:
 ```deno run -A --env --watch src/server.ts``` or ```deno task dev```
 
-## 5. API Testing
-With the server running, you can test endpoints - I used Thunder Client in VS Code.
+
+
+## API Testing Guide
+-----------------
 
 Fetch All Orders (GET)
 - Method: GET
@@ -37,14 +39,26 @@ Fetch All Orders (GET)
 Create a New Order (POST)
 - Method: POST
 - URL: http://localhost:8000/orders
+- Headers: Must include "Idempotency-Key" with a unique string (e.g., "test-req-123") for deduplication.
 - Body: (JSON)
     Sample:
         {
-  "requesterId": "user-999",
-  "pickupLocation": "UTown Starbucks",
-  "dropoffLocation": "Central Library",
-  "itemDescription": "Iced Latte",
-  "creditBounty": 2
-}
-- Result: Returns a 201 Created status with the newly generated errand, including its auto-assigned UUID and enforced CREATED status.
+          "requesterId": "user-101",
+          "pickupLocation": "The Terrace@COM3",
+          "dropoffLocation": "Foyer@PGP",
+          "itemDescription": "Black gaming laptop",
+          "creditBounty": 50,
+          "supplierId": null
+        }
+- Result: Returns a 201 Created status with the newly generated errand, including its auto-assigned UUID and enforced CREATED status. If sent a second time with the exact same Idempotency-Key header, it will safely return a 200 OK with "deduplicated": true instead of double-charging.
 
+Update Order Status (PATCH)
+- Method: PATCH
+- URL: http://localhost:8000/orders/:id/status (Replace :id with an actual UUID from the GET request)
+- Body: (JSON)
+    Sample:
+        {
+          "targetStatus": "ACCEPTED",
+          "callerId": "courier-user-202"
+        }
+- Result: Returns a 200 OK with the newly updated state. The internal state machine enforces access rules: returns 409 Conflict if attempting to accept an already accepted order, 403 Forbidden if the requester attempts to accept their own order, and 403 Forbidden if anyone but the requester attempts to mark the order as COMPLETED.
