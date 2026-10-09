@@ -8,8 +8,7 @@ import { authenticationMiddleware } from "../middleware/auth.ts";
 import { repoFactory } from "../prisma/factory.ts";
 import { db } from "../prisma/db.ts";
 
-const { user, role, invite } = repoFactory.buildRepos(db);
-const authController = new AuthController(user, role, invite, defaultHasher, defaultJwtService, defaultInviteCodeGenerator);
+const authController = new AuthController(db, repoFactory, defaultHasher, defaultJwtService, defaultInviteCodeGenerator);
 export const createAuthRouter = () => {
     const router = new Router({ prefix: "/auth" });
 

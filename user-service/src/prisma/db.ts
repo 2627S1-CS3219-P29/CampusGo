@@ -20,8 +20,9 @@ export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0]; // why is this
 export type DbTxUnion = Db | Tx;
 
 /// runtime check to separate the union
+/// only the main db type has the transaction function
 export function isTransaction(ctx: DbTxUnion): ctx is Tx {
-    return "execute" in ctx && typeof ctx.execute === "function";
+    return !("transaction" in ctx) || typeof ctx.transaction !== "function";
 }
 
 let connection: Promise<void> | undefined;

@@ -1,8 +1,9 @@
 import amqp from "amqplib";
 import config from "../config.ts";
 
-interface IQueueProvider {
-    
+export interface IQueueProvider {
+    publishEvent(routingKey: string, payload: EventPayload): Promise<void>;
+    consume(...args: Parameters<amqp.Channel["consume"]>): ReturnType<amqp.Channel["consume"]>;
 }
 
 export type EventPayload = Record<string, any> & AuxPayloadInfo;
