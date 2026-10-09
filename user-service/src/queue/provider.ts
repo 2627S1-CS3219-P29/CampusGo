@@ -13,16 +13,16 @@ interface AuxPayloadInfo {
 
 export class RabbitMqProvider implements IQueueProvider {
     connection: amqp.ChannelModel;
-    ch: amqp.Channel;
+    ch: amqp.ConfirmChannel;
 
-    private constructor(connection: amqp.ChannelModel, ch: amqp.Channel) {
+    private constructor(connection: amqp.ChannelModel, ch: amqp.ConfirmChannel) {
         this.connection = connection;
         this.ch = ch;
     }
 
     static async connect(url: string) {
         const connection = await amqp.connect(url);
-        const ch = await connection.createChannel();
+        const ch = await connection.createConfirmChannel();
         const provider = new RabbitMqProvider(connection, ch);
         await provider.setup();
         return provider;
@@ -46,14 +46,20 @@ export class RabbitMqProvider implements IQueueProvider {
         await this.ch.bindQueue("user.rpc", "app.rpc", "user.query");
     }
 
-    publishEvent(routingKey: string, payload: EventPayload) {
+    async publishEvent(routingKey: string, payload: EventPayload) {
         const encodedPayload = Buffer.from(JSON.stringify(payload));
-        return this.ch.publish("app.events", routingKey, encodedPayload, {
-            persistent: true,
-            contentType: "application/json",
-            messageId: payload.eventId ?? crypto.randomUUID(),
-            timestamp: Date.now(),
-            type: payload.type,
+        await new Promise<void>((res, rej) => {
+            this.ch.publish("app.events", routingKey, encodedPayload, {
+                persistent: true,
+                contentType: "application/json",
+                messageId: payload.eventId ?? crypto.randomUUID(),
+                timestamp: Date.now(),
+                type: payload.type,
+            }, err => {
+                if (err)
+                    rej(err);
+                res();
+            });
         });
     }
 

@@ -20,7 +20,7 @@ export async function relayOnce(db: Db, repoFactory: IRepoFactory, msgQueue: Rab
         
         for (const row of rows) {
             try {
-                msgQueue.publishEvent(row.topic, {
+                await msgQueue.publishEvent(row.topic, {
                     type: row.type,
                     ...row.payload
                 });
