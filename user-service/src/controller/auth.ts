@@ -34,7 +34,6 @@ export const acceptInviteCodeSchema = z.object({
 
 const GENERIC_LOGIN_ERROR = "supplied email/password is incorrect";
 
-// TODO: unit testing
 export class AuthController {
     userRepo: IUserRepository;
     roleRepo: IRoleRepository;

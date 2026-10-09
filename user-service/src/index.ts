@@ -1,12 +1,15 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { Application, Router } from "@oak/oak";
 import { createAuthRouter, createPrivateAuthRouter } from "./routes/auth.ts";
-import { connectDatabase } from "./prisma/db.ts";
+import { connectDatabase, db } from "./prisma/db.ts";
 import log from "./log.ts";
 import { seedEssential } from "./prisma/seed.ts";
 import createUserRouter from "./routes/user.ts";
 import createRoleRouter from "./routes/role.ts";
 import { generateInviteCodeCli } from "./tasks/cli.ts";
+import { buildDefaultProvider } from "./queue/provider.ts";
+import { repoFactory } from "./prisma/factory.ts";
+import { relayOnce } from "./queue/outboxWorker.ts";
 
 const flags = parseArgs(Deno.args, {
     boolean: ["gen-invite"],
@@ -17,6 +20,23 @@ const flags = parseArgs(Deno.args, {
 // TODO: figure out how to automate setup and database migration in the scripts
 await connectDatabase();
 await seedEssential();
+
+
+const provider = await buildDefaultProvider();
+const repos = repoFactory.buildRepos(db);
+await repos.outbox.createEvent("user.registered", "userRegistered", {
+    userId: 100,
+    occurredAt: new Date().toISOString(),    
+});
+const out = await repos.outbox.getPendingEvents(50);
+console.log(out);
+await repos.outbox.getPendingEvents(50);
+await relayOnce(db, repoFactory, provider);
+// provider.publishEvent("user.registered", {
+//     type: "userRegistered",
+//     userId: 100,
+//     occurredAt: new Date().toISOString(),
+// });
 
 const createPublicRouter = () => {
     const router = new Router({ prefix: "/public" });

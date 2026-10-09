@@ -29,6 +29,7 @@ services:
       - ./edge/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - public_net
+      - private_net
     depends_on:
       - api_gateway
       - frontend_dev
@@ -98,9 +99,10 @@ services:
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
     # command: deno task dev
     # workaround for docker in wsl
-    command: deno run -A https://deno.land/x/denon/denon.ts dev
+    command: sh -c "deno task db:update_dev && deno run -A https://deno.land/x/denon/denon.ts dev"
   user_prod:
     build:
       context: ./user-service
