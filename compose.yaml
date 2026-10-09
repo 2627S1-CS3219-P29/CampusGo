@@ -32,6 +32,7 @@ services:
     depends_on:
       - api_gateway
       - frontend_dev
+      - rabbitmq
 
   # frontend
   frontend_dev:
@@ -47,6 +48,20 @@ services:
       - public_net
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+
+  # event queue
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: rabbitmq
+    ports:
+      - "127.0.0.1:5672:5672" # amqp
+      - "127.0.0.1:15672:15672" # management ui
+    networks: [private_net]
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
 
   # user service
   user_db:
@@ -155,3 +170,4 @@ services:
 volumes:
   user_pgdata:
   supplier_pgdata:
+  rabbitmq_data:
