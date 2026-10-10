@@ -193,11 +193,14 @@
 //         }
 //     }
 // }
-// TODO: Add supplier update functionality.
+
 
 import type { Context } from "@oak/oak";
+import type { z } from "zod";
 import { db } from "../prisma/db.ts";
-import type { ListSuppliersQuery } from "../schema/supplier.ts"
+import type { AuthenticatedUser } from "../middleware/auth.ts";
+import { hoursPairedMessage } from "../schema/supplier.ts";
+import type { createSupplierSchema, ListSuppliersQuery, updateSupplierSchema } from "../schema/supplier.ts";
 
 export const fetchAllSuppliers = async (ctx: Context) => {
     // name, locationid, sortby, sortorder, page 
@@ -271,8 +274,8 @@ export const fetchSupplier = async (ctx: Context, id: number) => {
 
     try {
         const supplier = await db.orm.public.Supplier
-        .where({ id: id })
-        .first();
+            .where({ id: id })
+            .first();
 
         // check if supplier record doesn't exist/has been soft-deleted
         if (!supplier || supplier.deletedAt !== null) {
@@ -294,33 +297,140 @@ export const fetchSupplier = async (ctx: Context, id: number) => {
     }
 }
 
+// responds like validateBody, naming the field at fault so the form can show it
+const rejectField = (ctx: Context, status: 400 | 409, field: string, message: string) => {
+    ctx.response.status = status;
+    ctx.response.body = {
+        error: "invalid supplier",
+        fields: { [field]: [message] }
+    }
+}
+
+// deleted locations can no longer be given to suppliers
+const locationExists = async (locationId: number) =>
+    Boolean(await db.orm.public.Location.where({ id: locationId, deletedAt: null }).first());
+
+/**
+ * Names are unique across all suppliers, including soft-deleted ones.
+ * Returns why the name can't be used, or null if it is free
+ */
+const nameConflict = async (name: string, exceptId?: number): Promise<string | null> => {
+    const existing = await db.orm.public.Supplier.where({ name: name }).first();
+    if (!existing || existing.id === exceptId)
+        return null;
+    return existing.deletedAt === null
+        ? `"${name}" is already used by another supplier`
+        : `"${name}" belongs to a deleted supplier, choose another name`;
+}
+
 export const createSupplier = async (ctx: Context) => {
 
     // get validatedBody, returned from validateBody(schema) in routes
-    const body = ctx.state.validatedBody
-    const actorUserId = ctx.state.user.id; 
+    const body = <z.infer<typeof createSupplierSchema>>ctx.state.validatedBody;
+    const actorUserId = (<AuthenticatedUser>ctx.state.user).id;
 
     try {
-        const supplier = await db.orm.public.Supplier.create({
+        if (!await locationExists(body.locationId)) {
+            rejectField(ctx, 400, "locationId", "Building not found");
+            return;
+        }
+        const conflict = await nameConflict(body.name);
+        if (conflict) {
+            rejectField(ctx, 409, "name", conflict);
+            return;
+        }
+
+        const created = await db.orm.public.Supplier.create({
             name: body.name,
             type: body.type,
             locationId: body.locationId,
             floor: body.floor ?? null,
             imageUrl: body.imageUrl ?? null,
-            description: body.description ?? null,
+            description: body.description || null,
             opensAt: body.opensAt ?? null,
             closesAt: body.closesAt ?? null,
             createdBy: actorUserId,
             updatedBy: actorUserId,
         })
         ctx.response.status = 201;
-        ctx.response.body = supplier;
-        } catch {
-            ctx.response.status = 500;
+        ctx.response.body = created;
+    } catch (error) {
+        console.error("Failed to create supplier:", error);
+        ctx.response.status = 500;
+        ctx.response.body = {
+            error: "Internal server error"
+        }
+    }
+}
+
+export const updateSupplier = async (ctx: Context, id: number) => {
+    // check if id is a positive int
+    if (!Number.isInteger(id) || id <= 0) {
+        ctx.response.status = 400;
+        ctx.response.body = {
+            error: "Supplier ID must be a positive integer"
+        }
+        return;
+    }
+
+    // only the fields being changed, returned from validateBody(schema) in routes
+    const patch = <z.infer<typeof updateSupplierSchema>>ctx.state.validatedBody;
+    const actorUserId = (<AuthenticatedUser>ctx.state.user).id;
+
+    try {
+        const supplier = await db.orm.public.Supplier
+            .where({ id: id })
+            .first();
+
+        // check if supplier doesn't exist/has been soft-deleted
+        if (!supplier || supplier.deletedAt !== null) {
+            ctx.response.status = 404;
             ctx.response.body = {
-                error: "Internal server error"
+                error: "Supplier with specified ID not found"
+            }
+            return;
+        }
+
+        // hours must stay paired once the patch is applied to the stored supplier
+        const opensAt = patch.opensAt !== undefined ? patch.opensAt : supplier.opensAt;
+        const closesAt = patch.closesAt !== undefined ? patch.closesAt : supplier.closesAt;
+        if ((opensAt === null) !== (closesAt === null)) {
+            rejectField(ctx, 400, "closesAt", hoursPairedMessage);
+            return;
+        }
+        if (patch.locationId !== undefined && !await locationExists(patch.locationId)) {
+            rejectField(ctx, 400, "locationId", "Building not found");
+            return;
+        }
+        if (patch.name !== undefined) {
+            const conflict = await nameConflict(patch.name, id);
+            if (conflict) {
+                rejectField(ctx, 409, "name", conflict);
+                return;
             }
         }
+
+        await db.orm.public.Supplier
+            .where({ id: id })
+            .update({
+                ...patch,
+                // blank description is stored as null
+                ...(patch.description !== undefined ? { description: patch.description || null } : {}),
+                updatedAt: new Date().toISOString(),
+                updatedBy: actorUserId,
+            });
+
+        ctx.response.status = 200;
+        ctx.response.body = await db.orm.public.Supplier
+            .where({ id: id })
+            .first();
+    } catch (error) {
+        console.error("Failed to update supplier:", error);
+        ctx.response.status = 500;
+        ctx.response.body = {
+            error: "Internal server error"
+        }
+    }
 }
 
 export const deleteSupplier = async (ctx: Context, id: number) => {
@@ -348,7 +458,7 @@ export const deleteSupplier = async (ctx: Context, id: number) => {
         }
         const now = new Date().toISOString();
 
-        const actorUserId = ctx.state.id;
+        const actorUserId = (<AuthenticatedUser>ctx.state.user).id;
         await db.orm.public.Supplier
             .where({ id: id })
             .update({
@@ -358,7 +468,8 @@ export const deleteSupplier = async (ctx: Context, id: number) => {
             });
 
             ctx.response.status = 204;
-    } catch {
+    } catch (error) {
+        console.error("Failed to delete supplier:", error);
         ctx.response.status = 500;
         ctx.response.body = {
             error: "Internal server error"
