@@ -1,3 +1,4 @@
+import log from "../../log.ts";
 import type { DbTxUnion } from "../../prisma/db.ts";
 import type { IRepoFactory } from "../../prisma/factory.ts";
 import type { IQueueProvider } from "../provider.ts";
@@ -29,8 +30,13 @@ class RpcServer {
             throw new RpcBadRequest("INVALID_USER_ID");
 
         const { user } = this.repoFactory.buildRepos(this.db);
-        const u = await user.getUserByIdPublic(userId);
-        return { userExists: !!u };
+        try {
+            const u = await user.getUserByIdPublic(userId);
+            return { userExists: !!u };
+        } catch (e) {
+            log.warn(`RpcServer [checkUserExists]: failed with error ${e instanceof Error ? e.stack : e}`);
+            throw new RpcBadRequest("DB_ERROR");
+        }
     }
 }
 

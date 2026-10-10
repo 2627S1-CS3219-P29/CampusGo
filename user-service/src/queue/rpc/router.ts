@@ -28,8 +28,8 @@ export class RpcRouter {
         this.handlers.set(routingKey, handler);
     }
 
-    start(): void {
-        this.queue.consume(this.queueName, msg => {
+    async start() {
+        await this.queue.consume(this.queueName, msg => {
             this.dispatch(msg);
         });
     }
@@ -80,7 +80,12 @@ export class RpcRouter {
                 return;
             }
             log.error(`RpcServer [${routingKey}]: ${e instanceof Error ? e.stack : e}`);
-            this.queue.nack(msg, false, false);
+
+            try {
+                await this.queue.replyToRpcCaller(replyTo, correlationId, { ok: false, error: "INTERNAL_ERROR" });
+            } finally {
+                this.queue.nack(msg, false, false);
+            }
         }
     }
 }
