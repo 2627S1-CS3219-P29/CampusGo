@@ -10,6 +10,7 @@ import { IInviteRepository } from "../src/prisma/invite.ts";
 import { IOutboxRepository } from "../src/prisma/outbox.ts";
 import { Db, DbTxUnion, Tx } from "../src/prisma/db.ts";
 import { IInviteCodeGenerator } from "../src/util/invite.ts";
+import { IQueueProvider } from "../src/queue/provider.ts";
 
 // common test constants
 export const TEST_EMAIL = "test@example.com";
@@ -100,6 +101,10 @@ export const makeInviteRepo = (overrides: Partial<IInviteRepository> = {}): IInv
 
 export const makeOutboxRepo = (overrides: Partial<IOutboxRepository> = {}): IOutboxRepository =>
     makeGenericMockRepo("outbox", overrides);
+
+// not really a repo but whatever
+export const makeQueue = (overrides: Partial<IQueueProvider> = {}): IQueueProvider =>
+    makeGenericMockRepo("queue", overrides);
 
 export const makeRepoFactory = (overrides: Partial<Repos> = {}): IRepoFactory => ({
     buildRepos: (): Repos => ({

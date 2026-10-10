@@ -11,7 +11,7 @@ export interface IOutboxRepository {
     updateFailedEvent(id: number, errorMessage: string, retryCount: number, nextRetryAt: Temporal.Instant | null): Promise<void>;
 }
 
-interface PendingEvent {
+export interface PendingEvent {
     payload: object;
     id: number;
     type: string;

@@ -9,7 +9,7 @@ import createRoleRouter from "./routes/role.ts";
 import { generateInviteCodeCli } from "./tasks/cli.ts";
 import { buildDefaultProvider } from "./queue/provider.ts";
 import { repoFactory } from "./prisma/factory.ts";
-import { relayOnce } from "./queue/outboxWorker.ts";
+import { OutboxWorker } from "./queue/outboxWorker.ts";
 
 const flags = parseArgs(Deno.args, {
     boolean: ["gen-invite"],
@@ -17,26 +17,12 @@ const flags = parseArgs(Deno.args, {
 });
 
 // ensure database is ready so that first request is not slow
-// TODO: figure out how to automate setup and database migration in the scripts
 await connectDatabase();
 await seedEssential();
 
-
-const provider = await buildDefaultProvider();
-const repos = repoFactory.buildRepos(db);
-await repos.outbox.createEvent("user.registered", "userRegistered", {
-    userId: 100,
-    occurredAt: new Date().toISOString(),    
-});
-const out = await repos.outbox.getPendingEvents(50);
-console.log(out);
-await repos.outbox.getPendingEvents(50);
-await relayOnce(db, repoFactory, provider);
-// provider.publishEvent("user.registered", {
-//     type: "userRegistered",
-//     userId: 100,
-//     occurredAt: new Date().toISOString(),
-// });
+const rabbitMqProvider = await buildDefaultProvider()
+const outboxWorker = new OutboxWorker(db, repoFactory, rabbitMqProvider);
+outboxWorker.start();
 
 const createPublicRouter = () => {
     const router = new Router({ prefix: "/public" });
