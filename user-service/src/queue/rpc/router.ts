@@ -16,8 +16,7 @@ export type RpcHandler = (payload: any) => Promise<unknown>;
 export class RpcRouter {
     private readonly queue: IQueueProvider;
     private readonly handlers = new Map<string, RpcHandler>();
-    // private readonly queueName = "user.rpc"; // or pass in
-    private queueName: string; // or pass in
+    private queueName: string;
 
     constructor(queueName: string, queue: IQueueProvider) {
         this.queueName = queueName;

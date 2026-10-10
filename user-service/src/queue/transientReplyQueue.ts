@@ -64,12 +64,16 @@ export class TransientReplyQueue {
             });
 
             const encodedPayload = Buffer.from(JSON.stringify(payload));
+            // define no dlq on rpc consumer queues, expired items are deleted automatically.
+            // we let the items naturally timeout in the managed mapping
+            // prevents rpc worker from doing expired work which would be immediately discarded on return
             this.ch.publish("app.rpc", routingKey, encodedPayload, {
                 persistent: true,
                 contentType: "application/json",
                 correlationId,
                 replyTo: this.name,
                 timestamp: Date.now(),
+                expiration: "" + timeout,
             }, err => {
                 if (!err)
                     return; // promise resolution already handled by replyCb, do nothing
