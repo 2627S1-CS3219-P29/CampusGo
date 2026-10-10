@@ -299,10 +299,15 @@ curl -X DELETE -H "Authorization: Bearer $ADMIN" "$API/1"   # {"deletedIds":[1,2
 
 ## Run locally
 
-With Docker, `docker compose --profile dev up -d --build` starts everything. The supplier
-service is also exposed directly on `localhost:8002`.
+With Docker, run `docker compose --profile dev up -d --build` from the repository root
+to start everything. The supplier service is also exposed directly on `localhost:8002`.
+Docker Compose reads the root `.env` and supplies `DATABASE_URL` from `SUPPLIER_DB_URL`
+and `JWT_ACCESS_SECRET` to the supplier container. **You do not need to create
+`supplier-service/.env` when running the service or seed task inside Docker.**
 
-To run it outside Docker:
+### Optional: run outside Docker
+
+The following setup is only for running Deno directly on your machine:
 
 1. Start the database: `docker compose --profile dev up -d supplier_db`. It listens on
    `localhost:5433`.
@@ -320,3 +325,72 @@ To run it outside Docker:
 
 After editing `src/prisma/contract.prisma`, run `deno task contract:emit` to regenerate
 `contract.json` and `contract.d.ts`.
+
+## Import CSV seed data
+
+After applying the current schema (including the `Location` table and array-valued
+supplier `type`), run the importer manually. It validates the whole CSV, creates
+missing locations, and inserts suppliers plus audit records in one transaction.
+Existing supplier names are skipped case-insensitively, including deleted rows;
+reruns do not overwrite edits or restore deleted suppliers.
+
+### Seed inside Docker (recommended)
+
+Use the existing root `.env`, with `SUPPLIER_DB_URL`, `SUPPLIER_DB_PW`, and
+`JWT_ACCESS_SECRET` configured. The database URL must use the Docker hostname
+`supplier_db:5432`. No service `.env` or local Deno installation is needed.
+
+Run all commands below from the **repository root**, the directory containing
+`compose.yaml`. They work in PowerShell as well as a Unix shell.
+
+```bash
+# Start the database and supplier service
+docker compose --profile dev up -d --build supplier_db supplier_dev
+
+# Check that the database schema matches the current contract
+docker compose --profile dev exec supplier_dev deno task db:verify
+```
+
+Before importing, wait until PostgreSQL is ready and make sure `db:verify` succeeds.
+For a fresh database, initialize it with:
+
+```bash
+docker compose --profile dev exec supplier_dev deno task db:init
+```
+
+For an existing database with schema changes, use `db:update` instead, review its
+proposed changes, and rerun `db:verify`. An older schema can cause
+`relation "location" does not exist` during seeding. If updating that schema fails
+with `function array_position(text, unknown) does not exist`, it needs the old
+scalar `type` column migrated before the new array checks can be applied; resolve
+that migration before seeding, preserving any existing supplier data.
+
+```bash
+# Copy the CSV into the running container (the repository's data folder is not mounted)
+docker compose --profile dev cp ./data/csv/supplier-seed-data.csv supplier_dev:/tmp/supplier-seed-data.csv
+
+# Validate and preview without database changes
+docker compose --profile dev exec supplier_dev deno task seed /tmp/supplier-seed-data.csv --dry-run
+
+# Import suppliers and record the actor in the audit log
+docker compose --profile dev exec supplier_dev deno task seed /tmp/supplier-seed-data.csv --actor-id=1
+```
+
+Replace `1` with the intended existing user's ID. The user service owns these IDs;
+the importer validates their format but cannot verify that the user exists.
+Repeat the copy command after editing the CSV or recreating the container.
+
+### Optional: seed outside Docker
+
+If running Deno directly on your machine, follow the outside-Docker setup above,
+including `DATABASE_URL` and `JWT_ACCESS_SECRET` in `supplier-service/.env`.
+Then run from `supplier-service`:
+
+```bash
+deno task seed ../data/csv/supplier-seed-data.csv --dry-run
+deno task seed ../data/csv/supplier-seed-data.csv --actor-id=1
+```
+
+`Food/Coffee` becomes `["food", "coffee"]`. Building aliases are normalized before
+location lookup. If existing locations normalize to the same name, the import
+fails rather than choosing an ambiguous location.

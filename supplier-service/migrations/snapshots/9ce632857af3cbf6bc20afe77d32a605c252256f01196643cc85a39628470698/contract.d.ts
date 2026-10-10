@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'9357d3089b7013134fb5595d1f4722bcbf03dfda3345c1f22710774db8c064cc'>;
+  StorageHashBase<'9ce632857af3cbf6bc20afe77d32a605c252256f01196643cc85a39628470698'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -241,19 +241,14 @@ type DefaultLiteralValue<CodecId extends string, Encoded> = CodecId extends keyo
 
 export type FieldOutputTypes = {
   readonly public: {
-    readonly Location: {
-      readonly id: CodecTypes['pg/int4@1']['output'];
-      readonly name: CodecTypes['pg/text@1']['output'];
-      readonly deletedAt: CodecTypes['pg/timestamptz-string@1']['output'] | null;
-    };
     readonly Supplier: {
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly name: CodecTypes['pg/text@1']['output'];
-      readonly type: ReadonlyArray<'food' | 'shopping' | 'printing' | 'coffee'>;
+      readonly type: 'store' | 'facility' | 'landmark';
       readonly floor: CodecTypes['pg/int4@1']['output'] | null;
       readonly imageUrl: CodecTypes['pg/text@1']['output'] | null;
       readonly description: CodecTypes['pg/text@1']['output'] | null;
-      readonly locationId: CodecTypes['pg/int4@1']['output'];
+      readonly locationId: CodecTypes['pg/int4@1']['output'] | null;
       readonly opensAt: CodecTypes['pg/time-string@1']['output'] | null;
       readonly closesAt: CodecTypes['pg/time-string@1']['output'] | null;
       readonly createdBy: CodecTypes['pg/int4@1']['output'];
@@ -274,19 +269,14 @@ export type FieldOutputTypes = {
 };
 export type FieldInputTypes = {
   readonly public: {
-    readonly Location: {
-      readonly id: CodecTypes['pg/int4@1']['input'];
-      readonly name: CodecTypes['pg/text@1']['input'];
-      readonly deletedAt: CodecTypes['pg/timestamptz-string@1']['input'] | null;
-    };
     readonly Supplier: {
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly name: CodecTypes['pg/text@1']['input'];
-      readonly type: ReadonlyArray<'food' | 'shopping' | 'printing' | 'coffee'>;
+      readonly type: 'store' | 'facility' | 'landmark';
       readonly floor: CodecTypes['pg/int4@1']['input'] | null;
       readonly imageUrl: CodecTypes['pg/text@1']['input'] | null;
       readonly description: CodecTypes['pg/text@1']['input'] | null;
-      readonly locationId: CodecTypes['pg/int4@1']['input'];
+      readonly locationId: CodecTypes['pg/int4@1']['input'] | null;
       readonly opensAt: CodecTypes['pg/time-string@1']['input'] | null;
       readonly closesAt: CodecTypes['pg/time-string@1']['input'] | null;
       readonly createdBy: CodecTypes['pg/int4@1']['input'];
@@ -307,11 +297,6 @@ export type FieldInputTypes = {
 };
 export type StorageColumnTypes = {
   readonly public: {
-    readonly location: {
-      readonly deletedAt: CodecTypes['pg/timestamptz-string@1']['output'] | null;
-      readonly id: CodecTypes['pg/int4@1']['output'];
-      readonly name: CodecTypes['pg/text@1']['output'];
-    };
     readonly supplier: {
       readonly closesAt: CodecTypes['pg/time-string@1']['output'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -321,10 +306,10 @@ export type StorageColumnTypes = {
       readonly floor: CodecTypes['pg/int4@1']['output'] | null;
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly imageUrl: CodecTypes['pg/text@1']['output'] | null;
-      readonly locationId: CodecTypes['pg/int4@1']['output'];
+      readonly locationId: CodecTypes['pg/int4@1']['output'] | null;
       readonly name: CodecTypes['pg/text@1']['output'];
       readonly opensAt: CodecTypes['pg/time-string@1']['output'] | null;
-      readonly type: ReadonlyArray<'food' | 'shopping' | 'printing' | 'coffee'>;
+      readonly type: 'store' | 'facility' | 'landmark';
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly updatedBy: CodecTypes['pg/int4@1']['output'];
     };
@@ -340,11 +325,6 @@ export type StorageColumnTypes = {
 };
 export type StorageColumnInputTypes = {
   readonly public: {
-    readonly location: {
-      readonly deletedAt: CodecTypes['pg/timestamptz-string@1']['input'] | null;
-      readonly id: CodecTypes['pg/int4@1']['input'];
-      readonly name: CodecTypes['pg/text@1']['input'];
-    };
     readonly supplier: {
       readonly closesAt: CodecTypes['pg/time-string@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
@@ -354,10 +334,10 @@ export type StorageColumnInputTypes = {
       readonly floor: CodecTypes['pg/int4@1']['input'] | null;
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly imageUrl: CodecTypes['pg/text@1']['input'] | null;
-      readonly locationId: CodecTypes['pg/int4@1']['input'];
+      readonly locationId: CodecTypes['pg/int4@1']['input'] | null;
       readonly name: CodecTypes['pg/text@1']['input'];
       readonly opensAt: CodecTypes['pg/time-string@1']['input'] | null;
-      readonly type: ReadonlyArray<'food' | 'shopping' | 'printing' | 'coffee'>;
+      readonly type: 'store' | 'facility' | 'landmark';
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly updatedBy: CodecTypes['pg/int4@1']['input'];
     };
@@ -376,11 +356,11 @@ export namespace Models {
   export type public_Supplier = {
     id: CodecTypes['pg/int4@1']['output'];
     name: CodecTypes['pg/text@1']['output'];
-    type: ReadonlyArray<'food' | 'shopping' | 'printing' | 'coffee'>;
+    type: 'store' | 'facility' | 'landmark';
     floor: CodecTypes['pg/int4@1']['output'] | null;
     imageUrl: CodecTypes['pg/text@1']['output'] | null;
     description: CodecTypes['pg/text@1']['output'] | null;
-    locationId: CodecTypes['pg/int4@1']['output'];
+    locationId: CodecTypes['pg/int4@1']['output'] | null;
     opensAt: CodecTypes['pg/time-string@1']['output'] | null;
     closesAt: CodecTypes['pg/time-string@1']['output'] | null;
     createdBy: CodecTypes['pg/int4@1']['output'];
@@ -389,15 +369,9 @@ export namespace Models {
     updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
     deletedAt: CodecTypes['pg/timestamptz-string@1']['output'] | null;
     auditLogs: public_SupplierAuditLog[];
-    location: public_Location;
-    readonly [RelationKeys]?: 'auditLogs' | 'location';
-  };
-  export type public_Location = {
-    id: CodecTypes['pg/int4@1']['output'];
-    name: CodecTypes['pg/text@1']['output'];
-    deletedAt: CodecTypes['pg/timestamptz-string@1']['output'] | null;
-    suppliers: public_Supplier[];
-    readonly [RelationKeys]?: 'suppliers';
+    location: public_Supplier | null;
+    suppliersAtLocation: public_Supplier[];
+    readonly [RelationKeys]?: 'auditLogs' | 'location' | 'suppliersAtLocation';
   };
   export type public_SupplierAuditLog = {
     id: CodecTypes['pg/int4@1']['output'];
@@ -414,7 +388,6 @@ export namespace Models {
 export declare const models: {
   public: {
     Supplier: Models.public_Supplier;
-    Location: Models.public_Location;
     SupplierAuditLog: Models.public_SupplierAuditLog;
   };
 };
@@ -437,33 +410,6 @@ type ContractBase = Omit<
         readonly kind: 'postgres-schema';
         readonly entries: {
           readonly table: {
-            readonly location: {
-              columns: {
-                readonly id: {
-                  readonly nativeType: 'int4';
-                  readonly codecId: 'pg/int4@1';
-                  readonly nullable: false;
-                  readonly default: {
-                    readonly kind: 'function';
-                    readonly expression: 'autoincrement()';
-                  };
-                };
-                readonly name: {
-                  readonly nativeType: 'text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                };
-                readonly deletedAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz-string@1';
-                  readonly nullable: true;
-                };
-              };
-              primaryKey: { readonly columns: readonly ['id'] };
-              uniques: readonly [{ readonly columns: readonly ['name'] }];
-              indexes: readonly [];
-              foreignKeys: readonly [];
-            };
             readonly supplier: {
               columns: {
                 readonly id: {
@@ -503,7 +449,7 @@ type ContractBase = Omit<
                 readonly locationId: {
                   readonly nativeType: 'int4';
                   readonly codecId: 'pg/int4@1';
-                  readonly nullable: false;
+                  readonly nullable: true;
                 };
                 readonly opensAt: {
                   readonly nativeType: 'time';
@@ -547,6 +493,19 @@ type ContractBase = Omit<
               uniques: readonly [{ readonly columns: readonly ['name'] }];
               indexes: readonly [
                 {
+                  readonly name: 'supplier_name_active_27996da5';
+                  readonly prefix: 'supplier_name_active';
+                  readonly expression: 'lower(name)';
+                  readonly where: '("deletedAt" IS NULL)';
+                  readonly unique: true;
+                },
+                {
+                  readonly name: 'supplier_type_idx_b6b604ea';
+                  readonly prefix: 'supplier_type_idx';
+                  readonly columns: readonly ['type'];
+                  readonly unique: false;
+                },
+                {
                   readonly name: 'supplier_locationId_idx_7aae3038';
                   readonly prefix: 'supplier_locationId_idx';
                   readonly columns: readonly ['locationId'];
@@ -562,7 +521,7 @@ type ContractBase = Omit<
                   };
                   readonly target: {
                     readonly namespaceId: 'public' & NamespaceId;
-                    readonly tableName: 'location';
+                    readonly tableName: 'supplier';
                     readonly columns: readonly ['id'];
                   };
                 },
@@ -639,7 +598,7 @@ type ContractBase = Omit<
             };
             readonly SupplierType: {
               readonly kind: 'valueSet';
-              readonly values: readonly ['food', 'shopping', 'printing', 'coffee'];
+              readonly values: readonly ['store', 'facility', 'landmark'];
             };
           };
         };
@@ -653,7 +612,6 @@ type ContractBase = Omit<
   readonly targetFamily: 'sql';
   readonly roots: {
     readonly supplier: { readonly namespace: 'public' & NamespaceId; readonly model: 'Supplier' };
-    readonly location: { readonly namespace: 'public' & NamespaceId; readonly model: 'Location' };
     readonly supplierAuditLog: {
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'SupplierAuditLog';
@@ -663,47 +621,6 @@ type ContractBase = Omit<
     readonly namespaces: {
       readonly public: {
         readonly models: {
-          readonly Location: {
-            readonly fields: {
-              readonly id: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
-              };
-              readonly name: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly deletedAt: {
-                readonly nullable: true;
-                readonly type: {
-                  readonly kind: 'scalar';
-                  readonly codecId: 'pg/timestamptz-string@1';
-                };
-              };
-            };
-            readonly relations: {
-              readonly suppliers: {
-                readonly to: {
-                  readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'Supplier';
-                };
-                readonly cardinality: '1:N';
-                readonly on: {
-                  readonly localFields: readonly ['id'];
-                  readonly targetFields: readonly ['locationId'];
-                };
-              };
-            };
-            readonly storage: {
-              readonly table: 'location';
-              readonly namespaceId: 'public';
-              readonly fields: {
-                readonly id: { readonly column: 'id' };
-                readonly name: { readonly column: 'name' };
-                readonly deletedAt: { readonly column: 'deletedAt' };
-              };
-            };
-          };
           readonly Supplier: {
             readonly fields: {
               readonly id: {
@@ -717,7 +634,6 @@ type ContractBase = Omit<
               readonly type: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-                readonly many: true;
               };
               readonly floor: {
                 readonly nullable: true;
@@ -732,7 +648,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
               readonly locationId: {
-                readonly nullable: false;
+                readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
               readonly opensAt: {
@@ -788,13 +704,24 @@ type ContractBase = Omit<
               readonly location: {
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
-                  readonly model: 'Location';
+                  readonly model: 'Supplier';
                 };
                 readonly cardinality: 'N:1';
-                readonly nullable: false;
+                readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['locationId'];
                   readonly targetFields: readonly ['id'];
+                };
+              };
+              readonly suppliersAtLocation: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'Supplier';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['locationId'];
                 };
               };
             };
@@ -881,10 +808,9 @@ type ContractBase = Omit<
           readonly SupplierType: {
             readonly codecId: 'pg/text@1';
             readonly members: readonly [
-              { readonly name: 'Food'; readonly value: 'food' },
-              { readonly name: 'Shopping'; readonly value: 'shopping' },
-              { readonly name: 'Printing'; readonly value: 'printing' },
-              { readonly name: 'Coffee'; readonly value: 'coffee' },
+              { readonly name: 'Store'; readonly value: 'store' },
+              { readonly name: 'Facility'; readonly value: 'facility' },
+              { readonly name: 'Landmark'; readonly value: 'landmark' },
             ];
           };
           readonly SupplierAuditAction: {

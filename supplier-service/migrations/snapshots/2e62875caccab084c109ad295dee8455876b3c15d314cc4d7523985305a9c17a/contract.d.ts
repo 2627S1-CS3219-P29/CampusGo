@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'9357d3089b7013134fb5595d1f4722bcbf03dfda3345c1f22710774db8c064cc'>;
+  StorageHashBase<'2e62875caccab084c109ad295dee8455876b3c15d314cc4d7523985305a9c17a'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -244,7 +244,6 @@ export type FieldOutputTypes = {
     readonly Location: {
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly name: CodecTypes['pg/text@1']['output'];
-      readonly deletedAt: CodecTypes['pg/timestamptz-string@1']['output'] | null;
     };
     readonly Supplier: {
       readonly id: CodecTypes['pg/int4@1']['output'];
@@ -277,7 +276,6 @@ export type FieldInputTypes = {
     readonly Location: {
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly name: CodecTypes['pg/text@1']['input'];
-      readonly deletedAt: CodecTypes['pg/timestamptz-string@1']['input'] | null;
     };
     readonly Supplier: {
       readonly id: CodecTypes['pg/int4@1']['input'];
@@ -308,7 +306,6 @@ export type FieldInputTypes = {
 export type StorageColumnTypes = {
   readonly public: {
     readonly location: {
-      readonly deletedAt: CodecTypes['pg/timestamptz-string@1']['output'] | null;
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly name: CodecTypes['pg/text@1']['output'];
     };
@@ -341,7 +338,6 @@ export type StorageColumnTypes = {
 export type StorageColumnInputTypes = {
   readonly public: {
     readonly location: {
-      readonly deletedAt: CodecTypes['pg/timestamptz-string@1']['input'] | null;
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly name: CodecTypes['pg/text@1']['input'];
     };
@@ -395,7 +391,6 @@ export namespace Models {
   export type public_Location = {
     id: CodecTypes['pg/int4@1']['output'];
     name: CodecTypes['pg/text@1']['output'];
-    deletedAt: CodecTypes['pg/timestamptz-string@1']['output'] | null;
     suppliers: public_Supplier[];
     readonly [RelationKeys]?: 'suppliers';
   };
@@ -452,11 +447,6 @@ type ContractBase = Omit<
                   readonly nativeType: 'text';
                   readonly codecId: 'pg/text@1';
                   readonly nullable: false;
-                };
-                readonly deletedAt: {
-                  readonly nativeType: 'timestamptz';
-                  readonly codecId: 'pg/timestamptz-string@1';
-                  readonly nullable: true;
                 };
               };
               primaryKey: { readonly columns: readonly ['id'] };
@@ -673,13 +663,6 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
-              readonly deletedAt: {
-                readonly nullable: true;
-                readonly type: {
-                  readonly kind: 'scalar';
-                  readonly codecId: 'pg/timestamptz-string@1';
-                };
-              };
             };
             readonly relations: {
               readonly suppliers: {
@@ -700,7 +683,6 @@ type ContractBase = Omit<
               readonly fields: {
                 readonly id: { readonly column: 'id' };
                 readonly name: { readonly column: 'name' };
-                readonly deletedAt: { readonly column: 'deletedAt' };
               };
             };
           };
