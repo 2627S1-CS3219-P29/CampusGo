@@ -10,6 +10,7 @@ import { generateInviteCodeCli } from "./tasks/cli.ts";
 import { buildDefaultProvider } from "./queue/provider.ts";
 import { repoFactory } from "./prisma/factory.ts";
 import { OutboxWorker } from "./queue/outboxWorker.ts";
+import { makeRpcServer } from "./queue/rpc/server.ts";
 
 const flags = parseArgs(Deno.args, {
     boolean: ["gen-invite"],
@@ -22,7 +23,10 @@ await seedEssential();
 
 const rabbitMqProvider = await buildDefaultProvider()
 const outboxWorker = new OutboxWorker(db, repoFactory, rabbitMqProvider);
+const rpcWorker = makeRpcServer(db, repoFactory, rabbitMqProvider);
+
 outboxWorker.start();
+rpcWorker.start();
 
 const createPublicRouter = () => {
     const router = new Router({ prefix: "/public" });
