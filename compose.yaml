@@ -169,7 +169,21 @@ services:
       DATABASE_URL: ${SUPPLIER_DB_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
 
+  # order service
+  order-db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: order_db
+    ports:
+      - "5434:5432" # Using 5434 locally so it doesn't clash with your User/Supplier DBs
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+
 volumes:
   user_pgdata:
   supplier_pgdata:
+  order-db-data:
   rabbitmq_data:
