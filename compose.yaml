@@ -195,7 +195,7 @@ services:
       network: host
     profiles: ["dev"]
     ports:
-      - "8003:8000"
+      - "8003:3000"
     volumes:
       - ./order-service:/app
       - /app/node_modules
@@ -211,7 +211,7 @@ services:
       DATABASE_URL: ${ORDER_DB_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
     # sync the schema, then start with denon (workaround for docker in wsl)
-    command: sh -c "deno task db:push && deno run -A https://deno.land/x/denon/denon.ts dev"
+    command: sh -c "deno task db:update_dev && deno run -A https://deno.land/x/denon/denon.ts dev"
   order_prod:
     build:
       context: ./order-service

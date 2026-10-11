@@ -1,7 +1,9 @@
 {
-  "tasks": {
-    "db:push": "deno run -A --env npm:prisma@5.22.0 db push --schema src/prisma/schema.prisma",
-    "db:seed": "deno run -A --env src/prisma/seed.ts",
-    "dev": "deno run -A --env --watch src/server.ts"
-  }
+  "nodeModulesDir": "auto",
+  "imports": {
+    "@oak/oak": "jsr:@oak/oak@^17.2.0",
+    "@std/assert": "jsr:@std/assert@^1.0.19",
+    "@std/testing": "jsr:@std/testing@^1.0.21"
+  },
+  "allowScripts": ["npm:esbuild@0.28.2", "npm:msgpackr-extract@3.0.4", "npm:workerd@1.20260704.1"]
 }

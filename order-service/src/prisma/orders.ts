@@ -1,0 +1,195 @@
+import { param } from "@prisma/orm-postgres/relational-core/expression";
+import { db } from "./db.ts";
+
+export type OrderStatus = "CREATED" | "ACCEPTED" | "PICKED_UP" | "COMPLETED" | "CANCELLED" | "EXPIRED";
+
+export interface Order {
+    id: string;
+    idempotencyKey: string | null;
+    requesterId: number;
+    courierId: number | null;
+    supplierId: number;
+    pickupLocation: string;
+    dropoffLocation: string;
+    itemDescription: string;
+    creditBounty: number;
+    additionalDetails: string | null;
+    status: OrderStatus;
+    // ISO 8601
+    expiresAt: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface NewOrder {
+    idempotencyKey: string | null;
+    requesterId: number;
+    supplierId: number;
+    pickupLocation: string;
+    dropoffLocation: string;
+    itemDescription: string;
+    creditBounty: number;
+    additionalDetails: string | null;
+    expiresAt: Date;
+}
+
+type OrderRow = Omit<Order, "status"> & { status: string };
+
+// postgres text "2026-10-11 17:24:26.326292+00" -> ISO 8601
+const toIso = (ts: string) => new Date(ts.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00")).toISOString();
+
+const toOrder = (row: OrderRow): Order => ({
+    ...row,
+    status: <OrderStatus>row.status,
+    expiresAt: toIso(row.expiresAt),
+    createdAt: toIso(row.createdAt),
+    updatedAt: toIso(row.updatedAt),
+});
+
+export type OrderScope = "open" | "requested" | "delivering" | "all";
+
+export interface OrderFilter {
+    scope: OrderScope;
+    // the signed-in user, for the "open", "requested" and "delivering" scopes
+    userId: number;
+    // only these statuses; all when left out
+    statuses?: OrderStatus[];
+    page: number;
+    pageSize: number;
+}
+
+export interface OrderPage {
+    data: Order[];
+    total: number;
+}
+
+export const findOrderById = async (id: string): Promise<Order | null> => {
+    const row = await db.orm.public.Order.where({ id }).first();
+    return row ? toOrder(row) : null;
+};
+
+export const findOrderByIdempotencyKey = async (idempotencyKey: string): Promise<Order | null> => {
+    const row = await db.orm.public.Order.where({ idempotencyKey }).first();
+    return row ? toOrder(row) : null;
+};
+
+export const createOrder = async (order: NewOrder): Promise<Order> => {
+    const row = await db.orm.public.Order.create({
+        ...order,
+        id: crypto.randomUUID(),
+        status: "CREATED",
+        expiresAt: order.expiresAt.toISOString(),
+    });
+    return toOrder(row);
+};
+
+const text = (v: string) => param(v, { codecId: "pg/text@1" });
+const textArray = (v: string[] | null) => param(v, { codecId: "pg/text-array@1" });
+const int = (v: number | null) => param(v, { codecId: "pg/int4@1" });
+const bool = (v: boolean) => param(v, { codecId: "pg/bool@1" });
+
+const rowSpec = {
+    id: "pg/text@1",
+    idempotencyKey: { codecId: "pg/text@1", nullable: true },
+    requesterId: "pg/int4@1",
+    courierId: { codecId: "pg/int4@1", nullable: true },
+    supplierId: "pg/int4@1",
+    pickupLocation: "pg/text@1",
+    dropoffLocation: "pg/text@1",
+    itemDescription: "pg/text@1",
+    creditBounty: "pg/int4@1",
+    additionalDetails: { codecId: "pg/text@1", nullable: true },
+    status: "pg/text@1",
+    expiresAt: "pg/timestamptz-string@1",
+    createdAt: "pg/timestamptz-string@1",
+    updatedAt: "pg/timestamptz-string@1",
+} as const;
+
+export interface Transition {
+    // the status the order must still be in for the change to happen
+    from: OrderStatus;
+    to: OrderStatus;
+    // set the courier, e.g. when accepting
+    courierId?: number;
+    // only change it if the order has not expired yet
+    requireUnexpired?: boolean;
+}
+
+/**
+ * Changes an order's status in one UPDATE statement, so it is atomic: the
+ * status (and expiry) are checked and changed together. If another request
+ * changed the order first (e.g. a second courier accepting), nothing matches
+ * and null is returned.
+ *
+ * Not done with the ORM's where().update(), which checks with a SELECT and then
+ * writes with a separate UPDATE, so two requests could both pass the check.
+ */
+export const transitionOrder = async (id: string, t: Transition): Promise<Order | null> => {
+    const plan = db.raw.sql`
+        UPDATE orders
+        SET status = ${text(t.to)},
+            "courierId" = COALESCE(${int(t.courierId ?? null)}, "courierId"),
+            "updatedAt" = now()
+        WHERE id = ${text(id)}
+            AND status = ${text(t.from)}
+            AND (NOT ${bool(t.requireUnexpired ?? false)} OR "expiresAt" > now())
+        RETURNING id, "idempotencyKey", "requesterId", "courierId", "supplierId",
+            "pickupLocation", "dropoffLocation", "itemDescription", "creditBounty",
+            "additionalDetails", status, "expiresAt", "createdAt", "updatedAt"
+    `.returnsRow(rowSpec).build();
+
+    const [row] = await db.runtime().query(plan);
+    return row ? toOrder(<OrderRow>row) : null;
+};
+
+const orderColumns = () => db.raw.sql`
+    id, "idempotencyKey", "requesterId", "courierId", "supplierId",
+    "pickupLocation", "dropoffLocation", "itemDescription", "creditBounty",
+    "additionalDetails", status, "expiresAt", "createdAt", "updatedAt"`.returns("pg/text@1");
+
+/**
+ * Marks every open order past its expiry time as EXPIRED in one statement, so
+ * lists show accurate statuses. Returns how many orders expired.
+ */
+export const expireDueOrders = async (): Promise<number> => {
+    const plan = db.raw.sql`
+        UPDATE orders SET status = 'EXPIRED', "updatedAt" = now()
+        WHERE status = 'CREATED' AND "expiresAt" <= now()
+        RETURNING id
+    `.returnsRow({ id: "pg/text@1" }).build();
+    const rows = await db.runtime().query(plan);
+    return rows.length;
+};
+
+/**
+ * One page of orders for a scope, newest first, with the total for pagination.
+ * Every condition is a parameter; a scope's condition only applies when that scope is selected,
+ * and a null status list disables the status filter.
+ */
+export const listOrders = async (filter: OrderFilter): Promise<OrderPage> => {
+    const statuses = filter.statuses?.length ? filter.statuses : null;
+    const where = db.raw.sql`
+        CASE ${text(filter.scope)}
+            WHEN 'open' THEN status = 'CREATED' AND "expiresAt" > now() AND "requesterId" <> ${int(filter.userId)}
+            WHEN 'requested' THEN "requesterId" = ${int(filter.userId)}
+            WHEN 'delivering' THEN "courierId" = ${int(filter.userId)}
+            ELSE true
+        END
+        AND (${textArray(statuses)}::text[] IS NULL OR status = ANY(${textArray(statuses)}::text[]))`.returns("pg/bool@1");
+
+    const countPlan = db.raw.sql`
+        SELECT count(*)::int AS total FROM orders WHERE ${where}
+    `.returnsRow({ total: "pg/int4@1" }).build();
+
+    // id breaks ties so pages stay stable
+    const listPlan = db.raw.sql`
+        SELECT ${orderColumns()} FROM orders
+        WHERE ${where}
+        ORDER BY "createdAt" DESC, id ASC
+        LIMIT ${int(filter.pageSize)} OFFSET ${int((filter.page - 1) * filter.pageSize)}
+    `.returnsRow(rowSpec).build();
+
+    const runtime = db.runtime();
+    const [[{ total }], rows] = await Promise.all([runtime.query(countPlan), runtime.query(listPlan)]);
+    return { data: rows.map(r => toOrder(<OrderRow>r)), total };
+};
