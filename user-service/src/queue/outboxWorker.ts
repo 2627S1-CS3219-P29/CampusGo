@@ -48,7 +48,8 @@ export class OutboxWorker {
 
     /** safely stop execution and wait for the current batch to finish. */
     async stop(): Promise<void> {
-        if (!this.running) return;
+        if (!this.running)
+            return;
         this.running = false;
         this.sleepCts?.(); // force wakeup and exit polling loop
 

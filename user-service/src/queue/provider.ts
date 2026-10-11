@@ -4,6 +4,8 @@ import { TransientReplyQueue } from "./transientReplyQueue.ts";
 
 const DEFAULT_RPC_TIMEOUT = 60 * 1000;
 const MAX_RPC_PENDING = 10000;
+const RECONNECT_BASE_DELAY_MS = 500;
+const RECONNECT_MAX_DELAY_MS = 30000;
 
 export interface IQueueProvider {
     publishEvent(routingKey: string, payload: EventPayload): Promise<void>;
@@ -17,59 +19,214 @@ export interface IQueueProvider {
     nack(...args: Parameters<amqp.ConfirmChannel["nack"]>): ReturnType<amqp.ConfirmChannel["nack"]>;
 }
 
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
 export type EventPayload = Record<string, any> & AuxPayloadInfo;
 interface AuxPayloadInfo {
     eventId?: string,
     type: string,
 }
 
-export class RabbitMqProvider implements IQueueProvider {
-    connection: amqp.ChannelModel;
-    ch: amqp.ConfirmChannel;
+export type ProviderState = "connecting" | "open" | "closed";
+export type ProviderStateListener = (state: ProviderState) => void;
+export type ChannelSetupHandler = (ch: amqp.ConfirmChannel) => Promise<void>;
 
-    private constructor(connection: amqp.ChannelModel, ch: amqp.ConfirmChannel) {
+export class RabbitMqProvider implements IQueueProvider {
+    private url: string;
+    private connection: amqp.ChannelModel | null;
+    private ch: amqp.ConfirmChannel | null;
+    private channelSetupHandler: ChannelSetupHandler;
+
+    private state: ProviderState = "connecting";
+    private reconnectTask: Promise<void> | null = null;
+    private onStateChangeListeners = new Set<ProviderStateListener>();
+    private replyQueues = new Set<TransientReplyQueue>();
+
+    private closedSignal: Promise<void>;
+    private emitClosedSignal: () => void;
+
+    private constructor(connection: amqp.ChannelModel, ch: amqp.ConfirmChannel, url: string, channelSetupHandler: ChannelSetupHandler) {
         this.connection = connection;
         this.ch = ch;
+        this.url = url;
+        this.channelSetupHandler = channelSetupHandler;
+
+        const { promise, resolve } = Promise.withResolvers<void>();
+        this.closedSignal = promise;
+        this.emitClosedSignal = resolve;
     }
 
-    static async connect(url: string) {
+    static async connect(url: string, channelSetupHandler: ChannelSetupHandler) {
         const connection = await amqp.connect(url);
         const ch = await connection.createConfirmChannel();
-        const provider = new RabbitMqProvider(connection, ch);
-        await provider.setup();
+        const provider = new RabbitMqProvider(connection, ch, url, channelSetupHandler);
+        await provider.setup(ch);
+        provider.attachListeners(connection, ch);
+        provider.setState("open");
         return provider;
     }
 
-    private async setup() {
-        // main router: publishes to interested services (which are their own queues)
-        await this.ch.assertExchange("app.events", "topic", { durable: true });
-        await this.ch.assertExchange("app.rpc", "direct", { durable: true });
-        await this.ch.assertExchange("app.dlx", "topic", { durable: true });
+    private async setup(ch: amqp.ConfirmChannel) {
+        await this.channelSetupHandler(ch);
+    }
 
-        // example of use in another 
-        // await this.ch.assertQueue("credit.user-registered", {
-        //     durable: true,
-        //     // deadLetterExchange: "app.dlx",
-        //     // deadLetterRoutingKey: "credit.user-registered.dlq",
-        // });
-        // await this.ch.bindQueue("credit.user-registered", "app.events", "user.registered");
+    getState(): ProviderState {
+        return this.state;
+    }
 
-        await this.ch.assertQueue("user.rpc", { durable: true });
-        await this.ch.bindQueue("user.rpc", "app.rpc", "user.query");
+    /**
+    * add listener to be triggered on state change.
+    * returns a function to unbind listener
+    */
+    onStateChange(listener: ProviderStateListener): () => void {
+        this.onStateChangeListeners.add(listener);
+        return () => { this.onStateChangeListeners.delete(listener); };
+    }
+
+    /**
+    * add listener to be triggered on state change.
+    * returns a function to unbind listener
+    */
+    waitUntilUp(): Promise<void> {
+        if (this.state === "open")
+            return Promise.resolve();
+        if (this.state === "closed")
+            return Promise.reject(new Error("RabbitMqProvider is closed"));
+        return new Promise((resolve, reject) => {
+            const unbind = this.onStateChange(state => {
+                if (state === "open") {
+                    unbind();
+                    resolve();
+                } else if (state === "closed") {
+                    unbind();
+                    reject(new Error("RabbitMqProvider is closed"));
+                }
+            });
+        });
+    }
+
+    waitUntilDown(): Promise<void> {
+        if (this.state !== "open")
+            return Promise.resolve();
+        return new Promise(resolve => {
+            const unbind = this.onStateChange(state => {
+                if (state !== "open") {
+                    unbind();
+                    resolve();
+                }
+            });
+        });
+    }
+
+    private setState(state: ProviderState): void {
+        if (this.state === state || this.state === "closed")
+            return;
+        this.state = state;
+        for (const emit of this.onStateChangeListeners) {
+            emit(state);
+        }
+    }
+
+    private attachListeners(connection: amqp.ChannelModel, ch: amqp.ConfirmChannel): void {
+        const onClose = () => {
+            // called twice on close (both connection and channel close at same time)
+            // avoid closign incorrectly
+            if (this.connection === connection)
+                this.handleDisconnect();
+        };
+        connection.on("close", onClose);
+        connection.on("error", () => { /* let close event handle this */ });
+        ch.on("close", onClose);
+        ch.on("error", () => { /* let close event handle this */ });
+    }
+
+    private handleDisconnect(): void {
+        if (this.state === "closed")
+            return;
+
+        this.connection = null;
+        this.ch = null;
+        for (const rq of this.replyQueues)
+            rq.handleDisconnect();
+        this.setState("connecting");
+        this.scheduleReconnect();
+    }
+
+    /** spins up reconnection loop */
+    private scheduleReconnect(): void {
+        if (this.reconnectTask)
+            return;
+
+        this.reconnectTask = (async () => {
+            let delay = RECONNECT_BASE_DELAY_MS;
+            while (this.state !== "closed") {
+                let connection: amqp.ChannelModel | null = null;
+                let ch: amqp.ConfirmChannel | null = null;
+                try {
+                    connection = await amqp.connect(this.url);
+                    ch = await connection.createConfirmChannel();
+                    await this.setup(ch);
+                    this.connection = connection;
+                    this.ch = ch;
+                    this.attachListeners(connection, ch);
+                    for (const rq of this.replyQueues)
+                        await rq.handleReconnect(ch);
+                    this.setState("open");
+                    this.reconnectTask = null;
+                    return;
+                } catch {
+                    this.connection = null;
+                    this.ch = null;
+                    await ch?.close().catch(() => {});
+                    await connection?.close().catch(() => {});
+                    // abort task if whole provider is closed
+                    await Promise.race([sleep(delay), this.closedSignal]);
+                    delay = Math.min(delay * 2, RECONNECT_MAX_DELAY_MS);
+                }
+            }
+            this.reconnectTask = null;
+        })();
+    }
+
+    async close(): Promise<void> {
+        if (this.state === "closed")
+            return;
+        this.emitClosedSignal();
+        this.setState("closed");
+
+        const queues = [...this.replyQueues];
+        this.replyQueues.clear();
+        await Promise.allSettled(queues.map(rq => rq.close()));
+
+        await this.reconnectTask;
+        await this.ch?.close().catch(() => {});
+        await this.connection?.close().catch(() => {});
+        this.ch = null;
+        this.connection = null;
+    }
+
+    private ensureChannel(): amqp.ConfirmChannel {
+        if (this.state !== "open" || !this.ch)
+            throw new Error(`RabbitMqProvider is not connected (state: ${this.state})`);
+        return this.ch;
     }
 
     async createReplyQueue({ defaultTimeoutMs = DEFAULT_RPC_TIMEOUT, maxPending = MAX_RPC_PENDING }: { defaultTimeoutMs?: number, maxPending?: number } = {}): Promise<TransientReplyQueue> {
-        const { queue } = await this.ch.assertQueue("", { exclusive: true });
-        const rq = new TransientReplyQueue(this.ch, queue, defaultTimeoutMs, maxPending);
+        const ch = this.ensureChannel();
+        const { queue } = await ch.assertQueue("", { exclusive: true });
+        const rq = new TransientReplyQueue(ch, queue, defaultTimeoutMs, maxPending);
         await rq.start();
+        this.replyQueues.add(rq);
+        rq.onClosed(() => { this.replyQueues.delete(rq); });
         return rq;
     }
 
 
     async replyToRpcCaller(replyTo: string, correlationId: string, payload: Record<string, unknown>): Promise<void> {
+        const ch = this.ensureChannel();
         const encodedPayload = Buffer.from(JSON.stringify(payload));
         await new Promise<void>((res, rej) => {
-            this.ch.sendToQueue(replyTo, encodedPayload, {
+            ch.sendToQueue(replyTo, encodedPayload, {
                 contentType: "application/json",
                 correlationId,
                 timestamp: Date.now(),
@@ -79,39 +236,54 @@ export class RabbitMqProvider implements IQueueProvider {
 
 
     async publishEvent(routingKey: string, payload: EventPayload) {
+        const ch = this.ensureChannel();
         const encodedPayload = Buffer.from(JSON.stringify(payload));
         await new Promise<void>((res, rej) => {
-            this.ch.publish("app.events", routingKey, encodedPayload, {
+            ch.publish("app.events", routingKey, encodedPayload, {
                 persistent: true,
                 contentType: "application/json",
                 messageId: payload.eventId ?? crypto.randomUUID(),
                 timestamp: Date.now(),
                 type: payload.type,
-            }, err => {
-                if (err)
-                    rej(err);
-                res();
-            });
+            }, err => (err ? rej(err) : res()));
         });
     }
 
     consume(...args: Parameters<amqp.ConfirmChannel["consume"]>): ReturnType<amqp.ConfirmChannel["consume"]> {
-        return this.ch.consume(...args);
+        return this.ensureChannel().consume(...args);
     }
 
     ack(...args: Parameters<amqp.ConfirmChannel["ack"]>): ReturnType<amqp.ConfirmChannel["ack"]> {
-        return this.ch.ack(...args);
+        return this.ensureChannel().ack(...args);
     }
     
     nack(...args: Parameters<amqp.ConfirmChannel["nack"]>): ReturnType<amqp.ConfirmChannel["nack"]> {
-        return this.ch.nack(...args);
+        return this.ensureChannel().nack(...args);
     }
+}
+
+const defaultChannelSetup = async (ch: amqp.ConfirmChannel) => {
+    // main router: publishes to interested services (which are their own queues)
+    await ch.assertExchange("app.events", "topic", { durable: true });
+    await ch.assertExchange("app.rpc", "direct", { durable: true });
+    await ch.assertExchange("app.dlx", "topic", { durable: true });
+
+    // example of use in another 
+    // await this.ch.assertQueue("credit.user-registered", {
+    //     durable: true,
+    //     // deadLetterExchange: "app.dlx",
+    //     // deadLetterRoutingKey: "credit.user-registered.dlq",
+    // });
+    // await this.ch.bindQueue("credit.user-registered", "app.events", "user.registered");
+
+    await ch.assertQueue("user.rpc", { durable: true });
+    await ch.bindQueue("user.rpc", "app.rpc", "user.query");
 }
 
 export const buildDefaultProvider = async () => {
     if (!config.rabbitMqConnectionString) {
         throw new Error("rabbitmq connection string not found in config");
     }
-    const provider = await RabbitMqProvider.connect(config.rabbitMqConnectionString!);
+    const provider = await RabbitMqProvider.connect(config.rabbitMqConnectionString!, defaultChannelSetup);
     return provider;
 }

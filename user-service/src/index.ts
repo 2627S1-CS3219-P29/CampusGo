@@ -21,13 +21,35 @@ const flags = parseArgs(Deno.args, {
 await connectDatabase();
 await seedEssential();
 
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 const startQueueTasks = async () => {
+    const ERROR_BACKOFF_MS = 5000;
+    
     const rabbitMqProvider = await buildDefaultProvider();
-    const outboxWorker = new OutboxWorker(db, repoFactory, rabbitMqProvider);
-    const rpcWorker = makeRpcServer(db, repoFactory, rabbitMqProvider);
+    while (rabbitMqProvider.getState() !== "closed") {
+        try {
+            await rabbitMqProvider.waitUntilUp();
+        } catch {
+            break;
+        }
 
-    outboxWorker.start();
-    await rpcWorker.start();
+        try {
+            const outboxWorker = new OutboxWorker(db, repoFactory, rabbitMqProvider);
+            const rpcWorker = makeRpcServer(db, repoFactory, rabbitMqProvider);
+        
+            outboxWorker.start();
+            await rpcWorker.start();
+    
+            await rabbitMqProvider.waitUntilDown();
+            await outboxWorker.stop();
+        } catch (e) {
+            // between queue connection and starting the workers, the network may go down
+            log.error(`queue task cycle failed: ${e}`);
+            await sleep(ERROR_BACKOFF_MS);
+        }
+    }
+    
+    await rabbitMqProvider.close();
 };
 
 const createPublicRouter = () => {

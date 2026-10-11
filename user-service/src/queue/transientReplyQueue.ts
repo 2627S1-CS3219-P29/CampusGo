@@ -15,6 +15,13 @@ export class RpcTimeoutError extends Error {
     }
 }
 
+export class RpcDisconnectedError extends Error {
+    constructor(public queueName: string) {
+        super(`TransientReplyQueue "${queueName}" lost connection to queue`);
+        this.name = "RpcDisconnectedError";
+    }
+}
+
 export class TransientReplyQueue {
     private ch: amqp.ConfirmChannel;
     private name: string
@@ -23,9 +30,10 @@ export class TransientReplyQueue {
     private defaultTimeoutMs: number;
     private maxPending: number;
 
-    private state: "uninit" | "open" | "closing" | "closed" = "uninit";
+    private state: "uninit" | "open" | "suspended" | "closing" | "closed" = "uninit";
     private consumerTag: string | null = null;
     private closerTask: Promise<void> | null = null;
+    private readonly onClosedListeners = new Set<() => void>();
 
     constructor(ch: amqp.ConfirmChannel, name: string, defaultTimeoutMs: number, maxPending: number) {
         this.ch = ch;
@@ -38,6 +46,36 @@ export class TransientReplyQueue {
         const { consumerTag } = await this.ch.consume(this.name, msg => this.replyCb(msg), { noAck: false });
         this.consumerTag = consumerTag;
         this.state = "open";
+    }
+
+    /** trigger listener when queue was manually closed */
+    onClosed(listener: () => void): () => void {
+        this.onClosedListeners.add(listener);
+        return () => { this.onClosedListeners.delete(listener); };
+    }
+
+    /** connection to queue lost. reject pending rpcs and wait for handleReconnect */
+    handleDisconnect(): void {
+        if (this.state === "closed" || this.state === "closing")
+            return;
+        this.state = "suspended";
+        this.consumerTag = null;
+        const err = new RpcDisconnectedError(this.name);
+        for (const [_, task] of this.pendingTasks) {
+            clearTimeout(task.timer);
+            task.reject(err);
+        }
+        this.pendingTasks.clear();
+    }
+
+    /** if the parent connection died and reconnects, rebuild the queue automatically */
+    async handleReconnect(ch: amqp.ConfirmChannel): Promise<void> {
+        if (this.state === "closed" || this.state === "closing")
+            return;
+        const { queue } = await ch.assertQueue("", { exclusive: true });
+        this.ch = ch;
+        this.name = queue;
+        await this.start();
     }
 
     /** invokes rpc (point to point) call on consumer of routingKey */
@@ -131,6 +169,9 @@ export class TransientReplyQueue {
                 }
             }
             this.state = "closed";
+            for (const emit of this.onClosedListeners) {
+                emit();
+            }
         })();
 
         return this.closerTask;

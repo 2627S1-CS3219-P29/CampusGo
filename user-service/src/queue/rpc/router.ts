@@ -30,7 +30,9 @@ export class RpcRouter {
 
     async start() {
         await this.queue.consume(this.queueName, msg => {
-            this.dispatch(msg);
+            this.dispatch(msg).catch(e => {
+                log.error(`RpcRouter dispatch failed: ${e instanceof Error ? e.stack : e}`);
+            });
         });
     }
 
