@@ -1,7 +1,4 @@
 import log from "../log.ts";
-import type { Db } from "../prisma/db.ts";
-import type { IRepoFactory } from "../prisma/factory.ts";
-import type { IOutboxRepository, PendingEvent } from "../prisma/outbox.ts";
 import type { IQueueProvider } from "./provider.ts";
 
 export const BATCH_SIZE = 50;
@@ -10,22 +7,41 @@ export const BASE_RETRY_DELAY_MS = 1000;
 export const POLL_INTERVAL_MS = 200;
 export const ERROR_BACKOFF_MS = 2000;
 
+/** a row pending relay, shaped for the worker's needs. */
+export interface OutboxRow {
+    readonly id: string | number;
+    readonly topic: string;
+    readonly type: string;
+    readonly payload: object;
+    readonly retryCount: number;
+}
+
+export interface IOutboxTx {
+    fetchPending(limit: number): Promise<OutboxRow[]>;
+    markCompleted(id: OutboxRow["id"]): Promise<void>;
+    markFailed(id: OutboxRow["id"], errMsg: string, retryCount: number, nextRetryAt: Temporal.Instant | null): Promise<void>;
+}
+
+/** abstraction of the store backing the worker */
+export interface IOutboxSource {
+    /** run fn where tx is a newly created transaction */
+    withTransaction<R>(fn: (tx: IOutboxTx) => Promise<R>): Promise<R>;
+}
+
 /// exponential backoff with jitter
 const calcExpBackoff = (baseMs: number, newRetryCount: number) =>
     Math.round(baseMs * 2 ** (newRetryCount - 1) * (0.5 + Math.random()));
 
 export class OutboxWorker {
-    private db: Db;
-    private repoFactory: IRepoFactory;
+    private source: IOutboxSource;
     private msgQueue: IQueueProvider;
 
     private running = false;
     private loopPromise: Promise<void> | null = null;
     private sleepCts: (() => void) | null = null;
 
-    constructor(db: Db, repoFactory: IRepoFactory, msgQueue: IQueueProvider) {
-        this.db = db;
-        this.repoFactory = repoFactory;
+    constructor(source: IOutboxSource, msgQueue: IQueueProvider) {
+        this.source = source;
         this.msgQueue = msgQueue;
     }
 
@@ -63,26 +79,22 @@ export class OutboxWorker {
      * returns the number of rows handled
      */
     async relayOnce(): Promise<number> {
-        return await this.db.transaction(async tx => {
-            const { outbox } = this.repoFactory.buildRepos(tx);
-            const rows = await outbox.getPendingEvents(BATCH_SIZE);
-            if (rows.length === 0)
-                return 0;
-
+        return await this.source.withTransaction(async tx => {
+            const rows = await tx.fetchPending(BATCH_SIZE);
             for (const row of rows) {
-                await this.relayRow(outbox, row);
+                await this.relayRow(tx, row);
             }
             return rows.length;
         });
     }
 
-    async relayRow(outbox: IOutboxRepository, row: PendingEvent): Promise<void> {
+    async relayRow(tx: IOutboxTx, row: OutboxRow): Promise<void> {
         try {
             await this.msgQueue.publishEvent(row.topic, {
                 type: row.type,
                 ...row.payload,
             });
-            await outbox.updateCompletedEvent(row.id);
+            await tx.markCompleted(row.id);
         } catch (e) {
             const errMsg = e instanceof Error ? e.message : JSON.stringify(e);
             const newRetryCount = row.retryCount + 1;
@@ -92,15 +104,14 @@ export class OutboxWorker {
                 Temporal.Now.instant().add({
                     milliseconds: calcExpBackoff(BASE_RETRY_DELAY_MS, newRetryCount),
                 });
-
+    
             if (shouldFail) {
                 log.error(`OutboxWorker giving up on row ${row.id} after ${newRetryCount} retries: ${errMsg}`);
             } else {
                 log.warn(`OutboxWorker failed row ${row.id} (attempt ${newRetryCount}): ${errMsg}`);
             }
 
-            // if this fails (db offline), whole batch fails
-            await outbox.updateFailedEvent(row.id, errMsg, newRetryCount, nextRetryAt);
+            await tx.markFailed(row.id, errMsg, newRetryCount, nextRetryAt);
         }
     }
 

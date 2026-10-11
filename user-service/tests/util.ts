@@ -11,6 +11,7 @@ import { IOutboxRepository } from "../src/prisma/outbox.ts";
 import { Db, DbTxUnion, Tx } from "../src/prisma/db.ts";
 import { IInviteCodeGenerator } from "../src/util/invite.ts";
 import { IQueueProvider } from "../src/queue/provider.ts";
+import { IOutboxSource, IOutboxTx } from "../src/queue/outboxWorker.ts";
 
 // common test constants
 export const TEST_EMAIL = "test@example.com";
@@ -114,6 +115,17 @@ export const makeRepoFactory = (overrides: Partial<Repos> = {}): IRepoFactory =>
         outbox: overrides.outbox ?? makeOutboxRepo(),
     }),
 });
+
+export const makeOutboxTx = (overrides: Partial<IOutboxTx> = {}): IOutboxTx =>
+   makeGenericMockRepo("outboxTx", overrides);
+
+/** builds an IOutboxSource whose withTransaction delegates to a single mocked IOutboxTx. */
+export const makeOutboxSource = (overrides: Partial<IOutboxTx> = {}): IOutboxSource => {
+    const tx = makeOutboxTx(overrides);
+    return {
+        withTransaction: <R>(fn: (tx: IOutboxTx) => Promise<R>) => fn(tx),
+    };
+};
 
 // oak request/response context mocking
 export type CtxOpts = {

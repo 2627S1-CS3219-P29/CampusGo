@@ -7,10 +7,10 @@ import { seedEssential } from "./prisma/seed.ts";
 import createUserRouter from "./routes/user.ts";
 import createRoleRouter from "./routes/role.ts";
 import { generateInviteCodeCli } from "./tasks/cli.ts";
-import { buildDefaultProvider } from "./queue/provider.ts";
+import { buildDefaultProvider } from "./queue/impl/provider.ts";
 import { repoFactory } from "./prisma/factory.ts";
-import { OutboxWorker } from "./queue/outboxWorker.ts";
-import { makeRpcServer } from "./queue/rpc/server.ts";
+import { makeRpcServer } from "./queue/impl/rpc.ts";
+import { makeOutboxWorker } from "./queue/impl/outbox.ts";
 
 const flags = parseArgs(Deno.args, {
     boolean: ["gen-invite"],
@@ -25,22 +25,26 @@ const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 const startQueueTasks = async () => {
     const ERROR_BACKOFF_MS = 5000;
     
+    log.debug("initiating queue connection");
     const rabbitMqProvider = await buildDefaultProvider();
     while (rabbitMqProvider.getState() !== "closed") {
         try {
+            log.debug("waiting for queue to go up");
             await rabbitMqProvider.waitUntilUp();
+            log.info("queue connection established");
         } catch {
             break;
         }
 
         try {
-            const outboxWorker = new OutboxWorker(db, repoFactory, rabbitMqProvider);
+            const outboxWorker = makeOutboxWorker(db, repoFactory, rabbitMqProvider);
             const rpcWorker = makeRpcServer(db, repoFactory, rabbitMqProvider);
         
             outboxWorker.start();
             await rpcWorker.start();
     
             await rabbitMqProvider.waitUntilDown();
+            log.warn("queue is down, stopping all queue workers");
             await outboxWorker.stop();
         } catch (e) {
             // between queue connection and starting the workers, the network may go down

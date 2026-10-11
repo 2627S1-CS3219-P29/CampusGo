@@ -2,7 +2,7 @@ import log from "../../log.ts";
 import type { DbTxUnion } from "../../prisma/db.ts";
 import type { IRepoFactory } from "../../prisma/factory.ts";
 import type { IQueueProvider } from "../provider.ts";
-import { RpcBadRequest, RpcRouter } from "./router.ts";
+import { RpcBadRequest, RpcRouter } from "../rpc/router.ts";
 
 // exmaple of rpc response messages:
 // const q = await rabbitMqProvider.createReplyQueue();
