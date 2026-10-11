@@ -18,8 +18,13 @@ const config = {
         issuer: 'user-service',
     },
     order: {
-        // an order that no courier accepts within this window expires
-        expiryMs: 24 * 60 * 60 * 1000,
+        // how long an order waits for a courier before it expires; the requester picks a
+        // duration within these limits, or gets the default (24h, the original fixed value)
+        expiry: {
+            defaultMinutes: 24 * 60,
+            minMinutes: 15,
+            maxMinutes: 24 * 60,
+        },
         // orders per page in GET /orders, same as the supplier list
         pageSize: 20,
     },

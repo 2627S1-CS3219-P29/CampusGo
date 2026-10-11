@@ -1,4 +1,5 @@
 import { z } from "zod";
+import config from "../config.ts";
 
 // body of POST /orders; the requester is taken from the access token, not the body
 export const createOrderSchema = z.object({
@@ -9,6 +10,11 @@ export const createOrderSchema = z.object({
     creditBounty: z.number().int("Must be a whole number").positive("Must be at least 1"),
     // anything more specific, e.g. a room number at the supplier's building
     additionalDetails: z.string().trim().max(500).nullable().optional(),
+    // how long to wait for a courier; left out = the default (24h)
+    expiresInMinutes: z.number().int("Must be a whole number of minutes")
+        .min(config.order.expiry.minMinutes, `Must be at least ${config.order.expiry.minMinutes} minutes`)
+        .max(config.order.expiry.maxMinutes, `Must be at most ${config.order.expiry.maxMinutes / 60} hours`)
+        .optional(),
 }).strict();
 
 export type CreateOrderBody = z.infer<typeof createOrderSchema>;

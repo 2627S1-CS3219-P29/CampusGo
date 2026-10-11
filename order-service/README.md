@@ -67,8 +67,10 @@ Create a New Order (POST)
           "dropoffLocation": "Foyer@PGP",
           "itemDescription": "Printed CS3230 assignment",
           "creditBounty": 5,
-          "additionalDetails": "Pages 1-20, double sided"
+          "additionalDetails": "Pages 1-20, double sided",
+          "expiresInMinutes": 120
         }
+    expiresInMinutes is optional: how long the errand waits for a courier, a whole number from 15 to 1440 (24 hours). Left out, it defaults to 24 hours. If no courier accepts in time, the errand expires.
     Pickup is always a registered supplier: supplierId is required and must be a live supplier in the supplier service (400 "Supplier not found" otherwise, 503 if the supplier service is down). The order service builds pickupLocation from it, e.g. "Printer @ Com 2, Com 2, Level 1", and stores that text as a snapshot. Dropoff is any place the requester types. Put anything more specific (e.g. a room number) in the optional additionalDetails. User ids (requesterId, courierId) are integers taken from the access token.
 - Result: Returns a 201 Created status with the newly generated errand, including its auto-assigned UUID and enforced CREATED status. If sent a second time with the exact same Idempotency-Key header, it will safely return a 200 OK with "deduplicated": true instead of double-charging.
 

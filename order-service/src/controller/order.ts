@@ -181,7 +181,8 @@ export const createOrder = async (ctx: Context) => {
                 itemDescription: body.itemDescription,
                 creditBounty: body.creditBounty,
                 additionalDetails: body.additionalDetails || null,
-                expiresAt: new Date(Date.now() + config.order.expiryMs),
+                // waits for a courier for the chosen duration, or the default
+                expiresAt: new Date(Date.now() + (body.expiresInMinutes ?? config.order.expiry.defaultMinutes) * 60_000),
             });
         } catch (e) {
             // two requests with the same Idempotency-Key at the same moment: the unique key
