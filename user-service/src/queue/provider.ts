@@ -95,15 +95,15 @@ export class RabbitMqProvider implements IQueueProvider {
         });
     }
 
-    consume(...args: Parameters<amqp.Channel["consume"]>): ReturnType<amqp.Channel["consume"]> {
+    consume(...args: Parameters<amqp.ConfirmChannel["consume"]>): ReturnType<amqp.ConfirmChannel["consume"]> {
         return this.ch.consume(...args);
     }
 
-    ack(...args: Parameters<amqp.Channel["ack"]>): ReturnType<amqp.Channel["ack"]> {
+    ack(...args: Parameters<amqp.ConfirmChannel["ack"]>): ReturnType<amqp.ConfirmChannel["ack"]> {
         return this.ch.ack(...args);
     }
     
-    nack(...args: Parameters<amqp.Channel["nack"]>): ReturnType<amqp.Channel["nack"]> {
+    nack(...args: Parameters<amqp.ConfirmChannel["nack"]>): ReturnType<amqp.ConfirmChannel["nack"]> {
         return this.ch.nack(...args);
     }
 }

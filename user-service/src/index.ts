@@ -21,12 +21,14 @@ const flags = parseArgs(Deno.args, {
 await connectDatabase();
 await seedEssential();
 
-const rabbitMqProvider = await buildDefaultProvider()
-const outboxWorker = new OutboxWorker(db, repoFactory, rabbitMqProvider);
-const rpcWorker = makeRpcServer(db, repoFactory, rabbitMqProvider);
+const startQueueTasks = async () => {
+    const rabbitMqProvider = await buildDefaultProvider();
+    const outboxWorker = new OutboxWorker(db, repoFactory, rabbitMqProvider);
+    const rpcWorker = makeRpcServer(db, repoFactory, rabbitMqProvider);
 
-outboxWorker.start();
-rpcWorker.start();
+    outboxWorker.start();
+    await rpcWorker.start();
+};
 
 const createPublicRouter = () => {
     const router = new Router({ prefix: "/public" });
@@ -64,5 +66,6 @@ if (flags["gen-invite"]) {
 } else {
     const port = Number(Deno.env.get("PORT") ?? 3000);
     log.info(`starting on port ${port}`);
+    startQueueTasks();
     main(port);
 }
