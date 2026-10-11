@@ -24,7 +24,7 @@ export class RpcDisconnectedError extends Error {
 
 export class TransientReplyQueue {
     private ch: amqp.ConfirmChannel;
-    private name: string
+    private name: string = "";
     
     private pendingTasks = new Map<string, PendingRpc>();
     private defaultTimeoutMs: number;
@@ -35,14 +35,16 @@ export class TransientReplyQueue {
     private closerTask: Promise<void> | null = null;
     private readonly onClosedListeners = new Set<() => void>();
 
-    constructor(ch: amqp.ConfirmChannel, name: string, defaultTimeoutMs: number, maxPending: number) {
+    constructor(ch: amqp.ConfirmChannel, defaultTimeoutMs: number, maxPending: number) {
         this.ch = ch;
-        this.name = name;
         this.defaultTimeoutMs = defaultTimeoutMs;
         this.maxPending = maxPending;
     }
 
+    /** creates reply queue and start consuming replies. */
     async start(): Promise<void> {
+        const { queue } = await this.ch.assertQueue("", { exclusive: true });
+        this.name = queue;
         const { consumerTag } = await this.ch.consume(this.name, msg => this.replyCb(msg), { noAck: false });
         this.consumerTag = consumerTag;
         this.state = "open";
@@ -72,9 +74,7 @@ export class TransientReplyQueue {
     async handleReconnect(ch: amqp.ConfirmChannel): Promise<void> {
         if (this.state === "closed" || this.state === "closing")
             return;
-        const { queue } = await ch.assertQueue("", { exclusive: true });
         this.ch = ch;
-        this.name = queue;
         await this.start();
     }
 

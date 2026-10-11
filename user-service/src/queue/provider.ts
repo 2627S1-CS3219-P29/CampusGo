@@ -33,8 +33,8 @@ export type ChannelSetupHandler = (ch: amqp.ConfirmChannel) => Promise<void>;
 
 export class RabbitMqProvider implements IQueueProvider {
     private url: string;
-    private connection: amqp.ChannelModel | null;
-    private ch: amqp.ConfirmChannel | null;
+    private connection: amqp.ChannelModel | null = null;
+    private ch: amqp.ConfirmChannel | null = null;
     private channelSetupHandler: ChannelSetupHandler;
 
     private state: ProviderState = "connecting";
@@ -45,9 +45,7 @@ export class RabbitMqProvider implements IQueueProvider {
     private closedSignal: Promise<void>;
     private emitClosedSignal: () => void;
 
-    private constructor(connection: amqp.ChannelModel, ch: amqp.ConfirmChannel, url: string, channelSetupHandler: ChannelSetupHandler) {
-        this.connection = connection;
-        this.ch = ch;
+    private constructor(url: string, channelSetupHandler: ChannelSetupHandler) {
         this.url = url;
         this.channelSetupHandler = channelSetupHandler;
 
@@ -57,17 +55,36 @@ export class RabbitMqProvider implements IQueueProvider {
     }
 
     static async connect(url: string, channelSetupHandler: ChannelSetupHandler) {
-        const connection = await amqp.connect(url);
-        const ch = await connection.createConfirmChannel();
-        const provider = new RabbitMqProvider(connection, ch, url, channelSetupHandler);
-        await provider.setup(ch);
-        provider.attachListeners(connection, ch);
+        const provider = new RabbitMqProvider(url, channelSetupHandler);
+        const { connection, ch } = await provider.openChannel();
+        await provider.install(connection, ch);
         provider.setState("open");
         return provider;
     }
 
-    private async setup(ch: amqp.ConfirmChannel) {
-        await this.channelSetupHandler(ch);
+    /**
+     * opens connection with channel and runs channel setup handler.
+     * on failure, closes partially opened resources
+     */
+    private async openChannel(): Promise<{ connection: amqp.ChannelModel; ch: amqp.ConfirmChannel }> {
+        const connection = await amqp.connect(this.url);
+        try {
+            const ch = await connection.createConfirmChannel();
+            await this.channelSetupHandler(ch);
+            return { connection, ch };
+        } catch (e) {
+            await connection.close().catch(() => {});
+            throw e;
+        }
+    }
+
+    /** stores connection and channel; attaches necessary handlers to them */
+    private async install(connection: amqp.ChannelModel, ch: amqp.ConfirmChannel): Promise<void> {
+        this.connection = connection;
+        this.ch = ch;
+        this.attachListeners(connection, ch);
+        for (const rq of this.replyQueues)
+            await rq.handleReconnect(ch);
     }
 
     getState(): ProviderState {
@@ -163,14 +180,8 @@ export class RabbitMqProvider implements IQueueProvider {
                 let connection: amqp.ChannelModel | null = null;
                 let ch: amqp.ConfirmChannel | null = null;
                 try {
-                    connection = await amqp.connect(this.url);
-                    ch = await connection.createConfirmChannel();
-                    await this.setup(ch);
-                    this.connection = connection;
-                    this.ch = ch;
-                    this.attachListeners(connection, ch);
-                    for (const rq of this.replyQueues)
-                        await rq.handleReconnect(ch);
+                    ({ connection, ch } = await this.openChannel());
+                    await this.install(connection, ch);
                     this.setState("open");
                     this.reconnectTask = null;
                     return;
@@ -213,14 +224,12 @@ export class RabbitMqProvider implements IQueueProvider {
 
     async createReplyQueue({ defaultTimeoutMs = DEFAULT_RPC_TIMEOUT, maxPending = MAX_RPC_PENDING }: { defaultTimeoutMs?: number, maxPending?: number } = {}): Promise<TransientReplyQueue> {
         const ch = this.ensureChannel();
-        const { queue } = await ch.assertQueue("", { exclusive: true });
-        const rq = new TransientReplyQueue(ch, queue, defaultTimeoutMs, maxPending);
+        const rq = new TransientReplyQueue(ch, defaultTimeoutMs, maxPending);
         await rq.start();
         this.replyQueues.add(rq);
         rq.onClosed(() => { this.replyQueues.delete(rq); });
         return rq;
     }
-
 
     async replyToRpcCaller(replyTo: string, correlationId: string, payload: Record<string, unknown>): Promise<void> {
         const ch = this.ensureChannel();
