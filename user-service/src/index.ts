@@ -1,12 +1,17 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { Application, Router } from "@oak/oak";
 import { createAuthRouter, createPrivateAuthRouter } from "./routes/auth.ts";
-import { connectDatabase } from "./prisma/db.ts";
+import { connectDatabase, db } from "./prisma/db.ts";
 import log from "./log.ts";
 import { seedEssential } from "./prisma/seed.ts";
 import createUserRouter from "./routes/user.ts";
 import createRoleRouter from "./routes/role.ts";
 import { generateInviteCodeCli } from "./tasks/cli.ts";
+import { buildDefaultProvider } from "./queue/impl/provider.ts";
+import { repoFactory } from "./prisma/factory.ts";
+import { makeRpcServer } from "./queue/impl/rpc.ts";
+import { makeOutboxWorker } from "./queue/impl/outbox.ts";
+import type { RabbitMqProvider } from "./queue/provider.ts";
 
 const flags = parseArgs(Deno.args, {
     boolean: ["gen-invite"],
@@ -14,9 +19,52 @@ const flags = parseArgs(Deno.args, {
 });
 
 // ensure database is ready so that first request is not slow
-// TODO: figure out how to automate setup and database migration in the scripts
 await connectDatabase();
 await seedEssential();
+
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+const startQueueTasks = async () => {
+    const ERROR_BACKOFF_MS = 5000;
+    
+    log.debug("initiating queue connection");
+    let rabbitMqProvider: RabbitMqProvider | null = null;
+    while (!rabbitMqProvider) {
+        try {
+            rabbitMqProvider = await buildDefaultProvider();
+        } catch (e) {
+            log.warn(`first connection to queue failed: ${e}`);
+            await sleep(ERROR_BACKOFF_MS);
+        }
+    }
+    while (rabbitMqProvider.getState() !== "closed") {
+        try {
+            log.debug("waiting for queue to go up");
+            await rabbitMqProvider.waitUntilUp();
+            log.info("queue connection established");
+        } catch {
+            break;
+        }
+
+        const outboxWorker = makeOutboxWorker(db, repoFactory, rabbitMqProvider);
+        try {
+            const rpcWorker = makeRpcServer(db, repoFactory, rabbitMqProvider);
+        
+            outboxWorker.start();
+            await rpcWorker.start();
+    
+            await rabbitMqProvider.waitUntilDown();
+            log.warn("queue is down, stopping all queue workers");
+        } catch (e) {
+            // between queue connection and starting the workers, the network may go down
+            log.error(`queue task cycle failed: ${e}`);
+            await sleep(ERROR_BACKOFF_MS);
+        } finally {
+            await outboxWorker.stop();
+        }
+    }
+    
+    await rabbitMqProvider.close();
+};
 
 const createPublicRouter = () => {
     const router = new Router({ prefix: "/public" });
@@ -54,5 +102,6 @@ if (flags["gen-invite"]) {
 } else {
     const port = Number(Deno.env.get("PORT") ?? 3000);
     log.info(`starting on port ${port}`);
+    startQueueTasks();
     main(port);
 }
