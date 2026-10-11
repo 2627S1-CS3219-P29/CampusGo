@@ -11,6 +11,7 @@ import { buildDefaultProvider } from "./queue/impl/provider.ts";
 import { repoFactory } from "./prisma/factory.ts";
 import { makeRpcServer } from "./queue/impl/rpc.ts";
 import { makeOutboxWorker } from "./queue/impl/outbox.ts";
+import type { RabbitMqProvider } from "./queue/provider.ts";
 
 const flags = parseArgs(Deno.args, {
     boolean: ["gen-invite"],
@@ -26,7 +27,15 @@ const startQueueTasks = async () => {
     const ERROR_BACKOFF_MS = 5000;
     
     log.debug("initiating queue connection");
-    const rabbitMqProvider = await buildDefaultProvider();
+    let rabbitMqProvider: RabbitMqProvider | null = null;
+    while (!rabbitMqProvider) {
+        try {
+            rabbitMqProvider = await buildDefaultProvider();
+        } catch (e) {
+            log.warn(`first connection to queue failed: ${e}`);
+            await sleep(ERROR_BACKOFF_MS);
+        }
+    }
     while (rabbitMqProvider.getState() !== "closed") {
         try {
             log.debug("waiting for queue to go up");
@@ -36,8 +45,8 @@ const startQueueTasks = async () => {
             break;
         }
 
+        const outboxWorker = makeOutboxWorker(db, repoFactory, rabbitMqProvider);
         try {
-            const outboxWorker = makeOutboxWorker(db, repoFactory, rabbitMqProvider);
             const rpcWorker = makeRpcServer(db, repoFactory, rabbitMqProvider);
         
             outboxWorker.start();
@@ -45,11 +54,12 @@ const startQueueTasks = async () => {
     
             await rabbitMqProvider.waitUntilDown();
             log.warn("queue is down, stopping all queue workers");
-            await outboxWorker.stop();
         } catch (e) {
             // between queue connection and starting the workers, the network may go down
             log.error(`queue task cycle failed: ${e}`);
             await sleep(ERROR_BACKOFF_MS);
+        } finally {
+            await outboxWorker.stop();
         }
     }
     
