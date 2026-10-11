@@ -10,7 +10,8 @@ export function fromRawRole(rawName: string): Role | null {
 }
 
 export enum SupplierType {
-    Store = "store",
-    Facility = "facility",
-    Landmark = "landmark",
+    Food = "food",
+    Shopping = "shopping",
+    Printing = "printing",
+    Coffee = "coffee",
 }

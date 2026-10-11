@@ -7,7 +7,8 @@
       rail
     >
       <v-list density="compact" nav>
-        <v-list-item to="/" prepend-icon="mdi-home" title="Dashboard" />
+        <v-list-item to="/" prepend-icon="mdi-home" title="Dashboard" exact />
+        <v-list-item to="/suppliers" prepend-icon="mdi-store" title="Suppliers" />
         <v-list-item to="/login" prepend-icon="mdi-lock" title="Login" />
       </v-list>
 

@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "seed": "deno run -A --env-file=.env src/tasks/seedSuppliers.ts",
     "build": "deno check src/index.ts",
     "contract:emit": "deno run -A npm:prisma@8.0.0-rc.15 contract emit",
     "db:init": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db init",

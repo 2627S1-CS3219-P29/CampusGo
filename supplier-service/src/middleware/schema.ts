@@ -41,7 +41,7 @@ export const validateBody = (schema: z.ZodType) =>
         const result = schema.safeParse(raw);
         if (!result.success) {
             ctx.response.status = 400;
-            ctx.response.body = describeError("invalid supplier", result.error);
+            ctx.response.body = describeError("invalid request body", result.error);
             return;
         }
         ctx.state.validatedBody = result.data;
