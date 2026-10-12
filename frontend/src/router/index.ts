@@ -9,6 +9,8 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import Dashboard from '@/pages/dashboard.vue'
 import Login from '@/pages/login.vue'
 import Profile from '@/pages/profile.vue'
+import Suppliers from '@/pages/suppliers.vue'
+import SupplierDetail from '@/pages/supplier.vue'
 import DashboardNavBar from '@/components/DashboardNavBar.vue'
 import { useAuthStore } from '@/stores/auth';
 import { watch } from 'vue';
@@ -20,6 +22,8 @@ const routes: RouteRecordRaw[] = [
         children: [
             { path: "", name: "dashboard", component: Dashboard },
             { path: "profile", name: "profile", component: Profile },
+            { path: "suppliers", name: "suppliers", component: Suppliers },
+            { path: "suppliers/:id", name: "supplier", component: SupplierDetail },
         ],
         meta: { isAuthRequired: true }
     },

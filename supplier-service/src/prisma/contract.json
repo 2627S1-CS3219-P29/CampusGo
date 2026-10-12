@@ -4,6 +4,10 @@
   "target": "postgres",
   "profileHash": "3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2",
   "roots": {
+    "location": {
+      "model": "Location",
+      "namespace": "public"
+    },
     "supplier": {
       "model": "Supplier",
       "namespace": "public"
@@ -38,21 +42,82 @@
             "codecId": "pg/text@1",
             "members": [
               {
-                "name": "Store",
-                "value": "store"
+                "name": "Food",
+                "value": "food"
               },
               {
-                "name": "Facility",
-                "value": "facility"
+                "name": "Shopping",
+                "value": "shopping"
               },
               {
-                "name": "Landmark",
-                "value": "landmark"
+                "name": "Printing",
+                "value": "printing"
+              },
+              {
+                "name": "Coffee",
+                "value": "coffee"
               }
             ]
           }
         },
         "models": {
+          "Location": {
+            "fields": {
+              "deletedAt": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "name": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "suppliers": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "locationId"
+                  ]
+                },
+                "to": {
+                  "model": "Supplier",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "deletedAt": {
+                  "column": "deletedAt"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "name": {
+                  "column": "name"
+                }
+              },
+              "namespaceId": "public",
+              "table": "location"
+            }
+          },
           "Supplier": {
             "fields": {
               "closesAt": {
@@ -90,6 +155,13 @@
                   "kind": "scalar"
                 }
               },
+              "floor": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
               "id": {
                 "nullable": false,
                 "type": {
@@ -97,8 +169,15 @@
                   "kind": "scalar"
                 }
               },
-              "locationId": {
+              "imageUrl": {
                 "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "locationId": {
+                "nullable": false,
                 "type": {
                   "codecId": "pg/int4@1",
                   "kind": "scalar"
@@ -119,16 +198,11 @@
                 }
               },
               "type": {
+                "many": true,
                 "nullable": false,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
-                },
-                "valueSet": {
-                  "entityKind": "enum",
-                  "entityName": "SupplierType",
-                  "namespaceId": "public",
-                  "plane": "domain"
                 }
               },
               "updatedAt": {
@@ -164,7 +238,7 @@
               },
               "location": {
                 "cardinality": "N:1",
-                "nullable": true,
+                "nullable": false,
                 "on": {
                   "localFields": [
                     "locationId"
@@ -174,22 +248,7 @@
                   ]
                 },
                 "to": {
-                  "model": "Supplier",
-                  "namespace": "public"
-                }
-              },
-              "suppliersAtLocation": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "id"
-                  ],
-                  "targetFields": [
-                    "locationId"
-                  ]
-                },
-                "to": {
-                  "model": "Supplier",
+                  "model": "Location",
                   "namespace": "public"
                 }
               }
@@ -211,8 +270,14 @@
                 "description": {
                   "column": "description"
                 },
+                "floor": {
+                  "column": "floor"
+                },
                 "id": {
                   "column": "id"
+                },
+                "imageUrl": {
+                  "column": "imageUrl"
                 },
                 "locationId": {
                   "column": "locationId"
@@ -340,6 +405,43 @@
       "public": {
         "entries": {
           "table": {
+            "location": {
+              "columns": {
+                "deletedAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "nativeType": "timestamptz",
+                  "nullable": true
+                },
+                "id": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "expression": "autoincrement()",
+                    "kind": "function"
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "name": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [],
+              "indexes": [],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": [
+                {
+                  "columns": [
+                    "name"
+                  ]
+                }
+              ]
+            },
             "supplier": {
               "checks": [
                 {
@@ -348,24 +450,19 @@
                   "prefix": "supplier_hours_paired"
                 },
                 {
-                  "expression": "type <> 'landmark' OR \"opensAt\" IS NULL",
-                  "name": "supplier_landmark_no_hours_8231c808",
-                  "prefix": "supplier_landmark_no_hours"
-                },
-                {
-                  "expression": "(type = 'landmark') = (\"locationId\" IS NULL)",
-                  "name": "supplier_location_by_type_c28d71be",
-                  "prefix": "supplier_location_by_type"
-                },
-                {
                   "expression": "length(btrim(name)) > 0",
                   "name": "supplier_name_not_blank_370c3422",
                   "prefix": "supplier_name_not_blank"
                 },
                 {
-                  "expression": "\"type\" IN ('store', 'facility', 'landmark')",
-                  "name": "supplier_type_check_a692fcb3",
+                  "expression": "\"type\"::text[] <@ ARRAY['food', 'shopping', 'printing', 'coffee']::text[]",
+                  "name": "supplier_type_check_2e0324b6",
                   "prefix": "supplier_type_check"
+                },
+                {
+                  "expression": "array_position(\"type\", NULL) IS NULL",
+                  "name": "supplier_type_elem_not_null_92f0de6f",
+                  "prefix": "supplier_type_elem_not_null"
                 }
               ],
               "columns": {
@@ -398,6 +495,11 @@
                   "nativeType": "text",
                   "nullable": true
                 },
+                "floor": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": true
+                },
                 "id": {
                   "codecId": "pg/int4@1",
                   "default": {
@@ -407,10 +509,15 @@
                   "nativeType": "int4",
                   "nullable": false
                 },
+                "imageUrl": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "locationId": {
                   "codecId": "pg/int4@1",
                   "nativeType": "int4",
-                  "nullable": true
+                  "nullable": false
                 },
                 "name": {
                   "codecId": "pg/text@1",
@@ -424,6 +531,7 @@
                 },
                 "type": {
                   "codecId": "pg/text@1",
+                  "many": true,
                   "nativeType": "text",
                   "nullable": false,
                   "valueSet": {
@@ -462,7 +570,7 @@
                       "id"
                     ],
                     "namespaceId": "public",
-                    "tableName": "supplier"
+                    "tableName": "location"
                   }
                 }
               ],
@@ -473,21 +581,6 @@
                   ],
                   "name": "supplier_locationId_idx_7aae3038",
                   "prefix": "supplier_locationId_idx",
-                  "unique": false
-                },
-                {
-                  "expression": "lower(name)",
-                  "name": "supplier_name_active_27996da5",
-                  "prefix": "supplier_name_active",
-                  "unique": true,
-                  "where": "(\"deletedAt\" IS NULL)"
-                },
-                {
-                  "columns": [
-                    "type"
-                  ],
-                  "name": "supplier_type_idx_b6b604ea",
-                  "prefix": "supplier_type_idx",
                   "unique": false
                 }
               ],
@@ -606,9 +699,10 @@
             "SupplierType": {
               "kind": "valueSet",
               "values": [
-                "store",
-                "facility",
-                "landmark"
+                "food",
+                "shopping",
+                "printing",
+                "coffee"
               ]
             }
           }
@@ -617,7 +711,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "2e7fbd758d0a56fc2aaf5ff15989c5ffec73ce84e752be3b3084032dc93ba40d"
+    "storageHash": "9357d3089b7013134fb5595d1f4722bcbf03dfda3345c1f22710774db8c064cc"
   },
   "capabilities": {
     "postgres": {
