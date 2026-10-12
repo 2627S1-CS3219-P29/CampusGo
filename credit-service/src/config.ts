@@ -4,6 +4,10 @@ import { config as loadEnv } from 'dotenv';
 loadEnv({ path: new URL('../../.env', import.meta.url), quiet: true });
 
 const config = {
+  jwt: {
+    accessKey: process.env.JWT_ACCESS_SECRET?.trim(),
+    issuer: 'user-service',
+  },
   dbConnectionString:
     process.env.DATABASE_URL?.trim() || process.env.CREDIT_DB_URL?.trim(),
 };

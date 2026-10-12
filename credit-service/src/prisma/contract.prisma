@@ -1,13 +1,12 @@
 // use prisma-8
 
 model UserCredits {
-  id      Int @id @default(autoincrement())
+  userId      Int @id
   balance Int
 }
 
 model CreditsOnHold {
-  id          Int              @id @default(autoincrement())
-  errandId    Int
+  errandId    Int @id
   requesterId Int
   supplierId  Int
   amount      Int

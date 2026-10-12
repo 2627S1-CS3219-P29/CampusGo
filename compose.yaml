@@ -19,6 +19,7 @@ services:
     depends_on:
       - user_${PROFILE}
       - supplier_${PROFILE}
+      - credit_${PROFILE}
 
   edge_dev:
     image: nginx:1.31-alpine
@@ -177,7 +178,7 @@ services:
       POSTGRES_PASSWORD: ${CREDIT_DB_PW}
       POSTGRES_DB: credit
     ports:
-      - "127.0.0.1:5434:5432"
+      - "127.0.0.1:5435:5432"
     volumes:
       - credit_pgdata:/var/lib/postgresql
     healthcheck:
@@ -185,6 +186,47 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  credit_dev:
+    build:
+      context: ./credit-service
+      target: development
+    profiles: ["dev"]
+    ports:
+      - "127.0.0.1:8003:3000"
+    volumes:
+      - ./credit-service:/app
+      - /app/node_modules
+    networks:
+      private_net:
+        aliases:
+          - credit_api
+    depends_on:
+      credit_db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: "3000"
+      DATABASE_URL: postgresql://postgres:${CREDIT_DB_PW}@credit_db:5432/credit
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+
+  credit_prod:
+    build:
+      context: ./credit-service
+      target: production
+    profiles: ["prod"]
+    networks:
+      private_net:
+        aliases:
+          - credit_api
+    depends_on:
+      credit_db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://postgres:${CREDIT_DB_PW}@credit_db:5432/credit
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
 
 volumes:
   user_pgdata:
