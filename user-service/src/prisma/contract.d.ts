@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'d4c4121ef37cfa7704c3900b2c4b10801f1ed6be786ca13d8f67985a4d00abfb'>;
+  StorageHashBase<'c79c64458470e29aa5a0988a2f3831be551232fbece89da6e07d38e689d0f6da'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -247,6 +247,17 @@ export type FieldOutputTypes = {
       readonly expiresAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
     };
+    readonly Outbox: {
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly type: CodecTypes['pg/text@1']['output'];
+      readonly topic: CodecTypes['pg/text@1']['output'];
+      readonly payload: CodecTypes['pg/json@1']['output'];
+      readonly status: 'PENDING' | 'FAILED' | 'COMPLETED';
+      readonly retryCount: CodecTypes['pg/int4@1']['output'];
+      readonly errorMessage: CodecTypes['pg/text@1']['output'] | null;
+      readonly nextRetryAt: CodecTypes['pg/timestamptz-temporal@1']['output'] | null;
+      readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['output'];
+    };
     readonly Role: {
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly name: CodecTypes['pg/text@1']['output'];
@@ -274,6 +285,17 @@ export type FieldInputTypes = {
       readonly code: CodecTypes['pg/text@1']['input'];
       readonly expiresAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
+    };
+    readonly Outbox: {
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly type: CodecTypes['pg/text@1']['input'];
+      readonly topic: CodecTypes['pg/text@1']['input'];
+      readonly payload: CodecTypes['pg/json@1']['input'];
+      readonly status: 'PENDING' | 'FAILED' | 'COMPLETED';
+      readonly retryCount: CodecTypes['pg/int4@1']['input'];
+      readonly errorMessage: CodecTypes['pg/text@1']['input'] | null;
+      readonly nextRetryAt: CodecTypes['pg/timestamptz-temporal@1']['input'] | null;
+      readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['input'];
     };
     readonly Role: {
       readonly id: CodecTypes['pg/int4@1']['input'];
@@ -303,6 +325,17 @@ export type StorageColumnTypes = {
       readonly expiresAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly id: CodecTypes['pg/int4@1']['output'];
     };
+    readonly outbox: {
+      readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['output'];
+      readonly errorMessage: CodecTypes['pg/text@1']['output'] | null;
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly nextRetryAt: CodecTypes['pg/timestamptz-temporal@1']['output'] | null;
+      readonly payload: CodecTypes['pg/json@1']['output'];
+      readonly retryCount: CodecTypes['pg/int4@1']['output'];
+      readonly status: 'PENDING' | 'FAILED' | 'COMPLETED';
+      readonly topic: CodecTypes['pg/text@1']['output'];
+      readonly type: CodecTypes['pg/text@1']['output'];
+    };
     readonly role: {
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly name: CodecTypes['pg/text@1']['output'];
@@ -330,6 +363,17 @@ export type StorageColumnInputTypes = {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly expiresAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly id: CodecTypes['pg/int4@1']['input'];
+    };
+    readonly outbox: {
+      readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['input'];
+      readonly errorMessage: CodecTypes['pg/text@1']['input'] | null;
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly nextRetryAt: CodecTypes['pg/timestamptz-temporal@1']['input'] | null;
+      readonly payload: CodecTypes['pg/json@1']['input'];
+      readonly retryCount: CodecTypes['pg/int4@1']['input'];
+      readonly status: 'PENDING' | 'FAILED' | 'COMPLETED';
+      readonly topic: CodecTypes['pg/text@1']['input'];
+      readonly type: CodecTypes['pg/text@1']['input'];
     };
     readonly role: {
       readonly id: CodecTypes['pg/int4@1']['input'];
@@ -387,6 +431,18 @@ export namespace Models {
     acceptedByUserRole: public_UserRole | null;
     readonly [RelationKeys]?: 'acceptedByUserRole';
   };
+  export type public_Outbox = {
+    id: CodecTypes['pg/int4@1']['output'];
+    type: CodecTypes['pg/text@1']['output'];
+    topic: CodecTypes['pg/text@1']['output'];
+    payload: CodecTypes['pg/json@1']['output'];
+    status: 'PENDING' | 'FAILED' | 'COMPLETED';
+    retryCount: CodecTypes['pg/int4@1']['output'];
+    errorMessage: CodecTypes['pg/text@1']['output'] | null;
+    nextRetryAt: CodecTypes['pg/timestamptz-temporal@1']['output'] | null;
+    createdAt: CodecTypes['pg/timestamptz-temporal@1']['output'];
+    readonly [RelationKeys]?: never;
+  };
 }
 
 export declare const models: {
@@ -395,6 +451,7 @@ export declare const models: {
     UserRole: Models.public_UserRole;
     Role: Models.public_Role;
     AdminInviteCode: Models.public_AdminInviteCode;
+    Outbox: Models.public_Outbox;
   };
 };
 
@@ -447,6 +504,79 @@ type ContractBase = Omit<
               primaryKey: { readonly columns: readonly ['id'] };
               uniques: readonly [{ readonly columns: readonly ['code'] }];
               indexes: readonly [];
+              foreignKeys: readonly [];
+            };
+            readonly outbox: {
+              columns: {
+                readonly id: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'function';
+                    readonly expression: 'autoincrement()';
+                  };
+                };
+                readonly type: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly topic: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly payload: {
+                  readonly nativeType: 'json';
+                  readonly codecId: 'pg/json@1';
+                  readonly nullable: false;
+                };
+                readonly status: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'PENDING'>;
+                  };
+                };
+                readonly retryCount: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/int4@1', 0>;
+                  };
+                };
+                readonly errorMessage: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                };
+                readonly nextRetryAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz-temporal@1';
+                  readonly nullable: true;
+                };
+                readonly createdAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz-temporal@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'outbox_status_createdAt_idx_58610442';
+                  readonly prefix: 'outbox_status_createdAt_idx';
+                  readonly columns: readonly ['status', 'createdAt'];
+                  readonly unique: false;
+                },
+              ];
               foreignKeys: readonly [];
             };
             readonly role: {
@@ -594,6 +724,12 @@ type ContractBase = Omit<
               ];
             };
           };
+          readonly valueSet: {
+            readonly OutboxStatus: {
+              readonly kind: 'valueSet';
+              readonly values: readonly ['PENDING', 'FAILED', 'COMPLETED'];
+            };
+          };
         };
       };
     };
@@ -611,6 +747,7 @@ type ContractBase = Omit<
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'AdminInviteCode';
     };
+    readonly outbox: { readonly namespace: 'public' & NamespaceId; readonly model: 'Outbox' };
   };
   readonly domain: {
     readonly namespaces: {
@@ -662,6 +799,68 @@ type ContractBase = Omit<
                 readonly id: { readonly column: 'id' };
                 readonly code: { readonly column: 'code' };
                 readonly expiresAt: { readonly column: 'expiresAt' };
+                readonly createdAt: { readonly column: 'createdAt' };
+              };
+            };
+          };
+          readonly Outbox: {
+            readonly fields: {
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly type: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly topic: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly payload: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/json@1' };
+              };
+              readonly status: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly retryCount: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly errorMessage: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly nextRetryAt: {
+                readonly nullable: true;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-temporal@1';
+                };
+              };
+              readonly createdAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-temporal@1';
+                };
+              };
+            };
+            readonly relations: Record<string, never>;
+            readonly storage: {
+              readonly table: 'outbox';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly id: { readonly column: 'id' };
+                readonly type: { readonly column: 'type' };
+                readonly topic: { readonly column: 'topic' };
+                readonly payload: { readonly column: 'payload' };
+                readonly status: { readonly column: 'status' };
+                readonly retryCount: { readonly column: 'retryCount' };
+                readonly errorMessage: { readonly column: 'errorMessage' };
+                readonly nextRetryAt: { readonly column: 'nextRetryAt' };
                 readonly createdAt: { readonly column: 'createdAt' };
               };
             };
@@ -827,6 +1026,16 @@ type ContractBase = Omit<
                 readonly sourceInviteId: { readonly column: 'sourceInviteId' };
               };
             };
+          };
+        };
+        readonly enum: {
+          readonly OutboxStatus: {
+            readonly codecId: 'pg/text@1';
+            readonly members: readonly [
+              { readonly name: 'PENDING'; readonly value: 'PENDING' },
+              { readonly name: 'FAILED'; readonly value: 'FAILED' },
+              { readonly name: 'COMPLETED'; readonly value: 'COMPLETED' },
+            ];
           };
         };
       };

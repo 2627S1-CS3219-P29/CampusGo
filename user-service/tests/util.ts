@@ -5,6 +5,13 @@ import { IRoleRepository } from "../src/prisma/roles.ts";
 import { IPasswordHash } from "../src/util/hash.ts";
 import { IJwtService, JwtTokenPair, ValidationResult } from "../src/util/jwt.ts";
 import { Role } from "../src/prisma/common.ts";
+import { IRepoFactory, Repos } from "../src/prisma/factory.ts";
+import { IInviteRepository } from "../src/prisma/invite.ts";
+import { IOutboxRepository } from "../src/prisma/outbox.ts";
+import { Db, DbTxUnion, Tx } from "../src/prisma/db.ts";
+import { IInviteCodeGenerator } from "../src/util/invite.ts";
+import { IQueueProvider } from "../src/queue/provider.ts";
+import { IOutboxSource, IOutboxTx } from "../src/queue/outboxWorker.ts";
 
 // common test constants
 export const TEST_EMAIL = "test@example.com";
@@ -33,6 +40,14 @@ export function makePublicUser(id: number, overrides: Partial<PublicUserWithRole
     };
 }
 
+export function makeDb(): Db {
+    const tx = {} as Tx;
+    return {
+        transaction: <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => fn(tx),
+    } as unknown as Db;
+}
+
+
 // mock password hashing
 export function makeHasher(overrides: Partial<IPasswordHash> = {}): IPasswordHash {
     return {
@@ -55,6 +70,15 @@ export function makeJwtService(overrides: Partial<IJwtService> = {}): IJwtServic
     };
 }
 
+// mock invite code generator
+export function makeInviteGenerator(overrides: Partial<IInviteCodeGenerator> = {}): IInviteCodeGenerator {
+    return {
+        generateCode:
+            overrides.generateCode ??
+            (() => ({ code: "test-code", expiresAt: new Date(Date.now() + 60_000) })),
+    };
+}
+
 // mock repos
 const makeGenericMockRepo = <T>(name: string, overrides: Partial<T> = {}): T => {
     return new Proxy(overrides, {
@@ -72,6 +96,36 @@ export const makeUserRepo = (overrides: Partial<IUserRepository> = {}): IUserRep
 
 export const makeRoleRepo = (overrides: Partial<IRoleRepository> = {}): IRoleRepository =>
     makeGenericMockRepo("role", overrides);
+
+export const makeInviteRepo = (overrides: Partial<IInviteRepository> = {}): IInviteRepository =>
+    makeGenericMockRepo("invite", overrides);
+
+export const makeOutboxRepo = (overrides: Partial<IOutboxRepository> = {}): IOutboxRepository =>
+    makeGenericMockRepo("outbox", overrides);
+
+// not really a repo but whatever
+export const makeQueue = (overrides: Partial<IQueueProvider> = {}): IQueueProvider =>
+    makeGenericMockRepo("queue", overrides);
+
+export const makeRepoFactory = (overrides: Partial<Repos> = {}): IRepoFactory => ({
+    buildRepos: (): Repos => ({
+        invite: overrides.invite ?? makeInviteRepo(),
+        role: overrides.role ?? makeRoleRepo(),
+        user: overrides.user ?? makeUserRepo(),
+        outbox: overrides.outbox ?? makeOutboxRepo(),
+    }),
+});
+
+export const makeOutboxTx = (overrides: Partial<IOutboxTx> = {}): IOutboxTx =>
+   makeGenericMockRepo("outboxTx", overrides);
+
+/** builds an IOutboxSource whose withTransaction delegates to a single mocked IOutboxTx. */
+export const makeOutboxSource = (overrides: Partial<IOutboxTx> = {}): IOutboxSource => {
+    const tx = makeOutboxTx(overrides);
+    return {
+        withTransaction: <R>(fn: (tx: IOutboxTx) => Promise<R>) => fn(tx),
+    };
+};
 
 // oak request/response context mocking
 export type CtxOpts = {
