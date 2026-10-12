@@ -79,7 +79,7 @@ services:
     volumes:
       - user_pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d users"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d users"]
       interval: 2s
       timeout: 3s
       retries: 15
@@ -146,7 +146,7 @@ services:
     volumes:
       - supplier_pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d suppliers"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d suppliers"]
       interval: 2s
       timeout: 3s
       retries: 15
@@ -206,7 +206,7 @@ services:
       - order_pgdata:/var/lib/postgresql
     # lets order_dev wait until postgres accepts connections before syncing the schema
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d orders"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d orders"]
       interval: 2s
       timeout: 3s
       retries: 15
