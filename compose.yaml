@@ -78,6 +78,11 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - user_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d users"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
   user_dev:
     build:
       context: ./user-service
@@ -93,6 +98,9 @@ services:
       private_net:
         aliases:
           - user_api
+    depends_on:
+      user_db:
+        condition: service_healthy
     environment:
       NODE_ENV: development
       DATABASE_URL: ${USER_DB_URL}
@@ -114,6 +122,9 @@ services:
       private_net:
         aliases:
           - user_api
+    depends_on:
+      user_db:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: ${USER_DB_URL}
@@ -134,6 +145,11 @@ services:
       - "127.0.0.1:5433:5432"
     volumes:
       - supplier_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d suppliers"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
   supplier_dev:
     build:
       context: ./supplier-service
@@ -149,6 +165,9 @@ services:
       private_net:
         aliases:
           - supplier_api
+    depends_on:
+      supplier_db:
+        condition: service_healthy
     environment:
       NODE_ENV: development
       DATABASE_URL: ${SUPPLIER_DB_URL}
@@ -165,6 +184,9 @@ services:
       private_net:
         aliases:
           - supplier_api
+    depends_on:
+      supplier_db:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: ${SUPPLIER_DB_URL}
