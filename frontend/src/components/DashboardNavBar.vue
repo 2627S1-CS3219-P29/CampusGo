@@ -9,6 +9,9 @@
       <v-list density="compact" nav>
         <v-list-item to="/" prepend-icon="mdi-home" title="Dashboard" exact />
         <v-list-item to="/suppliers" prepend-icon="mdi-store" title="Suppliers" />
+        <v-list-item to="/errands/new" prepend-icon="mdi-plus-box-outline" title="Request Errand" />
+        <v-list-item to="/errands" prepend-icon="mdi-bike-fast" title="Open Errands" exact />
+        <v-list-item to="/my-errands" prepend-icon="mdi-clipboard-list-outline" title="My Errands" />
         <v-list-item to="/login" prepend-icon="mdi-lock" title="Login" />
       </v-list>
 

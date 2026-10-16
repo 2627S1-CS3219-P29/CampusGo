@@ -1,0 +1,406 @@
+import type { Context, RouterContext } from "@oak/oak";
+import config from "../config.ts";
+import log from "../log.ts";
+import { Role } from "../common.ts";
+import type { AuthenticatedUser } from "../middleware/auth.ts";
+import type { CreateOrderBody, ListOrdersQuery, UpdateOrderStatusBody } from "../schema/order.ts";
+import { describeBuildingSpot, fetchBuildingNames, lookupPickup } from "../util/supplierService.ts";
+import {
+    createOrder as insertOrder,
+    expireDueOrders,
+    findOrderById,
+    findOrderByIdempotencyKey,
+    listOrders,
+    transitionOrder,
+    type NewOrder,
+    type Order,
+} from "../prisma/orders.ts";
+
+// TODO: replace these synchronous calls with the order/credit events (credit service not ready yet)
+const CREDIT_SERVICE_URL = "http://localhost:8002/credits";
+
+const respond = (ctx: Context, status: number, body: Context["response"]["body"]) => {
+    ctx.response.status = status;
+    ctx.response.body = body;
+};
+
+const internalError = (ctx: Context, action: string, e: unknown) => {
+    log.error(`failed to ${action}: ${e} (origin: ${(<Error>e)?.stack})`);
+    respond(ctx, 500, { error: `Failed to ${action}` });
+};
+
+/**
+ * Calls the credit service. Returns an error message if it rejected the request,
+ * or null to carry on. As before, if it cannot be reached at all the error is
+ * only logged and the order carries on (fixed once credits move to events).
+ */
+const callCreditService = async (path: string, body: unknown, rejectedMessage: string): Promise<string | null> => {
+    try {
+        const res = await fetch(`${CREDIT_SERVICE_URL}/${path}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        return res.ok ? null : rejectedMessage;
+    } catch (e) {
+        log.error(`credit service ${path} failed: ${e}`);
+        return null;
+    }
+};
+
+/** Gives the requester back the credits held for an order that ended without delivery. */
+const refundRequester = (order: Order) => callCreditService("release", {
+    userId: order.requesterId,
+    amount: order.creditBounty,
+    orderId: order.id,
+}, "Credit Service rejected refund release");
+
+/**
+ * Expires every order that is due (see expireDueOrders) and refunds each requester.
+ * Run by the background job, and before reading or changing orders so nobody sees or acts
+ * on an order that should already have expired.
+ */
+export const expireDueErrands = async (): Promise<void> => {
+    const expired = await expireDueOrders();
+    for (const order of expired) {
+        const rejected = await refundRequester(order);
+        if (rejected)
+            log.error(`refund for expired order ${order.id} failed: ${rejected}`);
+    }
+};
+
+/**
+ * GET /orders: one page of orders for a scope, newest first
+ *   ?scope=open (default)  errands a courier can accept: open, not expired, not your own
+ *   ?scope=requested       errands you created
+ *   ?scope=delivering      errands you are the courier on
+ *   ?scope=all             every order, admins only
+ *   &status=A,B            only these statuses, e.g. DELIVERED,CANCELLED,EXPIRED for past orders
+ *   &page=N                20 per page
+ */
+export const fetchOrders = async (ctx: Context) => {
+    // set by validateQuery(listOrdersQuerySchema) and authenticationMiddleware in routes
+    const query = <ListOrdersQuery>ctx.state.validatedQuery;
+    const user = <AuthenticatedUser>ctx.state.user;
+
+    if (query.scope === "all" && !user.roles.includes(Role.Admin)) {
+        respond(ctx, 403, { error: "Only admins can list every order" });
+        return;
+    }
+
+    try {
+        // so lists never show an errand that should have expired as still active
+        await expireDueErrands();
+
+        const limit = config.order.pageSize;
+        const { data, total } = await listOrders({
+            scope: query.scope,
+            userId: user.id,
+            statuses: query.status,
+            page: query.page,
+            pageSize: limit,
+        });
+
+        // same response shape as the supplier list
+        respond(ctx, 200, {
+            data,
+            pagination: {
+                page: query.page,
+                limit,
+                total,
+                totalPage: Math.ceil(total / limit),
+            },
+        });
+    } catch (e) {
+        internalError(ctx, "fetch orders", e);
+    }
+};
+
+/**
+ * GET /orders/:id: one order, e.g. for the errand details and progress screen.
+ * The requester, the assigned courier and admins can always see it. Anyone else only
+ * while it is OPEN, so couriers can look before accepting; otherwise 404,
+ * so other people's ongoing and past errands (and their dropoff locations) stay private.
+ */
+export const fetchOrder = async (ctx: RouterContext<"/:id">) => {
+    const user = <AuthenticatedUser>ctx.state.user;
+
+    try {
+        await expireDueErrands();
+        const order = await findOrderById(ctx.params.id);
+
+        const canSee = order !== null && (
+            order.requesterId === user.id ||
+            order.courierId === user.id ||
+            user.roles.includes(Role.Admin) ||
+            order.status === "OPEN"
+        );
+        if (!canSee) {
+            respond(ctx, 404, { error: "Order not found" });
+            return;
+        }
+
+        respond(ctx, 200, order);
+    } catch (e) {
+        internalError(ctx, "fetch order", e);
+    }
+};
+
+/**
+ * POST /orders: the signed-in user creates an errand.
+ * Sending the same Idempotency-Key again returns the existing order instead of creating a duplicate.
+ */
+export const createOrder = async (ctx: Context) => {
+    // set by validateBody(createOrderSchema) and authenticationMiddleware in routes
+    const body = <CreateOrderBody>ctx.state.validatedBody;
+    const user = <AuthenticatedUser>ctx.state.user;
+    const idempotencyKey = ctx.request.headers.get("Idempotency-Key");
+
+    try {
+        // 1. idempotency check
+        if (idempotencyKey) {
+            const existing = await findOrderByIdempotencyKey(idempotencyKey);
+            if (existing) {
+                respond(ctx, 200, { order: existing, deduplicated: true });
+                return;
+            }
+        }
+
+        // 2. the pickup supplier and the buildings must be live; their names go into the
+        //    readable pickup and dropoff locations
+        const authorization = ctx.request.headers.get("authorization") ?? "";
+        const unavailable = () => respond(ctx, 503, { error: "Supplier service is unavailable, try again later" });
+        const buildingNames = await fetchBuildingNames(authorization);
+        if (!buildingNames) {
+            unavailable();
+            return;
+        }
+
+        const notFound: Record<string, string[]> = {};
+        const dropoffBuilding = buildingNames.get(body.dropoffLocationId);
+        if (!dropoffBuilding)
+            notFound.dropoffLocationId = ["Building not found"];
+
+        let pickup: NewOrder["pickup"] | null = null;
+        let pickupLocation = "";
+        if (body.pickupType === "SUPPLIER") {
+            // a supplier is a preset building spot: its building and floor fill in the pickup fields
+            const supplier = await lookupPickup(body.supplierId!, authorization);
+            if (supplier.found) {
+                pickup = { type: "SUPPLIER", supplierId: body.supplierId!, locationId: supplier.locationId, floor: supplier.floor };
+                pickupLocation = supplier.pickupLocation;
+            } else if (supplier.reason === "NOT_FOUND")
+                notFound.supplierId = ["Supplier not found"];
+            else {
+                unavailable();
+                return;
+            }
+        } else {
+            pickup = {
+                type: "BUILDING",
+                locationId: body.pickupLocationId!,
+                floor: body.pickupFloor!,
+                room: body.pickupRoom ?? null,
+            };
+            const building = buildingNames.get(pickup.locationId);
+            if (building)
+                pickupLocation = describeBuildingSpot(building, pickup.floor, pickup.room);
+            else
+                notFound.pickupLocationId = ["Building not found"];
+        }
+
+        if (Object.keys(notFound).length > 0 || !pickup) {
+            respond(ctx, 400, { error: "invalid request body", fields: notFound });
+            return;
+        }
+
+        const dropoff = {
+            locationId: body.dropoffLocationId,
+            floor: body.dropoffFloor,
+            room: body.dropoffRoom ?? null,
+        };
+
+        // 3. credit escrow hold
+        const rejected = await callCreditService("reserve", {
+            userId: user.id,
+            amount: body.creditBounty,
+            referenceId: idempotencyKey,
+        }, "Insufficient credits or Credit Service rejected hold.");
+        if (rejected) {
+            respond(ctx, 402, { error: rejected });
+            return;
+        }
+
+        // 4. persist; the requester is whoever is signed in, never taken from the body
+        let order: Order;
+        try {
+            order = await insertOrder({
+                idempotencyKey,
+                requesterId: user.id,
+                pickup,
+                dropoff,
+                pickupLocation,
+                dropoffLocation: describeBuildingSpot(dropoffBuilding!, dropoff.floor, dropoff.room),
+                itemDescription: body.itemDescription,
+                creditBounty: body.creditBounty,
+                additionalDetails: body.additionalDetails || null,
+                // waits for a courier for the chosen duration, or the default
+                expiresAt: new Date(Date.now() + (body.expiresInMinutes ?? config.order.expiry.defaultMinutes) * 60_000),
+            });
+        } catch (e) {
+            // two requests with the same Idempotency-Key at the same moment: the unique key
+            // lets only one insert succeed, the other returns the order that was created
+            const existing = idempotencyKey ? await findOrderByIdempotencyKey(idempotencyKey) : null;
+            if (!existing)
+                throw e;
+            respond(ctx, 200, { order: existing, deduplicated: true });
+            return;
+        }
+
+        respond(ctx, 201, order);
+    } catch (e) {
+        internalError(ctx, "create order", e);
+    }
+};
+
+/**
+ * PATCH /orders/:id/status: moves an order along its lifecycle
+ *   OPEN -> ACCEPTED -> COLLECTED -> DELIVERED
+ *   OPEN or ACCEPTED -> CANCELLED (by the requester; never once collected, by anyone)
+ *   -> EXPIRED is only set by the service (see expireDueOrders)
+ * The requester and courier share one deadline: the courier must collect the item before it,
+ * and deliver it before the deadline plus the grace period.
+ * Each change is a single conditional UPDATE (see transitionOrder), so two requests
+ * racing on the same order cannot both succeed.
+ */
+export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
+    const { targetStatus } = <UpdateOrderStatusBody>ctx.state.validatedBody;
+    // the caller comes from the access token, never from the body
+    const user = <AuthenticatedUser>ctx.state.user;
+    const callerId = user.id;
+    const orderId = ctx.params.id;
+
+    // returned when the order changed between reading it and updating it
+    const changedMeanwhile = () => respond(ctx, 409, { error: "Order was updated by someone else, refresh and try again" });
+
+    try {
+        // 1. expire anything due, so a late action gets a clear answer instead of succeeding
+        await expireDueErrands();
+        const order = await findOrderById(orderId);
+        if (!order) {
+            respond(ctx, 404, { error: "Order not found" });
+            return;
+        }
+        if (order.status === "EXPIRED") {
+            respond(ctx, 410, { error: "Order has expired" });
+            return;
+        }
+
+        // 2. authorization & transition rules
+        let updated: Order | null;
+        switch (targetStatus) {
+            case "ACCEPTED": {
+                if (order.status !== "OPEN") {
+                    respond(ctx, 409, { error: `Cannot accept order in status ${order.status}` });
+                    return;
+                }
+                if (callerId === order.requesterId) {
+                    respond(ctx, 403, { error: "Requester cannot accept their own errand" });
+                    return;
+                }
+
+                // concurrency guard: only one courier's update can match status OPEN
+                updated = await transitionOrder(orderId, {
+                    from: "OPEN",
+                    to: "ACCEPTED",
+                    courierId: callerId,
+                    before: "deadline",
+                });
+                if (!updated) {
+                    respond(ctx, 409, { error: "Order was already accepted by another courier" });
+                    return;
+                }
+                break;
+            }
+
+            case "COLLECTED": {
+                if (order.status !== "ACCEPTED") {
+                    respond(ctx, 400, { error: `Cannot mark collected from status ${order.status}` });
+                    return;
+                }
+                if (callerId !== order.courierId) {
+                    respond(ctx, 403, { error: "Only the assigned courier can mark the item as collected" });
+                    return;
+                }
+
+                // the item must be collected before the deadline
+                updated = await transitionOrder(orderId, { from: "ACCEPTED", to: "COLLECTED", before: "deadline" });
+                if (!updated) {
+                    changedMeanwhile();
+                    return;
+                }
+                break;
+            }
+
+            case "DELIVERED": {
+                if (order.status !== "COLLECTED") {
+                    respond(ctx, 400, { error: "Cannot mark delivered before the item is collected" });
+                    return;
+                }
+                if (callerId !== order.courierId) {
+                    respond(ctx, 403, { error: "Only the assigned courier can mark the errand as delivered" });
+                    return;
+                }
+
+                // credit transfer to the courier
+                const rejected = await callCreditService("transfer", {
+                    courierId: order.courierId,
+                    amount: order.creditBounty,
+                    orderId: order.id,
+                }, "Credit Service rejected payout transfer");
+                if (rejected) {
+                    respond(ctx, 502, { error: rejected });
+                    return;
+                }
+
+                // late delivery is allowed until the end of the grace period
+                updated = await transitionOrder(orderId, { from: "COLLECTED", to: "DELIVERED", before: "grace" });
+                if (!updated) {
+                    changedMeanwhile();
+                    return;
+                }
+                break;
+            }
+
+            case "CANCELLED": {
+                if (callerId !== order.requesterId) {
+                    respond(ctx, 403, { error: "Only the requester can cancel this errand" });
+                    return;
+                }
+                // once the courier has the item, nobody can cancel: it ends as DELIVERED or EXPIRED
+                if (order.status !== "OPEN" && order.status !== "ACCEPTED") {
+                    respond(ctx, 400, { error: `Cannot cancel an order in ${order.status} state` });
+                    return;
+                }
+
+                // credit release back to the requester
+                const rejected = await refundRequester(order);
+                if (rejected) {
+                    respond(ctx, 502, { error: rejected });
+                    return;
+                }
+
+                updated = await transitionOrder(orderId, { from: order.status, to: "CANCELLED" });
+                if (!updated) {
+                    changedMeanwhile();
+                    return;
+                }
+                break;
+            }
+        }
+
+        respond(ctx, 200, updated);
+    } catch (e) {
+        internalError(ctx, "update order status", e);
+    }
+};
