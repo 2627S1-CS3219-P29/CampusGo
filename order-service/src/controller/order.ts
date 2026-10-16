@@ -48,13 +48,34 @@ const callCreditService = async (path: string, body: unknown, rejectedMessage: s
     }
 };
 
+/** Gives the requester back the credits held for an order that ended without delivery. */
+const refundRequester = (order: Order) => callCreditService("release", {
+    userId: order.requesterId,
+    amount: order.creditBounty,
+    orderId: order.id,
+}, "Credit Service rejected refund release");
+
+/**
+ * Expires every order that is due (see expireDueOrders) and refunds each requester.
+ * Run by the background job, and before reading or changing orders so nobody sees or acts
+ * on an order that should already have expired.
+ */
+export const expireDueErrands = async (): Promise<void> => {
+    const expired = await expireDueOrders();
+    for (const order of expired) {
+        const rejected = await refundRequester(order);
+        if (rejected)
+            log.error(`refund for expired order ${order.id} failed: ${rejected}`);
+    }
+};
+
 /**
  * GET /orders: one page of orders for a scope, newest first
  *   ?scope=open (default)  errands a courier can accept: open, not expired, not your own
  *   ?scope=requested       errands you created
  *   ?scope=delivering      errands you are the courier on
  *   ?scope=all             every order, admins only
- *   &status=A,B            only these statuses, e.g. COMPLETED,CANCELLED,EXPIRED for past orders
+ *   &status=A,B            only these statuses, e.g. DELIVERED,CANCELLED,EXPIRED for past orders
  *   &page=N                20 per page
  */
 export const fetchOrders = async (ctx: Context) => {
@@ -68,8 +89,8 @@ export const fetchOrders = async (ctx: Context) => {
     }
 
     try {
-        // so lists never show an expired errand as still open
-        await expireDueOrders();
+        // so lists never show an errand that should have expired as still active
+        await expireDueErrands();
 
         const limit = config.order.pageSize;
         const { data, total } = await listOrders({
@@ -98,25 +119,21 @@ export const fetchOrders = async (ctx: Context) => {
 /**
  * GET /orders/:id: one order, e.g. for the errand details and progress screen.
  * The requester, the assigned courier and admins can always see it. Anyone else only
- * while it is open (CREATED), so couriers can look before accepting; otherwise 404,
+ * while it is OPEN, so couriers can look before accepting; otherwise 404,
  * so other people's ongoing and past errands (and their dropoff locations) stay private.
  */
 export const fetchOrder = async (ctx: RouterContext<"/:id">) => {
     const user = <AuthenticatedUser>ctx.state.user;
 
     try {
-        let order = await findOrderById(ctx.params.id);
-
-        // lazy expiry, as in updateOrderStatus: an open order past its expiry time becomes EXPIRED
-        if (order && order.status === "CREATED" && new Date() > new Date(order.expiresAt)) {
-            order = await transitionOrder(order.id, { from: "CREATED", to: "EXPIRED" }) ?? await findOrderById(order.id);
-        }
+        await expireDueErrands();
+        const order = await findOrderById(ctx.params.id);
 
         const canSee = order !== null && (
             order.requesterId === user.id ||
             order.courierId === user.id ||
             user.roles.includes(Role.Admin) ||
-            order.status === "CREATED"
+            order.status === "OPEN"
         );
         if (!canSee) {
             respond(ctx, 404, { error: "Order not found" });
@@ -248,41 +265,42 @@ export const createOrder = async (ctx: Context) => {
 
 /**
  * PATCH /orders/:id/status: moves an order along its lifecycle
- *   CREATED -> ACCEPTED -> PICKED_UP -> COMPLETED, or -> CANCELLED (and CREATED -> EXPIRED)
+ *   OPEN -> ACCEPTED -> COLLECTED -> DELIVERED
+ *   OPEN or ACCEPTED -> CANCELLED (by the requester; never once collected, by anyone)
+ *   -> EXPIRED is only set by the service (see expireDueOrders)
+ * The requester and courier share one deadline: the courier must collect the item before it,
+ * and deliver it before the deadline plus the grace period.
  * Each change is a single conditional UPDATE (see transitionOrder), so two requests
  * racing on the same order cannot both succeed.
  */
 export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
     const { targetStatus } = <UpdateOrderStatusBody>ctx.state.validatedBody;
-    // the caller and their roles come from the access token, never from the body
+    // the caller comes from the access token, never from the body
     const user = <AuthenticatedUser>ctx.state.user;
     const callerId = user.id;
-    const isAdmin = user.roles.includes(Role.Admin);
     const orderId = ctx.params.id;
 
     // returned when the order changed between reading it and updating it
     const changedMeanwhile = () => respond(ctx, 409, { error: "Order was updated by someone else, refresh and try again" });
 
     try {
-        // 1. fetch current order
+        // 1. expire anything due, so a late action gets a clear answer instead of succeeding
+        await expireDueErrands();
         const order = await findOrderById(orderId);
         if (!order) {
             respond(ctx, 404, { error: "Order not found" });
             return;
         }
-
-        // 2. expiry guard (lazy check)
-        if (order.status === "CREATED" && new Date() > new Date(order.expiresAt)) {
-            await transitionOrder(orderId, { from: "CREATED", to: "EXPIRED" });
+        if (order.status === "EXPIRED") {
             respond(ctx, 410, { error: "Order has expired" });
             return;
         }
 
-        // 3. authorization & transition rules
+        // 2. authorization & transition rules
         let updated: Order | null;
         switch (targetStatus) {
             case "ACCEPTED": {
-                if (order.status !== "CREATED") {
+                if (order.status !== "OPEN") {
                     respond(ctx, 409, { error: `Cannot accept order in status ${order.status}` });
                     return;
                 }
@@ -291,12 +309,12 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                     return;
                 }
 
-                // concurrency guard: only one courier's update can match status CREATED
+                // concurrency guard: only one courier's update can match status OPEN
                 updated = await transitionOrder(orderId, {
-                    from: "CREATED",
+                    from: "OPEN",
                     to: "ACCEPTED",
                     courierId: callerId,
-                    requireUnexpired: true,
+                    before: "deadline",
                 });
                 if (!updated) {
                     respond(ctx, 409, { error: "Order was already accepted by another courier" });
@@ -305,17 +323,18 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                 break;
             }
 
-            case "PICKED_UP": {
+            case "COLLECTED": {
                 if (order.status !== "ACCEPTED") {
-                    respond(ctx, 400, { error: `Cannot mark picked up from status ${order.status}` });
+                    respond(ctx, 400, { error: `Cannot mark collected from status ${order.status}` });
                     return;
                 }
                 if (callerId !== order.courierId) {
-                    respond(ctx, 403, { error: "Only the assigned courier can mark item as picked up" });
+                    respond(ctx, 403, { error: "Only the assigned courier can mark the item as collected" });
                     return;
                 }
 
-                updated = await transitionOrder(orderId, { from: "ACCEPTED", to: "PICKED_UP" });
+                // the item must be collected before the deadline
+                updated = await transitionOrder(orderId, { from: "ACCEPTED", to: "COLLECTED", before: "deadline" });
                 if (!updated) {
                     changedMeanwhile();
                     return;
@@ -323,13 +342,13 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                 break;
             }
 
-            case "COMPLETED": {
-                if (order.status !== "PICKED_UP") {
-                    respond(ctx, 400, { error: "Cannot complete order before it is picked up" });
+            case "DELIVERED": {
+                if (order.status !== "COLLECTED") {
+                    respond(ctx, 400, { error: "Cannot mark delivered before the item is collected" });
                     return;
                 }
-                if (callerId !== order.requesterId) {
-                    respond(ctx, 403, { error: "Only the requester can confirm completion" });
+                if (callerId !== order.courierId) {
+                    respond(ctx, 403, { error: "Only the assigned courier can mark the errand as delivered" });
                     return;
                 }
 
@@ -344,7 +363,8 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                     return;
                 }
 
-                updated = await transitionOrder(orderId, { from: "PICKED_UP", to: "COMPLETED" });
+                // late delivery is allowed until the end of the grace period
+                updated = await transitionOrder(orderId, { from: "COLLECTED", to: "DELIVERED", before: "grace" });
                 if (!updated) {
                     changedMeanwhile();
                     return;
@@ -353,22 +373,18 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
             }
 
             case "CANCELLED": {
-                const canCancel = callerId === order.requesterId || isAdmin;
-                if (!canCancel) {
-                    respond(ctx, 403, { error: "Unauthorized to cancel this errand" });
+                if (callerId !== order.requesterId) {
+                    respond(ctx, 403, { error: "Only the requester can cancel this errand" });
                     return;
                 }
-                if (order.status === "COMPLETED" || order.status === "CANCELLED" || order.status === "EXPIRED") {
+                // once the courier has the item, nobody can cancel: it ends as DELIVERED or EXPIRED
+                if (order.status !== "OPEN" && order.status !== "ACCEPTED") {
                     respond(ctx, 400, { error: `Cannot cancel an order in ${order.status} state` });
                     return;
                 }
 
                 // credit release back to the requester
-                const rejected = await callCreditService("release", {
-                    userId: order.requesterId,
-                    amount: order.creditBounty,
-                    orderId: order.id,
-                }, "Credit Service rejected refund release");
+                const rejected = await refundRequester(order);
                 if (rejected) {
                     respond(ctx, 502, { error: rejected });
                     return;

@@ -1,7 +1,12 @@
 import { param } from "@prisma/orm-postgres/relational-core/expression";
 import { db } from "./db.ts";
+import config from "../config.ts";
 
-export type OrderStatus = "CREATED" | "ACCEPTED" | "PICKED_UP" | "COMPLETED" | "CANCELLED" | "EXPIRED";
+export type OrderStatus = "OPEN" | "ACCEPTED" | "COLLECTED" | "DELIVERED" | "CANCELLED" | "EXPIRED";
+
+// the status a new order starts in. With the credit service integration this becomes PENDING,
+// and the order moves to OPEN once its credits are held (or REJECTED if they cannot be)
+const INITIAL_STATUS: OrderStatus = "OPEN";
 export type PickupType = "SUPPLIER" | "BUILDING";
 
 // a building pickup or dropoff: the building, then where in it
@@ -105,7 +110,7 @@ export const createOrder = async (order: NewOrder): Promise<Order> => {
     const row = await db.orm.public.Order.create({
         ...rest,
         id: crypto.randomUUID(),
-        status: "CREATED",
+        status: INITIAL_STATUS,
         expiresAt: order.expiresAt.toISOString(),
         pickupType: pickup.type,
         supplierId: pickup.type === "SUPPLIER" ? pickup.supplierId : null,
@@ -162,9 +167,14 @@ export interface Transition {
     to: OrderStatus;
     // set the courier, e.g. when accepting
     courierId?: number;
-    // only change it if the order has not expired yet
-    requireUnexpired?: boolean;
+    // only change it before this time: "deadline" is expiresAt, "grace" is expiresAt plus the
+    // grace period a collected order gets; left out, there is no time limit
+    before?: "deadline" | "grace";
 }
+
+// SQL for "expiresAt plus the grace period"
+const graceEnd = () => db.raw.sql`
+    "expiresAt" + make_interval(mins => ${int(config.order.expiry.collectedGraceMinutes)})`.returns("pg/timestamptz-string@1");
 
 /**
  * Changes an order's status in one UPDATE statement, so it is atomic: the
@@ -183,7 +193,8 @@ export const transitionOrder = async (id: string, t: Transition): Promise<Order 
             "updatedAt" = now()
         WHERE id = ${text(id)}
             AND status = ${text(t.from)}
-            AND (NOT ${bool(t.requireUnexpired ?? false)} OR "expiresAt" > now())
+            AND (NOT ${bool(t.before === "deadline")} OR "expiresAt" > now())
+            AND (NOT ${bool(t.before === "grace")} OR ${graceEnd()} > now())
         RETURNING ${orderColumns()}
     `.returnsRow(rowSpec).build();
 
@@ -192,17 +203,20 @@ export const transitionOrder = async (id: string, t: Transition): Promise<Order 
 };
 
 /**
- * Marks every open order past its expiry time as EXPIRED in one statement, so
- * lists show accurate statuses. Returns how many orders expired.
+ * Marks every order that is due as EXPIRED in one statement:
+ *   OPEN or ACCEPTED past its deadline (nobody accepted it, or the courier did not collect it)
+ *   COLLECTED past its deadline plus the grace period (the courier did not deliver it)
+ * Returns the orders that expired, whose requesters get their credits back.
  */
-export const expireDueOrders = async (): Promise<number> => {
+export const expireDueOrders = async (): Promise<Order[]> => {
     const plan = db.raw.sql`
         UPDATE orders SET status = 'EXPIRED', "updatedAt" = now()
-        WHERE status = 'CREATED' AND "expiresAt" <= now()
-        RETURNING id
-    `.returnsRow({ id: "pg/text@1" }).build();
+        WHERE (status IN ('OPEN', 'ACCEPTED') AND "expiresAt" <= now())
+            OR (status = 'COLLECTED' AND ${graceEnd()} <= now())
+        RETURNING ${orderColumns()}
+    `.returnsRow(rowSpec).build();
     const rows = await db.runtime().query(plan);
-    return rows.length;
+    return rows.map(r => toOrder(<OrderRow>r));
 };
 
 /**
@@ -214,7 +228,7 @@ export const listOrders = async (filter: OrderFilter): Promise<OrderPage> => {
     const statuses = filter.statuses?.length ? filter.statuses : null;
     const where = db.raw.sql`
         CASE ${text(filter.scope)}
-            WHEN 'open' THEN status = 'CREATED' AND "expiresAt" > now() AND "requesterId" <> ${int(filter.userId)}
+            WHEN 'open' THEN status = 'OPEN' AND "expiresAt" > now() AND "requesterId" <> ${int(filter.userId)}
             WHEN 'requested' THEN "requesterId" = ${int(filter.userId)}
             WHEN 'delivering' THEN "courierId" = ${int(filter.userId)}
             ELSE true

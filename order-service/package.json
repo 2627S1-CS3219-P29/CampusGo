@@ -10,7 +10,7 @@
     "contract:emit": "deno run -A npm:prisma@8.0.0-rc.15 contract emit",
     "db:init": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db init",
     "db:update": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db update",
-    "db:update_dev": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db update --no-interactive --confirm orders",
+    "db:update_dev": "deno run -A --env-file=.env src/tasks/renameStatuses.ts && deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db update --no-interactive --confirm orders",
     "db:verify": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db verify"
   },
   "dependencies": {

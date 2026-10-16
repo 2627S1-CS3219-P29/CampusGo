@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'e1938e23f34ed0d51493817c8fb327b15cb21e15d0d14fe24ce99b27e435b4f3'>;
+  StorageHashBase<'1a3bce0892b3141bc4f8b011baa337e00088aec1fb8d306e0f78329b1a337eea'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -259,7 +259,7 @@ export type FieldOutputTypes = {
       readonly itemDescription: CodecTypes['pg/text@1']['output'];
       readonly creditBounty: CodecTypes['pg/int4@1']['output'];
       readonly additionalDetails: CodecTypes['pg/text@1']['output'] | null;
-      readonly status: 'CREATED' | 'ACCEPTED' | 'PICKED_UP' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
+      readonly status: 'OPEN' | 'ACCEPTED' | 'COLLECTED' | 'DELIVERED' | 'CANCELLED' | 'EXPIRED';
       readonly expiresAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -286,7 +286,7 @@ export type FieldInputTypes = {
       readonly itemDescription: CodecTypes['pg/text@1']['input'];
       readonly creditBounty: CodecTypes['pg/int4@1']['input'];
       readonly additionalDetails: CodecTypes['pg/text@1']['input'] | null;
-      readonly status: 'CREATED' | 'ACCEPTED' | 'PICKED_UP' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
+      readonly status: 'OPEN' | 'ACCEPTED' | 'COLLECTED' | 'DELIVERED' | 'CANCELLED' | 'EXPIRED';
       readonly expiresAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
@@ -314,7 +314,7 @@ export type StorageColumnTypes = {
       readonly pickupRoom: CodecTypes['pg/text@1']['output'] | null;
       readonly pickupType: 'SUPPLIER' | 'BUILDING';
       readonly requesterId: CodecTypes['pg/int4@1']['output'];
-      readonly status: 'CREATED' | 'ACCEPTED' | 'PICKED_UP' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
+      readonly status: 'OPEN' | 'ACCEPTED' | 'COLLECTED' | 'DELIVERED' | 'CANCELLED' | 'EXPIRED';
       readonly supplierId: CodecTypes['pg/int4@1']['output'] | null;
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
     };
@@ -341,7 +341,7 @@ export type StorageColumnInputTypes = {
       readonly pickupRoom: CodecTypes['pg/text@1']['input'] | null;
       readonly pickupType: 'SUPPLIER' | 'BUILDING';
       readonly requesterId: CodecTypes['pg/int4@1']['input'];
-      readonly status: 'CREATED' | 'ACCEPTED' | 'PICKED_UP' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
+      readonly status: 'OPEN' | 'ACCEPTED' | 'COLLECTED' | 'DELIVERED' | 'CANCELLED' | 'EXPIRED';
       readonly supplierId: CodecTypes['pg/int4@1']['input'] | null;
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
     };
@@ -367,7 +367,7 @@ export namespace Models {
     itemDescription: CodecTypes['pg/text@1']['output'];
     creditBounty: CodecTypes['pg/int4@1']['output'];
     additionalDetails: CodecTypes['pg/text@1']['output'] | null;
-    status: 'CREATED' | 'ACCEPTED' | 'PICKED_UP' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
+    status: 'OPEN' | 'ACCEPTED' | 'COLLECTED' | 'DELIVERED' | 'CANCELLED' | 'EXPIRED';
     expiresAt: CodecTypes['pg/timestamptz-string@1']['output'];
     createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
     updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -496,7 +496,7 @@ type ContractBase = Omit<
                   readonly nullable: false;
                   readonly default: {
                     readonly kind: 'literal';
-                    readonly value: DefaultLiteralValue<'pg/text@1', 'CREATED'>;
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'OPEN'>;
                   };
                 };
                 readonly expiresAt: {
@@ -546,10 +546,10 @@ type ContractBase = Omit<
             readonly OrderStatus: {
               readonly kind: 'valueSet';
               readonly values: readonly [
-                'CREATED',
+                'OPEN',
                 'ACCEPTED',
-                'PICKED_UP',
-                'COMPLETED',
+                'COLLECTED',
+                'DELIVERED',
                 'CANCELLED',
                 'EXPIRED',
               ];
@@ -705,10 +705,10 @@ type ContractBase = Omit<
           readonly OrderStatus: {
             readonly codecId: 'pg/text@1';
             readonly members: readonly [
-              { readonly name: 'CREATED'; readonly value: 'CREATED' },
+              { readonly name: 'OPEN'; readonly value: 'OPEN' },
               { readonly name: 'ACCEPTED'; readonly value: 'ACCEPTED' },
-              { readonly name: 'PICKED_UP'; readonly value: 'PICKED_UP' },
-              { readonly name: 'COMPLETED'; readonly value: 'COMPLETED' },
+              { readonly name: 'COLLECTED'; readonly value: 'COLLECTED' },
+              { readonly name: 'DELIVERED'; readonly value: 'DELIVERED' },
               { readonly name: 'CANCELLED'; readonly value: 'CANCELLED' },
               { readonly name: 'EXPIRED'; readonly value: 'EXPIRED' },
             ];

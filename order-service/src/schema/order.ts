@@ -54,14 +54,14 @@ export const createOrderSchema = z.object({
 
 export type CreateOrderBody = z.infer<typeof createOrderSchema>;
 
-const orderStatuses = ["CREATED", "ACCEPTED", "PICKED_UP", "COMPLETED", "CANCELLED", "EXPIRED"] as const;
+const orderStatuses = ["OPEN", "ACCEPTED", "COLLECTED", "DELIVERED", "CANCELLED", "EXPIRED"] as const;
 
 // query of GET /orders; query strings are always text, so coerce them here
 export const listOrdersQuerySchema = z.object({
     // open: errands couriers can accept (not your own); requested: yours; delivering: you are the courier;
     // all: every order (admins only)
     scope: z.enum(["open", "requested", "delivering", "all"]).default("open"),
-    // comma separated, e.g. status=COMPLETED,CANCELLED,EXPIRED for past orders
+    // comma separated, e.g. status=DELIVERED,CANCELLED,EXPIRED for past orders
     status: z.string()
         .transform(s => s.split(",").map(t => t.trim()).filter(t => t.length > 0))
         .pipe(z.array(z.enum(orderStatuses)))
@@ -71,9 +71,9 @@ export const listOrdersQuerySchema = z.object({
 
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>;
 
-// body of PATCH /orders/:id/status; CREATED and EXPIRED are only ever set by the service
+// body of PATCH /orders/:id/status; OPEN and EXPIRED are only ever set by the service
 export const updateOrderStatusSchema = z.object({
-    targetStatus: z.enum(["ACCEPTED", "PICKED_UP", "COMPLETED", "CANCELLED"]),
+    targetStatus: z.enum(["ACCEPTED", "COLLECTED", "DELIVERED", "CANCELLED"]),
 }).strict();
 
 export type UpdateOrderStatusBody = z.infer<typeof updateOrderStatusSchema>;

@@ -1,13 +1,15 @@
 // use prisma-8
 
-// lifecycle of an errand, see the status rules in the order controller
+// lifecycle of an errand, see the status rules in the order controller.
+// Renamed from CREATED / PICKED_UP / COMPLETED; src/tasks/renameStatuses.ts converts old rows.
+// PENDING and REJECTED (waiting for / refused a credit hold) come with the credit service integration
 enum OrderStatus {
-    CREATED
-    ACCEPTED
-    PICKED_UP
-    COMPLETED
-    CANCELLED
-    EXPIRED
+    OPEN // couriers can see and accept it
+    ACCEPTED // a courier is on the way to collect it
+    COLLECTED // the courier has the item
+    DELIVERED // the courier delivered it; credits go to the courier
+    CANCELLED // the requester cancelled before collection
+    EXPIRED // not collected by the deadline, or not delivered by the deadline plus the grace period
 }
 
 // where the courier collects the item
@@ -53,7 +55,7 @@ model Order {
     creditBounty Int // credits reserved for the errand
     additionalDetails String? // optional instructions
 
-    status OrderStatus @default(CREATED)
+    status OrderStatus @default(OPEN)
     // unaccepted orders expire after this time
     expiresAt TimestamptzString
     createdAt TimestamptzString @default(now())

@@ -17,20 +17,20 @@
             "codecId": "pg/text@1",
             "members": [
               {
-                "name": "CREATED",
-                "value": "CREATED"
+                "name": "OPEN",
+                "value": "OPEN"
               },
               {
                 "name": "ACCEPTED",
                 "value": "ACCEPTED"
               },
               {
-                "name": "PICKED_UP",
-                "value": "PICKED_UP"
+                "name": "COLLECTED",
+                "value": "COLLECTED"
               },
               {
-                "name": "COMPLETED",
-                "value": "COMPLETED"
+                "name": "DELIVERED",
+                "value": "DELIVERED"
               },
               {
                 "name": "CANCELLED",
@@ -307,8 +307,8 @@
                   "prefix": "orders_pickupType_check"
                 },
                 {
-                  "expression": "\"status\" IN ('CREATED', 'ACCEPTED', 'PICKED_UP', 'COMPLETED', 'CANCELLED', 'EXPIRED')",
-                  "name": "orders_status_check_7f46fc03",
+                  "expression": "\"status\" IN ('OPEN', 'ACCEPTED', 'COLLECTED', 'DELIVERED', 'CANCELLED', 'EXPIRED')",
+                  "name": "orders_status_check_cdc61f5a",
                   "prefix": "orders_status_check"
                 }
               ],
@@ -421,7 +421,7 @@
                   "codecId": "pg/text@1",
                   "default": {
                     "kind": "literal",
-                    "value": "CREATED"
+                    "value": "OPEN"
                   },
                   "nativeType": "text",
                   "nullable": false,
@@ -492,10 +492,10 @@
             "OrderStatus": {
               "kind": "valueSet",
               "values": [
-                "CREATED",
+                "OPEN",
                 "ACCEPTED",
-                "PICKED_UP",
-                "COMPLETED",
+                "COLLECTED",
+                "DELIVERED",
                 "CANCELLED",
                 "EXPIRED"
               ]
@@ -513,7 +513,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "e1938e23f34ed0d51493817c8fb327b15cb21e15d0d14fe24ce99b27e435b4f3"
+    "storageHash": "1a3bce0892b3141bc4f8b011baa337e00088aec1fb8d306e0f78329b1a337eea"
   },
   "capabilities": {
     "postgres": {

@@ -45,34 +45,40 @@ List Orders (GET)
 - URL: http://localhost:8000/api/public/order/orders?scope=open&page=1
 - Query parameters (all optional):
     - scope: open (default) = errands a courier can accept (open, not expired, not your own); requested = errands you created; delivering = errands you are the courier on; all = every order (admins only, 403 otherwise)
-    - status: comma separated, e.g. status=COMPLETED,CANCELLED,EXPIRED for past orders, or CREATED,ACCEPTED,PICKED_UP for active ones
+    - status: comma separated, e.g. status=DELIVERED,CANCELLED,EXPIRED for past orders, or OPEN,ACCEPTED,COLLECTED for active ones
     - page: 20 orders per page, newest first
 - Result: same shape as the supplier list, e.g.
         { "data": [ ...orders ], "pagination": { "page": 1, "limit": 20, "total": 32, "totalPage": 2 } }
-  Open orders past their expiry time are marked EXPIRED before listing. Invalid or unknown query parameters return 400.
+  Orders that are due to expire are marked EXPIRED before listing (see Expiry). Invalid or unknown query parameters return 400.
 
 Fetch One Order (GET)
 - Method: GET
 - URL: http://localhost:8000/api/public/order/orders/:id
-- Result: 200 with the order. The requester, the assigned courier and admins can always see it; anyone else only while it is open (CREATED), otherwise 404. An open order past its expiry time is marked EXPIRED when fetched.
+- Result: 200 with the order. The requester, the assigned courier and admins can always see it; anyone else only while it is OPEN, otherwise 404.
 
 Create a New Order (POST)
 - Method: POST
 - URL: http://localhost:8000/api/public/order/orders
 - Headers: Must include "Idempotency-Key" with a unique string (e.g., "test-req-123") for deduplication.
 - Body: (JSON)
-    Sample:
+    Sample, picking up from a supplier:
         {
+          "pickupType": "SUPPLIER",
           "supplierId": 3,
-          "dropoffLocation": "Foyer@PGP",
+          "dropoffLocationId": 18,
+          "dropoffFloor": 3,
+          "dropoffRoom": "#03-12",
           "itemDescription": "Printed CS3230 assignment",
           "creditBounty": 5,
           "additionalDetails": "Pages 1-20, double sided",
           "expiresInMinutes": 120
         }
-    expiresInMinutes is optional: how long the errand waits for a courier, a whole number from 15 to 1440 (24 hours). Left out, it defaults to 24 hours. If no courier accepts in time, the errand expires.
-    Pickup is always a registered supplier: supplierId is required and must be a live supplier in the supplier service (400 "Supplier not found" otherwise, 503 if the supplier service is down). The order service builds pickupLocation from it, e.g. "Printer @ Com 2, Com 2, Level 1", and stores that text as a snapshot. Dropoff is any place the requester types. Put anything more specific (e.g. a room number) in the optional additionalDetails. User ids (requesterId, courierId) are integers taken from the access token.
-- Result: Returns a 201 Created status with the newly generated errand, including its auto-assigned UUID and enforced CREATED status. If sent a second time with the exact same Idempotency-Key header, it will safely return a 200 OK with "deduplicated": true instead of double-charging.
+    Picking up from a building instead: "pickupType": "BUILDING" with pickupLocationId, pickupFloor and an optional pickupRoom, and no supplierId.
+    Buildings are location ids from the supplier service (GET /public/supplier/locations); a deleted or unknown one returns 400 "Building not found", and 503 if the supplier service is down. Floors are whole numbers: ground is 1, basements are negative (-1 = B1), there is no 0. Rooms are optional, up to 50 characters.
+    A supplier pickup is a preset spot: the order takes the supplier's building and floor. The order service also stores readable snapshots, e.g. pickupLocation "Printer @ Com 2, Com 2, Level 1" and dropoffLocation "Com 2, Level 3, #03-12".
+    expiresInMinutes is optional: the errand's deadline, a whole number from 15 to 1440 (24 hours). Left out, it defaults to 24 hours. See Expiry.
+    User ids (requesterId, courierId) are integers taken from the access token.
+- Result: Returns a 201 Created status with the newly generated errand, including its auto-assigned UUID and OPEN status. If sent a second time with the exact same Idempotency-Key header, it will safely return a 200 OK with "deduplicated": true instead of double-charging.
 
 Update Order Status (PATCH)
 - Method: PATCH
@@ -82,6 +88,15 @@ Update Order Status (PATCH)
         {
           "targetStatus": "ACCEPTED"
         }
-    targetStatus is one of ACCEPTED, PICKED_UP, COMPLETED, CANCELLED.
-- Result: Returns a 200 OK with the newly updated state. The internal state machine enforces access rules: returns 409 Conflict if attempting to accept an already accepted order, 403 Forbidden if the requester attempts to accept their own order, and 403 Forbidden if anyone but the requester attempts to mark the order as COMPLETED.
+    targetStatus is one of ACCEPTED, COLLECTED, DELIVERED, CANCELLED:
+    - ACCEPTED: anyone but the requester, while the order is OPEN and before its deadline
+    - COLLECTED: the assigned courier, before the deadline
+    - DELIVERED: the assigned courier, before the deadline plus the grace period; the credits go to the courier
+    - CANCELLED: the requester, while the order is OPEN or ACCEPTED; the credits go back to the requester. Nobody (not even an admin) can cancel once the item is collected.
+- Result: Returns a 200 OK with the newly updated state. Errors: 403 when the caller may not make the change, 400 or 409 when the order is in the wrong status, 410 when it has expired.
 - Every status change is a single conditional database update, so two requests racing on the same order (e.g. two couriers accepting at once) cannot both succeed; the loser gets 409.
+
+Expiry
+- The requester and courier share one deadline (expiresAt). An OPEN or ACCEPTED order not collected by then expires.
+- A COLLECTED order past its deadline is overdue but can still be delivered; it expires only after a further grace period (collectedGraceMinutes in src/config.ts, 2 hours), so a late courier holding the item is not cut off straight away.
+- Expired orders refund the requester. A background job expires due orders every minute, and they are also checked before any order is read or changed.

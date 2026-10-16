@@ -2,11 +2,11 @@
 // functions instead of using HTTP directly.
 import client from './http'
 
-export const ORDER_STATUSES = ['CREATED', 'ACCEPTED', 'PICKED_UP', 'COMPLETED', 'CANCELLED', 'EXPIRED'] as const
+export const ORDER_STATUSES = ['OPEN', 'ACCEPTED', 'COLLECTED', 'DELIVERED', 'CANCELLED', 'EXPIRED'] as const
 export type OrderStatus = typeof ORDER_STATUSES[number]
 
-// statuses a user can move an order to; CREATED and EXPIRED are only set by the service
-export type TargetStatus = 'ACCEPTED' | 'PICKED_UP' | 'COMPLETED' | 'CANCELLED'
+// statuses a user can move an order to; OPEN and EXPIRED are only set by the service
+export type TargetStatus = 'ACCEPTED' | 'COLLECTED' | 'DELIVERED' | 'CANCELLED'
 
 // open: errands a courier can accept; requested: mine; delivering: I am the courier; all: admins only
 export type OrderScope = 'open' | 'requested' | 'delivering' | 'all'

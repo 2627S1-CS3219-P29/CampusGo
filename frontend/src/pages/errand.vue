@@ -37,12 +37,20 @@
               {{ statusInfo.label }}
             </v-chip>
 
+            <v-chip
+              v-if="isOverdue(order, now)"
+              color="error"
+              label
+              prepend-icon="mdi-alert-outline"
+              size="small"
+            >Overdue</v-chip>
+
             <v-chip v-if="myRole" label size="small" variant="outlined">{{ myRole }}</v-chip>
           </div>
 
           <span class="text-body-2 text-medium-emphasis">
-            Requested {{ formatDateTime(order.createdAt) }}
-            <span v-if="order.status === 'CREATED'"> · {{ formatTimeLeft(order.expiresAt, now) }}</span>
+            Requested {{ formatDateTime(order.createdAt) }} · deadline {{ formatDateTime(order.expiresAt) }}
+            <span v-if="deadlineLabel(order, now)"> · {{ deadlineLabel(order, now) }}</span>
           </span>
         </v-card-text>
       </v-card>
@@ -54,8 +62,10 @@
             v-if="order.status === 'CANCELLED' || order.status === 'EXPIRED'"
             :icon="statusInfo.icon"
             :text="order.status === 'CANCELLED'
-              ? 'This errand was cancelled. Any reserved credits are released back to the requester.'
-              : 'No courier accepted this errand in time, so it expired. Any reserved credits are released back to the requester.'"
+              ? 'This errand was cancelled. Any reserved credits are returned to the requester.'
+              : order.courierId === null
+                ? 'No courier accepted this errand in time, so it expired. Any reserved credits are returned to the requester.'
+                : 'The courier did not complete this errand in time, so it expired. Any reserved credits are returned to the requester.'"
             :title="statusInfo.label"
             :type="order.status === 'CANCELLED' ? 'info' : 'warning'"
             variant="tonal"
@@ -70,7 +80,7 @@
             >
               <v-avatar :color="i <= currentStep ? 'primary' : 'grey-lighten-2'" size="32">
                 <v-icon :color="i <= currentStep ? 'white' : 'grey'" size="18">
-                  {{ i < currentStep || order.status === 'COMPLETED' ? 'mdi-check' : orderStatusInfo[step.status].icon }}
+                  {{ i < currentStep || order.status === 'DELIVERED' ? 'mdi-check' : orderStatusInfo[step.status].icon }}
                 </v-icon>
               </v-avatar>
 
@@ -81,6 +91,19 @@
           </div>
         </v-card-text>
       </v-card>
+
+      <!-- Once collected, the requester has nothing to do: the courier completes it, or it expires -->
+      <v-alert
+        v-if="order.status === 'COLLECTED' && order.requesterId === myId"
+        class="mb-4"
+        density="compact"
+        icon="mdi-information-outline"
+        :text="isOverdue(order, now)
+          ? `The courier is past the deadline. If they do not deliver by ${formatDateTime(new Date(expiryTime(order)!).toISOString())}, the errand expires and your credits are returned.`
+          : 'The courier has your item and will mark the errand as delivered when they hand it over. It can no longer be cancelled.'"
+        type="info"
+        variant="tonal"
+      />
 
       <!-- Actions the viewer can take right now -->
       <div v-if="actions.length > 0" class="d-flex flex-wrap ga-2 mb-4">
@@ -156,7 +179,18 @@
     <v-dialog max-width="440" :model-value="pendingAction !== null" :persistent="isUpdating" @update:model-value="pendingAction = null">
       <v-card v-if="pendingAction" rounded="lg">
         <v-card-title class="pt-5 px-6">{{ pendingAction.label }}?</v-card-title>
-        <v-card-text class="px-6">{{ pendingAction.confirm }}</v-card-text>
+
+        <v-card-text class="px-6">
+          <v-alert
+            v-if="pendingAction.warning"
+            class="mb-3"
+            density="compact"
+            :text="pendingAction.warning"
+            type="warning"
+            variant="tonal"
+          />
+          {{ pendingAction.confirm }}
+        </v-card-text>
 
         <v-card-actions class="px-6 pb-4">
           <v-spacer />
@@ -184,9 +218,11 @@
   import {
     apiErrorMessage,
     availableActions,
+    deadlineLabel,
+    expiryTime,
     formatDateTime,
-    formatTimeLeft,
     isActive,
+    isOverdue,
     type OrderAction,
     orderStatusInfo,
     personLabel,
@@ -213,9 +249,9 @@
   const now = useClock()
 
   const myId = computed(() => auth.userId === null ? null : Number(auth.userId))
-  const statusInfo = computed(() => orderStatusInfo[order.value?.status ?? 'CREATED'])
+  const statusInfo = computed(() => orderStatusInfo[order.value?.status ?? 'OPEN'])
   const currentStep = computed(() => order.value ? progressIndex(order.value.status) : -1)
-  const actions = computed(() => order.value ? availableActions(order.value, myId.value, auth.isAdmin, now.value) : [])
+  const actions = computed(() => order.value ? availableActions(order.value, myId.value, now.value) : [])
   const myRole = computed(() => {
     if (!order.value || myId.value === null) {
       return null

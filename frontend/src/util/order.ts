@@ -2,16 +2,16 @@ import type { Order, OrderStatus, TargetStatus } from '@/api/order'
 import axios from 'axios'
 
 export const orderStatusInfo: Record<OrderStatus, { label: string, color: string, icon: string }> = {
-  CREATED: { label: 'Waiting for courier', color: 'info', icon: 'mdi-clock-outline' },
+  OPEN: { label: 'Waiting for courier', color: 'info', icon: 'mdi-clock-outline' },
   ACCEPTED: { label: 'Courier on the way', color: 'primary', icon: 'mdi-bike-fast' },
-  PICKED_UP: { label: 'Picked up', color: 'deep-purple', icon: 'mdi-package-variant-closed' },
-  COMPLETED: { label: 'Delivered', color: 'success', icon: 'mdi-check-circle-outline' },
+  COLLECTED: { label: 'Collected', color: 'deep-purple', icon: 'mdi-package-variant-closed' },
+  DELIVERED: { label: 'Delivered', color: 'success', icon: 'mdi-check-circle-outline' },
   CANCELLED: { label: 'Cancelled', color: 'grey', icon: 'mdi-close-circle-outline' },
   EXPIRED: { label: 'Expired', color: 'warning', icon: 'mdi-timer-off-outline' },
 }
 
-export const ACTIVE_STATUSES: OrderStatus[] = ['CREATED', 'ACCEPTED', 'PICKED_UP']
-export const PAST_STATUSES: OrderStatus[] = ['COMPLETED', 'CANCELLED', 'EXPIRED']
+export const ACTIVE_STATUSES: OrderStatus[] = ['OPEN', 'ACCEPTED', 'COLLECTED']
+export const PAST_STATUSES: OrderStatus[] = ['DELIVERED', 'CANCELLED', 'EXPIRED']
 
 export function isActive (status: OrderStatus): boolean {
   return ACTIVE_STATUSES.includes(status)
@@ -19,11 +19,36 @@ export function isActive (status: OrderStatus): boolean {
 
 // the happy path shown as a progress timeline
 export const PROGRESS_STEPS: { status: OrderStatus, label: string }[] = [
-  { status: 'CREATED', label: 'Requested' },
+  { status: 'OPEN', label: 'Requested' },
   { status: 'ACCEPTED', label: 'Accepted' },
-  { status: 'PICKED_UP', label: 'Picked up' },
-  { status: 'COMPLETED', label: 'Delivered' },
+  { status: 'COLLECTED', label: 'Collected' },
+  { status: 'DELIVERED', label: 'Delivered' },
 ]
+
+// the order service's collectedGraceMinutes: a collected errand past its deadline is overdue,
+// and only expires this much later
+export const COLLECTED_GRACE_MINUTES = 120
+
+// a courier accepting an errand with this little time left is warned first
+export const SHORT_DEADLINE_MINUTES = 15
+
+const time = (iso: string) => new Date(iso).getTime()
+
+/**
+ * When the order service will expire this errand: the deadline while it is open or accepted
+ * (not collected yet), the deadline plus the grace period once collected; null when it has ended.
+ */
+export function expiryTime (order: Order): number | null {
+  if (order.status === 'OPEN' || order.status === 'ACCEPTED') {
+    return time(order.expiresAt)
+  }
+  return order.status === 'COLLECTED' ? time(order.expiresAt) + COLLECTED_GRACE_MINUTES * 60_000 : null
+}
+
+// collected, past the deadline, but still within the grace period to deliver
+export function isOverdue (order: Order, now = Date.now()): boolean {
+  return order.status === 'COLLECTED' && time(order.expiresAt) <= now
+}
 
 // index of the last completed step; -1 when cancelled or expired (off the happy path)
 export function progressIndex (status: OrderStatus): number {
@@ -42,32 +67,51 @@ export function formatDateTime (iso: string): string {
   return new Date(iso).toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-// e.g. "Expires in 3h 20m", "Expires in 12m", "Expired"
-// e.g. "Expires in 3h 20m", "Expires in 12m", "Expires in 45s", "Expired".
-// Rounds up, so it never says "Expired" while the errand is still open.
+// e.g. "3h 20m 5s", "12m 0s", "45s"; rounds up to the second, so it never reaches zero while time is left
+function formatDuration (ms: number): string {
+  const total = Math.ceil(ms / 1000)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`
+  }
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`
+}
+
+// e.g. "Expires in 3h 20m 5s", "Expires in 45s", "Expired"
 export function formatTimeLeft (expiresAt: string, now = Date.now()): string {
-  const seconds = Math.ceil((new Date(expiresAt).getTime() - now) / 1000)
-  if (seconds <= 0) {
-    return 'Expired'
-  }
-  if (seconds < 60) {
-    return `Expires in ${seconds}s`
-  }
-  const minutes = Math.ceil(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  return hours > 0 ? `Expires in ${hours}h ${minutes % 60}m` : `Expires in ${minutes}m`
+  const left = time(expiresAt) - now
+  return left > 0 ? `Expires in ${formatDuration(left)}` : 'Expired'
 }
 
-// an open errand whose time ran out; the order service marks it EXPIRED the next time it is read
+/**
+ * The time line for an active errand, or null once it has ended:
+ * "Expires in 3h" while open or accepted (the item must be collected by then),
+ * "Due in 20m" once collected, then "Overdue" during the grace period.
+ */
+export function deadlineLabel (order: Order, now = Date.now()): string | null {
+  if (order.status === 'OPEN' || order.status === 'ACCEPTED') {
+    return formatTimeLeft(order.expiresAt, now)
+  }
+  if (order.status === 'COLLECTED') {
+    return isOverdue(order, now) ? 'Overdue' : `Due in ${formatDuration(time(order.expiresAt) - now)}`
+  }
+  return null
+}
+
+// an active errand whose time ran out; the order service marks it EXPIRED within a minute
 export function hasExpired (order: Order, now = Date.now()): boolean {
-  return order.status === 'CREATED' && new Date(order.expiresAt).getTime() <= now
+  const expiry = expiryTime(order)
+  return expiry !== null && expiry <= now
 }
 
-// milliseconds until the soonest of these open errands expires, or null if none are waiting
+// milliseconds until the soonest of these errands expires, or null if none can expire
 export function msUntilNextExpiry (orders: Order[], now = Date.now()): number | null {
   const times = orders
-    .filter(o => o.status === 'CREATED')
-    .map(o => new Date(o.expiresAt).getTime() - now)
+    .map(o => expiryTime(o))
+    .filter((t): t is number => t !== null)
+    .map(t => t - now)
   return times.length > 0 ? Math.max(0, Math.min(...times)) : null
 }
 
@@ -78,33 +122,49 @@ export interface OrderAction {
   color: string
   // shown in the confirmation dialog
   confirm: string
+  // shown as a warning in the confirmation dialog, e.g. too little time left to collect
+  warning?: string
 }
+
+const credits = (n: number) => `${n} credit${n === 1 ? '' : 's'}`
 
 /**
  * The status changes the viewer may make right now. Mirrors the order service's rules,
  * which still check everything; this only decides which buttons to show.
+ * Admins act like any other user here: they cannot change other people's errands.
  */
-export function availableActions (order: Order, myId: number | null, isAdmin: boolean, now = Date.now()): OrderAction[] {
+export function availableActions (order: Order, myId: number | null, now = Date.now()): OrderAction[] {
   const isRequester = myId !== null && order.requesterId === myId
   const isCourier = myId !== null && order.courierId === myId
   const actions: OrderAction[] = []
 
-  // an open errand whose time ran out can no longer be accepted or cancelled
+  // an errand whose time ran out can no longer be changed
   if (hasExpired(order, now)) {
     return actions
   }
 
-  if (order.status === 'CREATED' && !isRequester) {
-    actions.push({ target: 'ACCEPTED', label: 'Accept errand', icon: 'mdi-hand-okay', color: 'primary', confirm: 'Accept this errand? You will be its courier.' })
+  if (order.status === 'OPEN' && !isRequester) {
+    const minutesLeft = Math.ceil((time(order.expiresAt) - now) / 60_000)
+    actions.push({
+      target: 'ACCEPTED',
+      label: 'Accept errand',
+      icon: 'mdi-hand-okay',
+      color: 'primary',
+      confirm: `Accept this errand? You will be its courier, and must collect the item by ${formatDateTime(order.expiresAt)}.`,
+      warning: minutesLeft <= SHORT_DEADLINE_MINUTES
+        ? `Only ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'} left. If you haven't collected the item by then, the errand expires and you won't earn the credits. Accept anyway?`
+        : undefined,
+    })
   }
   if (order.status === 'ACCEPTED' && isCourier) {
-    actions.push({ target: 'PICKED_UP', label: 'Mark as picked up', icon: 'mdi-package-variant-closed', color: 'primary', confirm: 'Have you collected the item from the pickup location?' })
+    actions.push({ target: 'COLLECTED', label: 'Mark as collected', icon: 'mdi-package-variant-closed', color: 'primary', confirm: 'Have you collected the item from the pickup location?' })
   }
-  if (order.status === 'PICKED_UP' && isRequester) {
-    actions.push({ target: 'COMPLETED', label: 'Confirm delivery', icon: 'mdi-check-circle-outline', color: 'success', confirm: `Confirm you received the item? ${order.creditBounty} credit${order.creditBounty === 1 ? '' : 's'} will go to the courier.` })
+  if (order.status === 'COLLECTED' && isCourier) {
+    actions.push({ target: 'DELIVERED', label: 'Mark as delivered', icon: 'mdi-check-circle-outline', color: 'success', confirm: `Have you handed the item to the requester? You will earn ${credits(order.creditBounty)}.` })
   }
-  if (isActive(order.status) && (isRequester || isAdmin)) {
-    actions.push({ target: 'CANCELLED', label: 'Cancel errand', icon: 'mdi-close-circle-outline', color: 'error', confirm: 'Cancel this errand? Your reserved credits will be released.' })
+  // only before collection: once the courier has the item, nobody can cancel
+  if ((order.status === 'OPEN' || order.status === 'ACCEPTED') && isRequester) {
+    actions.push({ target: 'CANCELLED', label: 'Cancel errand', icon: 'mdi-close-circle-outline', color: 'error', confirm: 'Cancel this errand? Your reserved credits will be returned to you.' })
   }
   return actions
 }
