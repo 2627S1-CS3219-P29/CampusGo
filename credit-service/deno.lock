@@ -17,10 +17,12 @@
     "npm:@prisma/cli-engine@~0.6.3": "0.6.3_@prisma+management-api-sdk@1.80.0",
     "npm:@prisma/orm-postgres@^8.0.0-rc.16": "8.0.0-rc.17_temporal-polyfill@1.0.5_@prisma+cli-engine@0.6.3_@prisma+management-api-sdk@1.80.0_typanion@3.14.0_vite@8.3.4__@types+node@26.1.2__esbuild@0.28.2",
     "npm:@types/node@^26.6.4": "26.6.5",
+    "npm:amqplib@^2.2.0": "2.2.0",
     "npm:dotenv@^18.0.6": "18.0.7",
     "npm:jose@^6.2.12": "6.2.12",
     "npm:path-to-regexp@^6.3.0": "6.3.0",
-    "npm:prisma@^8.0.0-rc.21": "8.0.0-rc.22_@types+node@26.6.5_pg@8.22.0_typanion@3.14.0_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_vitest@5.0.3"
+    "npm:prisma@*": "8.0.0-rc.22_@types+node@26.6.5_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_vitest@5.0.4",
+    "npm:prisma@^8.0.0-rc.21": "8.0.0-rc.22_@types+node@26.6.5_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_vitest@5.0.4"
   },
   "jsr": {
     "@oak/commons@1.0.1": {
@@ -517,7 +519,7 @@
         "effect"
       ]
     },
-    "@effect/vitest@4.0.0-rc.115_effect@4.0.0-rc.115_vitest@5.0.3_@types+node@26.6.5_esbuild@0.28.2_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_yaml@2.9.1": {
+    "@effect/vitest@4.0.0-rc.115_effect@4.0.0-rc.115_vitest@5.0.4_@types+node@26.6.5_esbuild@0.28.2_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_yaml@2.9.1": {
       "integrity": "sha512-DJR0hfdr3HNXAkzW8AzfvUz6VmrNFLrKk9tZGDURi33faMyxkc7ZewxELMMZwGpOTGN4mfqYVbX2CXgI+ZJBeQ==",
       "dependencies": [
         "effect",
@@ -1121,7 +1123,7 @@
         "string-width@8.3.0"
       ]
     },
-    "@prisma/composer-cli@0.29.1_@prisma+cli-engine@0.7.0_@prisma+management-api-sdk@1.80.0_@types+node@26.6.5_pg@8.22.0_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_vitest@5.0.3": {
+    "@prisma/composer-cli@0.29.1_@prisma+cli-engine@0.7.0_@types+node@26.6.5_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_vitest@5.0.4": {
       "integrity": "sha512-59e2vWCLF8Y3pTJhAHZofww8bmVWKdgr9u8ALk8nVMrSbNIDGhND/UccBa03KX6tQvCiBtbhEtpmxv5Db3kM+A==",
       "dependencies": [
         "@prisma/cli-engine@0.7.0_@prisma+management-api-sdk@1.80.0",
@@ -1132,7 +1134,7 @@
         "esbuild"
       ]
     },
-    "@prisma/composer@0.29.1_@types+node@26.6.5_pg@8.22.0_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_vitest@5.0.3": {
+    "@prisma/composer@0.29.1_@types+node@26.6.5_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_vitest@5.0.4": {
       "integrity": "sha512-g9iyBsYNHKJXEo2bCd7er46rlP015vHlSVV8Qwexo/X55zclv4IYWjGVctA0ugoeTllCy5/dBb6K22Z8Dpf+Mw==",
       "dependencies": [
         "@effect/sql-d1",
@@ -1622,8 +1624,8 @@
       ],
       "bin": true
     },
-    "@vitest/mocker@5.0.3_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_@types+node@26.6.5_esbuild@0.28.2_yaml@2.9.1": {
-      "integrity": "sha512-T8sWAIbkSyAjkwTcaEc3Iu0o9A27X1/kdXrizhZkGuSKScRQtRzclfAMpOTcGdXCsqxeWlpGy3XjqaW8CpLORg==",
+    "@vitest/mocker@5.0.4_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_@types+node@26.6.5_esbuild@0.28.2_yaml@2.9.1": {
+      "integrity": "sha512-tqAlrYWce4iUxhr3ncNohejtCTOcHeE8XWrSNZY3OhPoDn01yeGv+gnaBy64ATp7o6pb03eIbBAjzmibpc9vIQ==",
       "dependencies": [
         "@jridgewell/trace-mapping",
         "@vitest/spy",
@@ -1635,8 +1637,8 @@
         "vite@8.3.4_@types+node@26.6.5_esbuild@0.28.2_yaml@2.9.1"
       ]
     },
-    "@vitest/spy@5.0.3": {
-      "integrity": "sha512-XhFysQTB8AZ+P4gMi+Lpo99vg2AZi0qKpaB9yXQl37+CaMEAPO3iH/wGVnSyL5MPERiLezpqTVtrR6UZH5GCXg=="
+    "@vitest/spy@5.0.4": {
+      "integrity": "sha512-MZKk/gSkm2q+ICobMxCpH1mA+cCAWm8WV7UhxlqGjq/sJ3AGc1BqFOs5CRVXxH78wQtme9q/NAAgBquj4AcyMw=="
     },
     "abbrev@3.0.1": {
       "integrity": "sha512-AO2ac6pjRB3SJmGJo+v5/aK6Omggp6fsLrs6wN9bd35ulu4cCwaAU9+7ZhXjeqHVkaHThLuzH0nZr0YpCDhygg=="
@@ -1654,7 +1656,7 @@
     "agent-base@7.1.4": {
       "integrity": "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="
     },
-    "alchemy@2.0.0-beta.78_effect@4.0.0-rc.115_pg@8.22.0_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_@types+node@26.6.5_esbuild@0.28.2_vitest@5.0.3": {
+    "alchemy@2.0.0-beta.78_effect@4.0.0-rc.115_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_@types+node@26.6.5_esbuild@0.28.2_vitest@5.0.4": {
       "integrity": "sha512-Dv3IstS7W5AFPgU4T2PKe/SRrtqfKnMHYEKaWWCjVneE8VTl6Zz7M/oG/jz1YSmzdPaq3YinQlRQK3ZFzhTmkw==",
       "dependencies": [
         "@alchemy.run/cloudflare-runtime",
@@ -1687,7 +1689,6 @@
         "fflate",
         "libsodium-wrappers",
         "pathe",
-        "pg",
         "picomatch",
         "rolldown@1.2.5",
         "tinyglobby",
@@ -1696,10 +1697,12 @@
         "yaml"
       ],
       "optionalPeers": [
-        "pg",
         "vite@8.3.4_@types+node@26.6.5_esbuild@0.28.2_yaml@2.9.1"
       ],
       "bin": true
+    },
+    "amqplib@2.2.0": {
+      "integrity": "sha512-VifzN9aHs/Q3zTruVHXh2yCisQyXexBN91CQ2E5iSyUKyNjH6ilYhJGte5AXZH/Bj1PaH7SwPhyuSf6Msd2udw=="
     },
     "ansi-regex@6.4.0": {
       "integrity": "sha512-KzTVk2tCWAHtYrvvvaP8bJKJq2pVinhLcGEQdtLIYPbmNGNyYe8QwNaTUYQp2J7/vIsUKt5QCqAfUkYyG9DkOw=="
@@ -2372,8 +2375,8 @@
         "unicorn-magic"
       ]
     },
-    "obug@2.2.1": {
-      "integrity": "sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q=="
+    "obug@3.0.0": {
+      "integrity": "sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw=="
     },
     "ohash@2.0.12": {
       "integrity": "sha512-65S/5gk9YSsaRjcyf7Nfa6h/d3E8/1gslpXfI4W7Dxn/oap8IKRuNT5VXkLQ1YFKIEg4apRY4Pj6aiwFzrDdmw=="
@@ -2538,7 +2541,7 @@
         "parse-ms"
       ]
     },
-    "prisma@8.0.0-rc.22_@types+node@26.6.5_pg@8.22.0_typanion@3.14.0_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_vitest@5.0.3": {
+    "prisma@8.0.0-rc.22_@types+node@26.6.5_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_vitest@5.0.4": {
       "integrity": "sha512-PaOZPZq2b/UDUgFkC2IlsAKG+ulv2+ojJg2lHquYPZY1OElQeD8D0PEoekCWusaRor2AhjS/uiOc+AGZuAskAg==",
       "dependencies": [
         "@manypkg/tools",
@@ -2809,8 +2812,8 @@
     "tiny-invariant@1.3.3": {
       "integrity": "sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg=="
     },
-    "tinybench@6.2.1": {
-      "integrity": "sha512-IAbQaPJIIdhVxi0mqy9lez1wEwje0UQf9F1vwtbelEG5Nbgn0nPOxCvU+mNeNS9gyJTAhrHp74CbUaSynQpZcQ=="
+    "tinybench@6.2.2": {
+      "integrity": "sha512-nIZ2N2dFpjBsg2hgitKu7mA+FvsIJuGJOwysRngmVRRmWgR/UyPjwJj8c/fT/dhm8EkHnF5EOogRf+0Z2qrimA=="
     },
     "tinyexec@1.3.1": {
       "integrity": "sha512-GCvB3aoys96IuDFBMcTB46JOR6mdMtAToqwiW8JlWhsoh1mhHi/xn9ss/Dg7N555GiJyEt2qzoG/NHCwM6h1EA=="
@@ -2906,8 +2909,8 @@
       ],
       "bin": true
     },
-    "vitest@5.0.3_@types+node@26.6.5_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_esbuild@0.28.2_yaml@2.9.1": {
-      "integrity": "sha512-xMw97S3rjdtj5dkVat7jCsqWBpvchs3RlpQctUqwJD0KkERk40vz2fJ77lDwW/Vzh/pk18eItYAzkodhSes3jQ==",
+    "vitest@5.0.4_@types+node@26.6.5_vite@8.3.4__@types+node@26.6.5__esbuild@0.28.2__yaml@2.9.1_esbuild@0.28.2_yaml@2.9.1": {
+      "integrity": "sha512-z0WxZRV2Sg48wF0FSgMq3TFG8JS38/Qr96vZVZdX6+Em9raQTvnXQvdTFJe2m3rfyJnEHeHQ/snceIdi8D1pVg==",
       "dependencies": [
         "@types/chai",
         "@types/node@26.6.5",
@@ -3068,6 +3071,7 @@
         "npm:@prisma/cli-engine@~0.6.3",
         "npm:@prisma/orm-postgres@^8.0.0-rc.16",
         "npm:@types/node@^26.6.4",
+        "npm:amqplib@^2.2.0",
         "npm:dotenv@^18.0.6",
         "npm:jose@^6.2.12",
         "npm:prisma@^8.0.0-rc.21"

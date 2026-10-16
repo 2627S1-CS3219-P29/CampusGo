@@ -1,0 +1,35 @@
+import config from "../../config.ts";
+import amqp from "amqplib";
+import { RabbitMqProvider } from "../provider.ts";
+
+const defaultChannelSetup = async (ch: amqp.ConfirmChannel) => {
+    // main router: publishes to interested services (which are their own queues)
+    await ch.assertExchange("app.events", "topic", { durable: true });
+    await ch.assertExchange("app.rpc", "direct", { durable: true });
+    await ch.assertExchange("app.dlx", "topic", { durable: true });
+
+    // create a queue
+    await this.ch.assertQueue("credit.user-registered", 
+        {
+            durable: true,
+            // deadLetterExchange: "app.dlx",
+            // deadLetterRoutingKey: "credit.user-registered.dlq",
+        }
+    );
+
+    // Route messages from app.events with routing key
+    // user.registered into Credit's queue
+    await this.ch.bindQueue(
+        "credit.user-registered", 
+        "app.events", 
+        "user.registered"
+    );
+}
+
+export const buildDefaultProvider = async () => {
+    if (!config.rabbitMqConnectionString) {
+        throw new Error("rabbitmq connection string not found in config");
+    }
+    const provider = await RabbitMqProvider.connect(config.rabbitMqConnectionString!, defaultChannelSetup);
+    return provider;
+}

@@ -11,6 +11,10 @@
     "UserCredits": {
       "model": "UserCredits",
       "namespace": "public"
+    },
+    "outbox": {
+      "model": "Outbox",
+      "namespace": "public"
     }
   },
   "domain": {
@@ -31,6 +35,23 @@
               {
                 "name": "REFUNDED",
                 "value": "REFUNDED"
+              }
+            ]
+          },
+          "OutboxStatus": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "PENDING",
+                "value": "PENDING"
+              },
+              {
+                "name": "FAILED",
+                "value": "FAILED"
+              },
+              {
+                "name": "COMPLETED",
+                "value": "COMPLETED"
               }
             ]
           }
@@ -101,6 +122,113 @@
               },
               "namespaceId": "public",
               "table": "CreditsOnHold"
+            }
+          },
+          "Outbox": {
+            "fields": {
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "kind": "scalar"
+                }
+              },
+              "errorMessage": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "nextRetryAt": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "kind": "scalar"
+                }
+              },
+              "payload": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/json@1",
+                  "kind": "scalar"
+                }
+              },
+              "retryCount": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "status": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "OutboxStatus",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "topic": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "type": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {},
+            "storage": {
+              "fields": {
+                "createdAt": {
+                  "column": "createdAt"
+                },
+                "errorMessage": {
+                  "column": "errorMessage"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "nextRetryAt": {
+                  "column": "nextRetryAt"
+                },
+                "payload": {
+                  "column": "payload"
+                },
+                "retryCount": {
+                  "column": "retryCount"
+                },
+                "status": {
+                  "column": "status"
+                },
+                "topic": {
+                  "column": "topic"
+                },
+                "type": {
+                  "column": "type"
+                }
+              },
+              "namespaceId": "public",
+              "table": "outbox"
             }
           },
           "UserCredits": {
@@ -214,6 +342,102 @@
                 ]
               },
               "uniques": []
+            },
+            "outbox": {
+              "checks": [
+                {
+                  "expression": "\"status\" IN ('PENDING', 'FAILED', 'COMPLETED')",
+                  "name": "outbox_status_check_fe63a1e2",
+                  "prefix": "outbox_status_check"
+                }
+              ],
+              "columns": {
+                "createdAt": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "dataType": "pg/timestamptz",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nullable": false
+                },
+                "errorMessage": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "id": {
+                  "codecId": "pg/int4@1",
+                  "dataType": "pg/int4",
+                  "default": {
+                    "expression": "autoincrement()",
+                    "kind": "function"
+                  },
+                  "nullable": false
+                },
+                "nextRetryAt": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "dataType": "pg/timestamptz",
+                  "nullable": true
+                },
+                "payload": {
+                  "codecId": "pg/json@1",
+                  "dataType": "pg/json",
+                  "nullable": false
+                },
+                "retryCount": {
+                  "codecId": "pg/int4@1",
+                  "dataType": "pg/int4",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nullable": false
+                },
+                "status": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "default": {
+                    "kind": "literal",
+                    "value": "PENDING"
+                  },
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "OutboxStatus",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "topic": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "type": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [],
+              "indexes": [
+                {
+                  "columns": [
+                    "status",
+                    "createdAt"
+                  ],
+                  "name": "outbox_status_createdAt_idx_58610442",
+                  "prefix": "outbox_status_createdAt_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
             }
           },
           "valueSet": {
@@ -224,6 +448,14 @@
                 "RELEASED",
                 "REFUNDED"
               ]
+            },
+            "OutboxStatus": {
+              "kind": "valueSet",
+              "values": [
+                "PENDING",
+                "FAILED",
+                "COMPLETED"
+              ]
             }
           }
         },
@@ -231,7 +463,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "47c9d4f22b4c2cf4f168cb2d4b2ed966f4f62bb0b16682d2d1e3bb9c2290a047"
+    "storageHash": "1cd00e614578e2148b4ea1a2a4c351e67677896084a17968a92d7fe0201d7588"
   },
   "capabilities": {
     "postgres": {

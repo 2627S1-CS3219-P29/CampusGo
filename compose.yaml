@@ -226,6 +226,7 @@ services:
       PORT: "3000"
       DATABASE_URL: postgresql://postgres:${CREDIT_DB_PW}@credit_db:5432/credit
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
 
   credit_prod:
     build:

@@ -20,3 +20,24 @@ enum CreditHoldStatus {
   RELEASED = "RELEASED"
   REFUNDED = "REFUNDED"
 }
+
+enum OutboxStatus {
+    PENDING
+    FAILED
+    COMPLETED
+}
+
+model Outbox {
+    id Int @id @default(autoincrement())
+    type String
+    topic String
+    payload Json
+    status OutboxStatus @default(PENDING)
+    retryCount Int @default(0)
+    errorMessage String?
+    nextRetryAt DateTime?
+    createdAt DateTime @default(now())
+
+    @@index([status, createdAt])
+    @@map("outbox")
+}
