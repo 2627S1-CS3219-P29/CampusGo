@@ -100,3 +100,139 @@ export async function ensureCreditsHeld(errandId: number, requestorId: number, c
         throw error;
     }
 }
+
+export async function ensureCreditsReleased(errandId: number) {
+    try {
+        await db.transaction(async tx => {
+            const outbox = new OutboxRepository(tx);
+
+            const hold = await tx.orm.public.CreditsOnHold
+                .where({ errandId: errandId })
+                .forUpdate()
+                .first()
+            
+            if (!hold) {
+                await outbox.createEvent("credits.released.rejected", "creditsReleasedRejected", {
+                    errandId,
+                    reason: "ERRAND_NOT_FOUND",
+                    occurredAt: new Date().toISOString(),
+                });
+                return;
+            }
+            
+            const { courierId, amount, status } = hold 
+
+            if (status === "RELEASED") {
+                return;
+            }
+
+            if (status !== "HELD") {
+                await outbox.createEvent("credits.released.rejected", "creditsReleasedRejected", {
+                    errandId,
+                    reason: "HOLD_ALREADY_REFUNDED",
+                    occurredAt: new Date().toISOString(),
+                });
+                return;
+            }
+
+            const courier = await tx.orm.public.UserCredits
+                .where({ userId: courierId })
+                .forUpdate()
+                .first()
+
+            if (!courier) {
+                await outbox.createEvent("credits.released.rejected", "creditsReleasedRejected", {
+                    errandId,
+                    reason: "COURIER_NOT_FOUND",
+                    occurredAt: new Date().toISOString(),
+                })
+                return;
+            }
+            
+            await tx.orm.public.UserCredits
+                .where({ userId: courierId })
+                .update({ balance: courier.balance + amount })
+
+            await tx.orm.public.CreditsOnHold
+                .where({ errandId: errandId })
+                .update({ status: "RELEASED" })
+
+            await outbox.createEvent("credits.released", "creditsReleased", {
+                errandId,
+                occurredAt: new Date().toISOString(),
+            });
+        })
+    }
+    catch (error) {
+    // Let the consumer handle failures without acknowledging the event.
+        throw error;
+    }
+}
+
+export async function ensureCreditsRefunded(errandId: number) {
+    try {
+        await db.transaction(async tx => {
+            const outbox = new OutboxRepository(tx);
+
+            const hold = await tx.orm.public.CreditsOnHold
+                .where({ errandId: errandId })
+                .forUpdate()
+                .first()
+            
+            if (!hold) {
+                await outbox.createEvent("credits.refunded.rejected", "creditsRefundedRejected", {
+                    errandId,
+                    reason: "ERRAND_NOT_FOUND",
+                    occurredAt: new Date().toISOString(),
+                });
+                return;
+            }
+            
+            const { requestorId, amount, status } = hold 
+
+            if (status === "REFUNDED") {
+                return;
+            }
+
+            if (status !== "HELD") {
+                await outbox.createEvent("credits.refunded.rejected", "creditsRefundedRejected", {
+                    errandId,
+                    reason: "HOLD_ALREADY_RELEASED",
+                    occurredAt: new Date().toISOString(),
+                });
+                return;
+            }
+
+            const requestor = await tx.orm.public.UserCredits
+                .where({ userId: requestorId })
+                .forUpdate()
+                .first()
+
+            if (!requestor) {
+                await outbox.createEvent("credits.refunded.rejected", "creditsRefundedRejected", {
+                    errandId,
+                    reason: "REQUESTOR_NOT_FOUND",
+                    occurredAt: new Date().toISOString(),
+                })
+                return;
+            }
+            
+            await tx.orm.public.UserCredits
+                .where({ userId: requestorId })
+                .update({ balance: requestor.balance + amount })
+
+            await tx.orm.public.CreditsOnHold
+                .where({ errandId: errandId })
+                .update({ status: "REFUNDED" })
+
+            await outbox.createEvent("credits.refunded", "creditsRefunded", {
+                errandId,
+                occurredAt: new Date().toISOString(),
+            });
+        })
+    }
+    catch (error) {
+    // Let the consumer handle failures without acknowledging the event.
+        throw error;
+    }
+}
