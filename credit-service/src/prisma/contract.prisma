@@ -7,8 +7,8 @@ model UserCredits {
 
 model CreditsOnHold {
   errandId    Int @id
-  requesterId Int
-  supplierId  Int
+  requestorId Int
+  courierId  Int
   amount      Int
   status      CreditHoldStatus
 }

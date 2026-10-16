@@ -18,7 +18,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'1cd00e614578e2148b4ea1a2a4c351e67677896084a17968a92d7fe0201d7588'>;
+  StorageHashBase<'98e818bf8bc59cf457fdeaa8573ed15412b7cf5f60ab47669ba8185ac3ee2497'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -235,10 +235,10 @@ export type FieldOutputTypes = {
   readonly public: {
     readonly CreditsOnHold: {
       readonly amount: CodecTypes['pg/int4@1']['output'];
+      readonly courierId: CodecTypes['pg/int4@1']['output'];
       readonly errandId: CodecTypes['pg/int4@1']['output'];
-      readonly requesterId: CodecTypes['pg/int4@1']['output'];
+      readonly requestorId: CodecTypes['pg/int4@1']['output'];
       readonly status: 'HELD' | 'RELEASED' | 'REFUNDED';
-      readonly supplierId: CodecTypes['pg/int4@1']['output'];
     };
     readonly Outbox: {
       readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['output'];
@@ -261,10 +261,10 @@ export type FieldInputTypes = {
   readonly public: {
     readonly CreditsOnHold: {
       readonly amount: CodecTypes['pg/int4@1']['input'];
+      readonly courierId: CodecTypes['pg/int4@1']['input'];
       readonly errandId: CodecTypes['pg/int4@1']['input'];
-      readonly requesterId: CodecTypes['pg/int4@1']['input'];
+      readonly requestorId: CodecTypes['pg/int4@1']['input'];
       readonly status: 'HELD' | 'RELEASED' | 'REFUNDED';
-      readonly supplierId: CodecTypes['pg/int4@1']['input'];
     };
     readonly Outbox: {
       readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['input'];
@@ -287,10 +287,10 @@ export type StorageColumnTypes = {
   readonly public: {
     readonly CreditsOnHold: {
       readonly amount: CodecTypes['pg/int4@1']['output'];
+      readonly courierId: CodecTypes['pg/int4@1']['output'];
       readonly errandId: CodecTypes['pg/int4@1']['output'];
-      readonly requesterId: CodecTypes['pg/int4@1']['output'];
+      readonly requestorId: CodecTypes['pg/int4@1']['output'];
       readonly status: 'HELD' | 'RELEASED' | 'REFUNDED';
-      readonly supplierId: CodecTypes['pg/int4@1']['output'];
     };
     readonly outbox: {
       readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['output'];
@@ -313,10 +313,10 @@ export type StorageColumnInputTypes = {
   readonly public: {
     readonly CreditsOnHold: {
       readonly amount: CodecTypes['pg/int4@1']['input'];
+      readonly courierId: CodecTypes['pg/int4@1']['input'];
       readonly errandId: CodecTypes['pg/int4@1']['input'];
-      readonly requesterId: CodecTypes['pg/int4@1']['input'];
+      readonly requestorId: CodecTypes['pg/int4@1']['input'];
       readonly status: 'HELD' | 'RELEASED' | 'REFUNDED';
-      readonly supplierId: CodecTypes['pg/int4@1']['input'];
     };
     readonly outbox: {
       readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['input'];
@@ -339,10 +339,10 @@ export type StorageColumnInputTypes = {
 export namespace Models {
   export type public_CreditsOnHold = {
     amount: CodecTypes['pg/int4@1']['output'];
+    courierId: CodecTypes['pg/int4@1']['output'];
     errandId: CodecTypes['pg/int4@1']['output'];
-    requesterId: CodecTypes['pg/int4@1']['output'];
+    requestorId: CodecTypes['pg/int4@1']['output'];
     status: 'HELD' | 'RELEASED' | 'REFUNDED';
-    supplierId: CodecTypes['pg/int4@1']['output'];
     readonly [RelationKeys]?: never;
   };
   export type public_Outbox = {
@@ -398,13 +398,19 @@ type ContractBase = Omit<
                   readonly nullable: false;
                   readonly many: false;
                 };
+                readonly courierId: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
                 readonly errandId: {
                   readonly dataType: 'pg/int4';
                   readonly codecId: 'pg/int4@1';
                   readonly nullable: false;
                   readonly many: false;
                 };
-                readonly requesterId: {
+                readonly requestorId: {
                   readonly dataType: 'pg/int4';
                   readonly codecId: 'pg/int4@1';
                   readonly nullable: false;
@@ -413,12 +419,6 @@ type ContractBase = Omit<
                 readonly status: {
                   readonly dataType: 'pg/text';
                   readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                  readonly many: false;
-                };
-                readonly supplierId: {
-                  readonly dataType: 'pg/int4';
-                  readonly codecId: 'pg/int4@1';
                   readonly nullable: false;
                   readonly many: false;
                 };
@@ -571,21 +571,21 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
+              readonly courierId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
               readonly errandId: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
-              readonly requesterId: {
+              readonly requestorId: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
               readonly status: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly supplierId: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
             };
             readonly relations: Record<string, never>;
@@ -594,10 +594,10 @@ type ContractBase = Omit<
               readonly namespaceId: 'public';
               readonly fields: {
                 readonly amount: { readonly column: 'amount' };
+                readonly courierId: { readonly column: 'courierId' };
                 readonly errandId: { readonly column: 'errandId' };
-                readonly requesterId: { readonly column: 'requesterId' };
+                readonly requestorId: { readonly column: 'requestorId' };
                 readonly status: { readonly column: 'status' };
-                readonly supplierId: { readonly column: 'supplierId' };
               };
             };
           };

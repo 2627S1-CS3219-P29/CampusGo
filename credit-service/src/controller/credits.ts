@@ -41,7 +41,7 @@ export const listTransactions = async (ctx: Context, userId: number) => {
     if (!validateId(ctx, userId)) return;
     try {
         const balance = await db.orm.public.CreditsOnHold
-            .where({ requesterId: userId })
+            .where({ requestorId: userId })
             .all();
             ctx.response.status = 200;
             ctx.response.body = balance;
@@ -93,7 +93,7 @@ export const releaseCredits = async (ctx: Context, errandId: number) => {
             }
 
             const credits = await tx.orm.public.UserCredits
-                .where({ userId: hold.supplierId })
+                .where({ userId: hold.courierId })
                 .forUpdate()
                 .first();
 
@@ -102,7 +102,7 @@ export const releaseCredits = async (ctx: Context, errandId: number) => {
             }
 
             const userCredits = await tx.orm.public.UserCredits
-                .where({ userId: hold.supplierId })
+                .where({ userId: hold.courierId })
                 .update({ balance: credits.balance + hold.amount });
 
             const releasedHold = await tx.orm.public.CreditsOnHold
@@ -144,7 +144,7 @@ export const refundCredits = async (ctx: Context, errandId: number) => {
             }
 
             const credits = await tx.orm.public.UserCredits
-                .where({ userId: hold.requesterId })
+                .where({ userId: hold.requestorId })
                 .forUpdate()
                 .first();
 
@@ -153,7 +153,7 @@ export const refundCredits = async (ctx: Context, errandId: number) => {
             }
 
             const userCredits = await tx.orm.public.UserCredits
-                .where({ userId: hold.requesterId })
+                .where({ userId: hold.requestorId })
                 .update({ balance: credits.balance + hold.amount });
 
             const refundedHold = await tx.orm.public.CreditsOnHold
@@ -226,8 +226,8 @@ export const createTransaction = async (ctx: Context) => {
 
             const hold = await tx.orm.public.CreditsOnHold.create({
                 errandId,
-                requesterId,
-                supplierId,
+                requestorId: requesterId,
+                courierId: supplierId,
                 amount,
                 status: "HELD",
             });

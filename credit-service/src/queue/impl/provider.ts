@@ -1,6 +1,8 @@
 import config from "../../config.ts";
 import amqp from "amqplib";
 import { RabbitMqProvider } from "../provider.ts";
+import { consumeUserRegistered } from "./userRegistered.ts";
+import { consumeOrderCreated } from "./orderCreated.ts";
 
 const defaultChannelSetup = async (ch: amqp.ConfirmChannel) => {
     // main router: publishes to interested services (which are their own queues)
@@ -8,22 +10,32 @@ const defaultChannelSetup = async (ch: amqp.ConfirmChannel) => {
     await ch.assertExchange("app.rpc", "direct", { durable: true });
     await ch.assertExchange("app.dlx", "topic", { durable: true });
 
-    // create a queue
-    await this.ch.assertQueue("credit.user-registered", 
-        {
-            durable: true,
+    await ch.assertQueue("credit.user-registered", 
+        { 
+            durable: true
             // deadLetterExchange: "app.dlx",
             // deadLetterRoutingKey: "credit.user-registered.dlq",
-        }
+        });
+
+    await ch.assertQueue("credit.order-created", {
+        durable: true,
+    });
+
+    await ch.bindQueue(
+        "credit.order-created",
+        "app.events",
+        "order.created"
+    )
+
+    await ch.bindQueue(
+        "credit.user-registered",
+        "app.events",
+        "user.registered",
     );
 
-    // Route messages from app.events with routing key
-    // user.registered into Credit's queue
-    await this.ch.bindQueue(
-        "credit.user-registered", 
-        "app.events", 
-        "user.registered"
-    );
+    await ch.prefetch(10);
+    await consumeUserRegistered(ch);
+    await consumeOrderCreated(ch);
 }
 
 export const buildDefaultProvider = async () => {

@@ -1,9 +1,10 @@
 import { Application, Router } from "@oak/oak";
-import { connectDatabase } from "./prisma/db.ts";
+import { connectDatabase, db } from "./prisma/db.ts";
 import { createPublicCreditRouter } from "./routes/credits.ts";
 import { createPrivateCreditRouter } from "./routes/credits.ts";
 import { buildDefaultProvider } from "./queue/impl/provider.ts";
 import { makeOutboxWorker } from "./queue/impl/outbox.ts";
+
 
 // Ensure the database is ready before accepting requests.
 await connectDatabase();

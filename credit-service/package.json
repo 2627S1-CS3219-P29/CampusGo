@@ -6,6 +6,7 @@
   "scripts": {
     "contract:emit": "prisma contract emit",
     "db:init": "prisma db init",
+    "db:update_dev": "prisma contract emit && prisma db update --no-interactive",
     "db:verify": "prisma db verify"
   },
   "dependencies": {
