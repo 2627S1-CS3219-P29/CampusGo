@@ -41,6 +41,19 @@
                 "value": "EXPIRED"
               }
             ]
+          },
+          "PickupType": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "SUPPLIER",
+                "value": "SUPPLIER"
+              },
+              {
+                "name": "BUILDING",
+                "value": "BUILDING"
+              }
+            ]
           }
         },
         "models": {
@@ -74,8 +87,29 @@
                   "kind": "scalar"
                 }
               },
+              "dropoffFloor": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
               "dropoffLocation": {
                 "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "dropoffLocationId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "dropoffRoom": {
+                "nullable": true,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
@@ -109,11 +143,45 @@
                   "kind": "scalar"
                 }
               },
+              "pickupFloor": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
               "pickupLocation": {
                 "nullable": false,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
+                }
+              },
+              "pickupLocationId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "pickupRoom": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "pickupType": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "PickupType",
+                  "namespaceId": "public",
+                  "plane": "domain"
                 }
               },
               "requesterId": {
@@ -137,7 +205,7 @@
                 }
               },
               "supplierId": {
-                "nullable": false,
+                "nullable": true,
                 "type": {
                   "codecId": "pg/int4@1",
                   "kind": "scalar"
@@ -166,8 +234,17 @@
                 "creditBounty": {
                   "column": "creditBounty"
                 },
+                "dropoffFloor": {
+                  "column": "dropoffFloor"
+                },
                 "dropoffLocation": {
                   "column": "dropoffLocation"
+                },
+                "dropoffLocationId": {
+                  "column": "dropoffLocationId"
+                },
+                "dropoffRoom": {
+                  "column": "dropoffRoom"
                 },
                 "expiresAt": {
                   "column": "expiresAt"
@@ -181,8 +258,20 @@
                 "itemDescription": {
                   "column": "itemDescription"
                 },
+                "pickupFloor": {
+                  "column": "pickupFloor"
+                },
                 "pickupLocation": {
                   "column": "pickupLocation"
+                },
+                "pickupLocationId": {
+                  "column": "pickupLocationId"
+                },
+                "pickupRoom": {
+                  "column": "pickupRoom"
+                },
+                "pickupType": {
+                  "column": "pickupType"
                 },
                 "requesterId": {
                   "column": "requesterId"
@@ -212,6 +301,11 @@
           "table": {
             "orders": {
               "checks": [
+                {
+                  "expression": "\"pickupType\" IN ('SUPPLIER', 'BUILDING')",
+                  "name": "orders_pickupType_check_e9b7f876",
+                  "prefix": "orders_pickupType_check"
+                },
                 {
                   "expression": "\"status\" IN ('CREATED', 'ACCEPTED', 'PICKED_UP', 'COMPLETED', 'CANCELLED', 'EXPIRED')",
                   "name": "orders_status_check_7f46fc03",
@@ -243,10 +337,25 @@
                   "nativeType": "int4",
                   "nullable": false
                 },
+                "dropoffFloor": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": true
+                },
                 "dropoffLocation": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
                   "nullable": false
+                },
+                "dropoffLocationId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": true
+                },
+                "dropoffRoom": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
                 },
                 "expiresAt": {
                   "codecId": "pg/timestamptz-string@1",
@@ -268,10 +377,40 @@
                   "nativeType": "text",
                   "nullable": false
                 },
+                "pickupFloor": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": true
+                },
                 "pickupLocation": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
                   "nullable": false
+                },
+                "pickupLocationId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": true
+                },
+                "pickupRoom": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "pickupType": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "SUPPLIER"
+                  },
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "PickupType",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
                 },
                 "requesterId": {
                   "codecId": "pg/int4@1",
@@ -296,7 +435,7 @@
                 "supplierId": {
                   "codecId": "pg/int4@1",
                   "nativeType": "int4",
-                  "nullable": false
+                  "nullable": true
                 },
                 "updatedAt": {
                   "codecId": "pg/timestamptz-string@1",
@@ -360,6 +499,13 @@
                 "CANCELLED",
                 "EXPIRED"
               ]
+            },
+            "PickupType": {
+              "kind": "valueSet",
+              "values": [
+                "SUPPLIER",
+                "BUILDING"
+              ]
             }
           }
         },
@@ -367,7 +513,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "fc1a6fbc01ea7bd8f55a3fd332ff380d8c4a8d2abd8d8981ffcd970b84138690"
+    "storageHash": "e1938e23f34ed0d51493817c8fb327b15cb21e15d0d14fe24ce99b27e435b4f3"
   },
   "capabilities": {
     "postgres": {

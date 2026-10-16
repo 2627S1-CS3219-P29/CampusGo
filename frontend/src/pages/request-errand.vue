@@ -4,7 +4,7 @@
     <h1 class="text-h5 font-weight-bold mb-1">Request an Errand</h1>
 
     <p class="text-body-2 text-medium-emphasis mb-4">
-      Pick where the item is collected from and where it should be delivered. A courier will accept it and earn the credits you offer.
+      Pick where the item is collected from (a supplier, or anywhere in a building) and which building it should be delivered to. A courier will accept it and earn the credits you offer.
     </p>
 
     <v-skeleton-loader v-if="isPrefilling" type="article, actions" />
@@ -12,21 +12,36 @@
     <v-card v-else rounded="lg">
       <v-card-text class="pa-6">
         <v-form ref="formRef" :disabled="isSubmitting" @submit.prevent="submit">
-          <!-- Pickup: always a registered supplier, searched as you type -->
+          <!-- Pickup: a registered supplier, or a spot in a building -->
+          <div class="text-subtitle-2 mb-2">Pick up from</div>
+
+          <v-btn-toggle
+            v-model="form.pickupType"
+            class="mb-4"
+            color="primary"
+            density="comfortable"
+            divided
+            mandatory
+            variant="outlined"
+          >
+            <v-btn prepend-icon="mdi-store-marker-outline" value="SUPPLIER">Supplier</v-btn>
+            <v-btn prepend-icon="mdi-office-building-marker-outline" value="BUILDING">Building</v-btn>
+          </v-btn-toggle>
+
+          <!-- registered supplier, searched as you type -->
           <v-autocomplete
+            v-if="form.pickupType === 'SUPPLIER'"
             v-model="form.supplierId"
             v-model:search="supplierSearch"
             class="mb-2"
             density="comfortable"
             :error-messages="serverErrors.supplierId"
-            hint="Pickup is always a registered supplier. Add specifics (e.g. a room number) in Additional details."
             item-title="name"
             item-value="id"
             :items="supplierOptions"
-            label="Pickup from (supplier) *"
+            label="Supplier *"
             :loading="isSearchingSuppliers"
             no-filter
-            persistent-hint
             prepend-inner-icon="mdi-store-marker-outline"
             :rules="[(v: number | null) => v !== null || 'Choose a supplier to pick up from']"
             variant="outlined"
@@ -40,18 +55,26 @@
             </template>
           </v-autocomplete>
 
-          <!-- Dropoff: any place the requester types -->
-          <v-text-field
-            v-model="form.dropoffLocation"
+          <!-- any spot in a building, e.g. a friend's room -->
+          <building-spot-fields
+            v-else
+            v-model="form.pickup"
+            :errors="spotErrors('pickup')"
+            icon="mdi-office-building-marker-outline"
+            label="Building"
+            :locations="locations"
+          />
+
+          <!-- Dropoff: always a spot in a building -->
+          <div class="text-subtitle-2 mt-2 mb-2">Deliver to</div>
+
+          <building-spot-fields
+            v-model="form.dropoff"
             class="mb-2"
-            counter="200"
-            density="comfortable"
-            :error-messages="serverErrors.dropoffLocation"
-            label="Deliver to *"
-            placeholder="e.g. PGP House 7, level 3 lounge"
-            prepend-inner-icon="mdi-map-marker-outline"
-            :rules="[required('Dropoff location'), maxLength(200)]"
-            variant="outlined"
+            :errors="spotErrors('dropoff')"
+            icon="mdi-map-marker-outline"
+            label="Building"
+            :locations="locations"
           />
 
           <!-- Item -->
@@ -137,7 +160,7 @@
             density="comfortable"
             :error-messages="serverErrors.additionalDetails"
             label="Additional details"
-            placeholder="e.g. Collect from COM3 Room 01-23; call me when you arrive"
+            placeholder="e.g. Ask for the order under my name; call me when you arrive"
             prepend-inner-icon="mdi-text-box-outline"
             rows="2"
             :rules="[maxLength(500)]"
@@ -169,11 +192,12 @@
   import axios from 'axios'
   import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { createOrder, getOrder } from '@/api/order'
+  import { createOrder, getOrder, type PickupType } from '@/api/order'
   import { getSupplier, listLocations, listSuppliers, type Location, type Supplier } from '@/api/supplier'
+  import BuildingSpotFields, { type BuildingSpotInput } from '@/components/BuildingSpotFields.vue'
   import { useAlertStore } from '@/stores/alerts'
   import { apiErrorMessage, DEFAULT_EXPIRY_MINUTES, EXPIRY_OPTIONS, formatDateTime } from '@/util/order'
-  import { formatLocation } from '@/util/supplier'
+  import { floorInput, formatLocation, parseFloor } from '@/util/supplier'
 
   const SEARCH_DEBOUNCE_MS = 300
 
@@ -182,8 +206,12 @@
   const alertStore = useAlertStore()
 
   interface FormState {
+    pickupType: PickupType
+    // SUPPLIER pickup
     supplierId: number | null
-    dropoffLocation: string
+    // BUILDING pickup
+    pickup: BuildingSpotInput
+    dropoff: BuildingSpotInput
     itemDescription: string
     // text input, converted when submitting
     creditBounty: string
@@ -195,10 +223,23 @@
     customMinutes: string
   }
 
+  function emptySpot (): BuildingSpotInput {
+    return { locationId: null, floor: '', room: '' }
+  }
+
+  // a past errand's building spot, or empty for errands made before buildings were stored
+  function spotFrom (locationId: number | null, floor: number | null, room: string | null): BuildingSpotInput {
+    return locationId === null
+      ? emptySpot()
+      : { locationId, floor: floor === null ? '' : floorInput(floor), room: room ?? '' }
+  }
+
   function emptyForm (): FormState {
     return {
+      pickupType: 'SUPPLIER',
       supplierId: null,
-      dropoffLocation: '',
+      pickup: emptySpot(),
+      dropoff: emptySpot(),
       itemDescription: '',
       creditBounty: '',
       additionalDetails: '',
@@ -211,6 +252,16 @@
   const formRef = ref<VForm | null>(null)
   const form = ref<FormState>(emptyForm())
   const serverErrors = ref<Record<string, string[]>>({})
+
+  // the order service names building fields e.g. dropoffFloor; pass each spot its own errors
+  function spotErrors (prefix: 'pickup' | 'dropoff') {
+    const errors = serverErrors.value
+    return {
+      locationId: errors[`${prefix}LocationId`],
+      floor: errors[`${prefix}Floor`],
+      room: errors[`${prefix}Room`],
+    }
+  }
   const isSubmitting = ref(false)
   const isPrefilling = ref(false)
 
@@ -330,8 +381,10 @@
                                                                   Math.round((Date.parse(order.expiresAt) - Date.parse(order.createdAt)) / 60_000)))
         const isPreset = EXPIRY_OPTIONS.some(o => o.value === pastMinutes)
         form.value = {
+          pickupType: order.pickupType,
           supplierId: null,
-          dropoffLocation: order.dropoffLocation,
+          pickup: spotFrom(order.pickupLocationId, order.pickupFloor, order.pickupRoom),
+          dropoff: spotFrom(order.dropoffLocationId, order.dropoffFloor, order.dropoffRoom),
           itemDescription: order.itemDescription,
           creditBounty: String(order.creditBounty),
           additionalDetails: order.additionalDetails ?? '',
@@ -339,7 +392,9 @@
           customHours: isPreset ? '' : String(Math.floor(pastMinutes / 60)),
           customMinutes: isPreset ? '' : String(pastMinutes % 60),
         }
-        await selectSupplier(order.supplierId)
+        if (order.supplierId !== null) {
+          await selectSupplier(order.supplierId)
+        }
       } catch (error) {
         console.error('Error loading order to reorder', error)
         alertStore.error('Could not load that errand to reorder')
@@ -370,9 +425,20 @@
 
     isSubmitting.value = true
     try {
+      const { pickup, dropoff } = form.value
+      const pickupFields = form.value.pickupType === 'SUPPLIER'
+        ? { supplierId: form.value.supplierId! }
+        : {
+          pickupLocationId: pickup.locationId!,
+          pickupFloor: parseFloor(pickup.floor)!,
+          pickupRoom: pickup.room.trim() || null,
+        }
       const order = await createOrder({
-        supplierId: form.value.supplierId!,
-        dropoffLocation: form.value.dropoffLocation.trim(),
+        pickupType: form.value.pickupType,
+        ...pickupFields,
+        dropoffLocationId: dropoff.locationId!,
+        dropoffFloor: parseFloor(dropoff.floor)!,
+        dropoffRoom: dropoff.room.trim() || null,
         itemDescription: form.value.itemDescription.trim(),
         creditBounty: Number(form.value.creditBounty),
         additionalDetails: form.value.additionalDetails.trim() || null,

@@ -5,7 +5,7 @@
     <supplier-image v-if="supplier" :height="160" :supplier="supplier" />
 
     <div v-else class="d-flex align-center justify-center bg-grey-lighten-3" style="height: 160px">
-      <v-icon color="grey" size="48">mdi-store-outline</v-icon>
+      <v-icon color="grey" size="48">{{ errand.pickupType === 'BUILDING' ? 'mdi-office-building-outline' : 'mdi-store-outline' }}</v-icon>
     </div>
 
     <v-card-item>
@@ -15,7 +15,7 @@
     <!-- Pickup and dropoff -->
     <v-card-text class="flex-grow-1 pb-2">
       <div class="d-flex align-start ga-2 mb-2">
-        <v-icon color="primary" size="small">mdi-store-marker-outline</v-icon>
+        <v-icon color="primary" size="small">{{ errand.pickupType === 'BUILDING' ? 'mdi-office-building-marker-outline' : 'mdi-store-marker-outline' }}</v-icon>
         <span>{{ errand.pickupLocation }}</span>
       </div>
 
@@ -71,6 +71,7 @@
   // looked up through a shared cache, so each supplier is fetched once per page load
   const supplier = ref<Supplier | null>(null)
   watch(() => props.errand.supplierId, async id => {
-    supplier.value = await getSupplierCached(id)
+    // building pickups have no supplier, so no photo
+    supplier.value = id === null ? null : await getSupplierCached(id)
   }, { immediate: true })
 </script>

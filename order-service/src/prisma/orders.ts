@@ -2,13 +2,34 @@ import { param } from "@prisma/orm-postgres/relational-core/expression";
 import { db } from "./db.ts";
 
 export type OrderStatus = "CREATED" | "ACCEPTED" | "PICKED_UP" | "COMPLETED" | "CANCELLED" | "EXPIRED";
+export type PickupType = "SUPPLIER" | "BUILDING";
+
+// a building pickup or dropoff: the building, then where in it
+export interface BuildingSpot {
+    locationId: number;
+    floor: number;
+    room: string | null;
+}
 
 export interface Order {
     id: string;
     idempotencyKey: string | null;
     requesterId: number;
     courierId: number | null;
-    supplierId: number;
+    pickupType: PickupType;
+    // null for a BUILDING pickup
+    supplierId: number | null;
+    // the building and floor; for a SUPPLIER pickup, the supplier's (floor null if it has none).
+    // null only on supplier pickups made before buildings were stored
+    pickupLocationId: number | null;
+    pickupFloor: number | null;
+    // only given for a BUILDING pickup
+    pickupRoom: string | null;
+    // null only on orders made before buildings were required for dropoff
+    dropoffLocationId: number | null;
+    dropoffFloor: number | null;
+    dropoffRoom: string | null;
+    // readable snapshots, e.g. "Com 2, Level 3, #01-23, outside the lift"
     pickupLocation: string;
     dropoffLocation: string;
     itemDescription: string;
@@ -24,7 +45,11 @@ export interface Order {
 export interface NewOrder {
     idempotencyKey: string | null;
     requesterId: number;
-    supplierId: number;
+    // a spot in a building; for a SUPPLIER pickup, the supplier's building and floor, with no room
+    pickup:
+        | { type: "SUPPLIER"; supplierId: number; locationId: number; floor: number | null }
+        | ({ type: "BUILDING" } & BuildingSpot);
+    dropoff: BuildingSpot;
     pickupLocation: string;
     dropoffLocation: string;
     itemDescription: string;
@@ -33,7 +58,7 @@ export interface NewOrder {
     expiresAt: Date;
 }
 
-type OrderRow = Omit<Order, "status"> & { status: string };
+type OrderRow = Omit<Order, "status" | "pickupType"> & { status: string; pickupType: string };
 
 // postgres text "2026-10-11 17:24:26.326292+00" -> ISO 8601
 const toIso = (ts: string) => new Date(ts.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00")).toISOString();
@@ -41,6 +66,7 @@ const toIso = (ts: string) => new Date(ts.replace(" ", "T").replace(/([+-]\d{2})
 const toOrder = (row: OrderRow): Order => ({
     ...row,
     status: <OrderStatus>row.status,
+    pickupType: <PickupType>row.pickupType,
     expiresAt: toIso(row.expiresAt),
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
@@ -74,11 +100,21 @@ export const findOrderByIdempotencyKey = async (idempotencyKey: string): Promise
 };
 
 export const createOrder = async (order: NewOrder): Promise<Order> => {
+    const { pickup, dropoff, ...rest } = order;
+    const building = pickup.type === "BUILDING" ? pickup : null;
     const row = await db.orm.public.Order.create({
-        ...order,
+        ...rest,
         id: crypto.randomUUID(),
         status: "CREATED",
         expiresAt: order.expiresAt.toISOString(),
+        pickupType: pickup.type,
+        supplierId: pickup.type === "SUPPLIER" ? pickup.supplierId : null,
+        pickupLocationId: pickup.locationId,
+        pickupFloor: pickup.floor,
+        pickupRoom: building?.room ?? null,
+        dropoffLocationId: dropoff.locationId,
+        dropoffFloor: dropoff.floor,
+        dropoffRoom: dropoff.room,
     });
     return toOrder(row);
 };
@@ -93,7 +129,14 @@ const rowSpec = {
     idempotencyKey: { codecId: "pg/text@1", nullable: true },
     requesterId: "pg/int4@1",
     courierId: { codecId: "pg/int4@1", nullable: true },
-    supplierId: "pg/int4@1",
+    pickupType: "pg/text@1",
+    supplierId: { codecId: "pg/int4@1", nullable: true },
+    pickupLocationId: { codecId: "pg/int4@1", nullable: true },
+    pickupFloor: { codecId: "pg/int4@1", nullable: true },
+    pickupRoom: { codecId: "pg/text@1", nullable: true },
+    dropoffLocationId: { codecId: "pg/int4@1", nullable: true },
+    dropoffFloor: { codecId: "pg/int4@1", nullable: true },
+    dropoffRoom: { codecId: "pg/text@1", nullable: true },
     pickupLocation: "pg/text@1",
     dropoffLocation: "pg/text@1",
     itemDescription: "pg/text@1",
@@ -104,6 +147,14 @@ const rowSpec = {
     createdAt: "pg/timestamptz-string@1",
     updatedAt: "pg/timestamptz-string@1",
 } as const;
+
+// every column in rowSpec, for raw SELECT and RETURNING
+const orderColumns = () => db.raw.sql`
+    id, "idempotencyKey", "requesterId", "courierId", "pickupType", "supplierId",
+    "pickupLocationId", "pickupFloor", "pickupRoom",
+    "dropoffLocationId", "dropoffFloor", "dropoffRoom",
+    "pickupLocation", "dropoffLocation", "itemDescription", "creditBounty",
+    "additionalDetails", status, "expiresAt", "createdAt", "updatedAt"`.returns("pg/text@1");
 
 export interface Transition {
     // the status the order must still be in for the change to happen
@@ -133,19 +184,12 @@ export const transitionOrder = async (id: string, t: Transition): Promise<Order 
         WHERE id = ${text(id)}
             AND status = ${text(t.from)}
             AND (NOT ${bool(t.requireUnexpired ?? false)} OR "expiresAt" > now())
-        RETURNING id, "idempotencyKey", "requesterId", "courierId", "supplierId",
-            "pickupLocation", "dropoffLocation", "itemDescription", "creditBounty",
-            "additionalDetails", status, "expiresAt", "createdAt", "updatedAt"
+        RETURNING ${orderColumns()}
     `.returnsRow(rowSpec).build();
 
     const [row] = await db.runtime().query(plan);
     return row ? toOrder(<OrderRow>row) : null;
 };
-
-const orderColumns = () => db.raw.sql`
-    id, "idempotencyKey", "requesterId", "courierId", "supplierId",
-    "pickupLocation", "dropoffLocation", "itemDescription", "creditBounty",
-    "additionalDetails", status, "expiresAt", "createdAt", "updatedAt"`.returns("pg/text@1");
 
 /**
  * Marks every open order past its expiry time as EXPIRED in one statement, so

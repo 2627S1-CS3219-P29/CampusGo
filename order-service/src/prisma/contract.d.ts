@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'fc1a6fbc01ea7bd8f55a3fd332ff380d8c4a8d2abd8d8981ffcd970b84138690'>;
+  StorageHashBase<'e1938e23f34ed0d51493817c8fb327b15cb21e15d0d14fe24ce99b27e435b4f3'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -246,7 +246,14 @@ export type FieldOutputTypes = {
       readonly idempotencyKey: CodecTypes['pg/text@1']['output'] | null;
       readonly requesterId: CodecTypes['pg/int4@1']['output'];
       readonly courierId: CodecTypes['pg/int4@1']['output'] | null;
-      readonly supplierId: CodecTypes['pg/int4@1']['output'];
+      readonly pickupType: 'SUPPLIER' | 'BUILDING';
+      readonly supplierId: CodecTypes['pg/int4@1']['output'] | null;
+      readonly pickupLocationId: CodecTypes['pg/int4@1']['output'] | null;
+      readonly pickupFloor: CodecTypes['pg/int4@1']['output'] | null;
+      readonly pickupRoom: CodecTypes['pg/text@1']['output'] | null;
+      readonly dropoffLocationId: CodecTypes['pg/int4@1']['output'] | null;
+      readonly dropoffFloor: CodecTypes['pg/int4@1']['output'] | null;
+      readonly dropoffRoom: CodecTypes['pg/text@1']['output'] | null;
       readonly pickupLocation: CodecTypes['pg/text@1']['output'];
       readonly dropoffLocation: CodecTypes['pg/text@1']['output'];
       readonly itemDescription: CodecTypes['pg/text@1']['output'];
@@ -266,7 +273,14 @@ export type FieldInputTypes = {
       readonly idempotencyKey: CodecTypes['pg/text@1']['input'] | null;
       readonly requesterId: CodecTypes['pg/int4@1']['input'];
       readonly courierId: CodecTypes['pg/int4@1']['input'] | null;
-      readonly supplierId: CodecTypes['pg/int4@1']['input'];
+      readonly pickupType: 'SUPPLIER' | 'BUILDING';
+      readonly supplierId: CodecTypes['pg/int4@1']['input'] | null;
+      readonly pickupLocationId: CodecTypes['pg/int4@1']['input'] | null;
+      readonly pickupFloor: CodecTypes['pg/int4@1']['input'] | null;
+      readonly pickupRoom: CodecTypes['pg/text@1']['input'] | null;
+      readonly dropoffLocationId: CodecTypes['pg/int4@1']['input'] | null;
+      readonly dropoffFloor: CodecTypes['pg/int4@1']['input'] | null;
+      readonly dropoffRoom: CodecTypes['pg/text@1']['input'] | null;
       readonly pickupLocation: CodecTypes['pg/text@1']['input'];
       readonly dropoffLocation: CodecTypes['pg/text@1']['input'];
       readonly itemDescription: CodecTypes['pg/text@1']['input'];
@@ -286,15 +300,22 @@ export type StorageColumnTypes = {
       readonly courierId: CodecTypes['pg/int4@1']['output'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly creditBounty: CodecTypes['pg/int4@1']['output'];
+      readonly dropoffFloor: CodecTypes['pg/int4@1']['output'] | null;
       readonly dropoffLocation: CodecTypes['pg/text@1']['output'];
+      readonly dropoffLocationId: CodecTypes['pg/int4@1']['output'] | null;
+      readonly dropoffRoom: CodecTypes['pg/text@1']['output'] | null;
       readonly expiresAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly id: CodecTypes['pg/text@1']['output'];
       readonly idempotencyKey: CodecTypes['pg/text@1']['output'] | null;
       readonly itemDescription: CodecTypes['pg/text@1']['output'];
+      readonly pickupFloor: CodecTypes['pg/int4@1']['output'] | null;
       readonly pickupLocation: CodecTypes['pg/text@1']['output'];
+      readonly pickupLocationId: CodecTypes['pg/int4@1']['output'] | null;
+      readonly pickupRoom: CodecTypes['pg/text@1']['output'] | null;
+      readonly pickupType: 'SUPPLIER' | 'BUILDING';
       readonly requesterId: CodecTypes['pg/int4@1']['output'];
       readonly status: 'CREATED' | 'ACCEPTED' | 'PICKED_UP' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
-      readonly supplierId: CodecTypes['pg/int4@1']['output'];
+      readonly supplierId: CodecTypes['pg/int4@1']['output'] | null;
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
     };
   };
@@ -306,15 +327,22 @@ export type StorageColumnInputTypes = {
       readonly courierId: CodecTypes['pg/int4@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly creditBounty: CodecTypes['pg/int4@1']['input'];
+      readonly dropoffFloor: CodecTypes['pg/int4@1']['input'] | null;
       readonly dropoffLocation: CodecTypes['pg/text@1']['input'];
+      readonly dropoffLocationId: CodecTypes['pg/int4@1']['input'] | null;
+      readonly dropoffRoom: CodecTypes['pg/text@1']['input'] | null;
       readonly expiresAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly id: CodecTypes['pg/text@1']['input'];
       readonly idempotencyKey: CodecTypes['pg/text@1']['input'] | null;
       readonly itemDescription: CodecTypes['pg/text@1']['input'];
+      readonly pickupFloor: CodecTypes['pg/int4@1']['input'] | null;
       readonly pickupLocation: CodecTypes['pg/text@1']['input'];
+      readonly pickupLocationId: CodecTypes['pg/int4@1']['input'] | null;
+      readonly pickupRoom: CodecTypes['pg/text@1']['input'] | null;
+      readonly pickupType: 'SUPPLIER' | 'BUILDING';
       readonly requesterId: CodecTypes['pg/int4@1']['input'];
       readonly status: 'CREATED' | 'ACCEPTED' | 'PICKED_UP' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
-      readonly supplierId: CodecTypes['pg/int4@1']['input'];
+      readonly supplierId: CodecTypes['pg/int4@1']['input'] | null;
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
     };
   };
@@ -326,7 +354,14 @@ export namespace Models {
     idempotencyKey: CodecTypes['pg/text@1']['output'] | null;
     requesterId: CodecTypes['pg/int4@1']['output'];
     courierId: CodecTypes['pg/int4@1']['output'] | null;
-    supplierId: CodecTypes['pg/int4@1']['output'];
+    pickupType: 'SUPPLIER' | 'BUILDING';
+    supplierId: CodecTypes['pg/int4@1']['output'] | null;
+    pickupLocationId: CodecTypes['pg/int4@1']['output'] | null;
+    pickupFloor: CodecTypes['pg/int4@1']['output'] | null;
+    pickupRoom: CodecTypes['pg/text@1']['output'] | null;
+    dropoffLocationId: CodecTypes['pg/int4@1']['output'] | null;
+    dropoffFloor: CodecTypes['pg/int4@1']['output'] | null;
+    dropoffRoom: CodecTypes['pg/text@1']['output'] | null;
     pickupLocation: CodecTypes['pg/text@1']['output'];
     dropoffLocation: CodecTypes['pg/text@1']['output'];
     itemDescription: CodecTypes['pg/text@1']['output'];
@@ -386,10 +421,49 @@ type ContractBase = Omit<
                   readonly codecId: 'pg/int4@1';
                   readonly nullable: true;
                 };
+                readonly pickupType: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'SUPPLIER'>;
+                  };
+                };
                 readonly supplierId: {
                   readonly nativeType: 'int4';
                   readonly codecId: 'pg/int4@1';
-                  readonly nullable: false;
+                  readonly nullable: true;
+                };
+                readonly pickupLocationId: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: true;
+                };
+                readonly pickupFloor: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: true;
+                };
+                readonly pickupRoom: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                };
+                readonly dropoffLocationId: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: true;
+                };
+                readonly dropoffFloor: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: true;
+                };
+                readonly dropoffRoom: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
                 };
                 readonly pickupLocation: {
                   readonly nativeType: 'text';
@@ -480,6 +554,10 @@ type ContractBase = Omit<
                 'EXPIRED',
               ];
             };
+            readonly PickupType: {
+              readonly kind: 'valueSet';
+              readonly values: readonly ['SUPPLIER', 'BUILDING'];
+            };
           };
         };
       };
@@ -515,9 +593,37 @@ type ContractBase = Omit<
                 readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
-              readonly supplierId: {
+              readonly pickupType: {
                 readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly supplierId: {
+                readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly pickupLocationId: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly pickupFloor: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly pickupRoom: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly dropoffLocationId: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly dropoffFloor: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly dropoffRoom: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
               readonly pickupLocation: {
                 readonly nullable: false;
@@ -574,7 +680,14 @@ type ContractBase = Omit<
                 readonly idempotencyKey: { readonly column: 'idempotencyKey' };
                 readonly requesterId: { readonly column: 'requesterId' };
                 readonly courierId: { readonly column: 'courierId' };
+                readonly pickupType: { readonly column: 'pickupType' };
                 readonly supplierId: { readonly column: 'supplierId' };
+                readonly pickupLocationId: { readonly column: 'pickupLocationId' };
+                readonly pickupFloor: { readonly column: 'pickupFloor' };
+                readonly pickupRoom: { readonly column: 'pickupRoom' };
+                readonly dropoffLocationId: { readonly column: 'dropoffLocationId' };
+                readonly dropoffFloor: { readonly column: 'dropoffFloor' };
+                readonly dropoffRoom: { readonly column: 'dropoffRoom' };
                 readonly pickupLocation: { readonly column: 'pickupLocation' };
                 readonly dropoffLocation: { readonly column: 'dropoffLocation' };
                 readonly itemDescription: { readonly column: 'itemDescription' };
@@ -598,6 +711,13 @@ type ContractBase = Omit<
               { readonly name: 'COMPLETED'; readonly value: 'COMPLETED' },
               { readonly name: 'CANCELLED'; readonly value: 'CANCELLED' },
               { readonly name: 'EXPIRED'; readonly value: 'EXPIRED' },
+            ];
+          };
+          readonly PickupType: {
+            readonly codecId: 'pg/text@1';
+            readonly members: readonly [
+              { readonly name: 'SUPPLIER'; readonly value: 'SUPPLIER' },
+              { readonly name: 'BUILDING'; readonly value: 'BUILDING' },
             ];
           };
         };

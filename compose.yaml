@@ -161,6 +161,7 @@ services:
     volumes:
       - ./supplier-service:/app
       - /app/node_modules
+      - ./data/csv:/seed:ro
     networks:
       private_net:
         aliases:
@@ -172,8 +173,13 @@ services:
       NODE_ENV: development
       DATABASE_URL: ${SUPPLIER_DB_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-    # workaround for docker in wsl
-    command: deno run -A https://deno.land/x/denon/denon.ts dev
+    # sync the schema, import the seed csv (skips suppliers that already exist, so
+    # reruns are safe), then start with denon (workaround for docker in wsl).
+    # seeded rows are credited to user 1; a failed seed does not block startup
+    command: >
+      sh -c "deno run -A npm:prisma@8.0.0-rc.15 db update --no-interactive --confirm suppliers &&
+             (deno run -A src/tasks/seedSuppliers.ts /seed/supplier-seed-data.csv --actor-id=1 || echo 'supplier seed failed, continuing') &&
+             deno run -A https://deno.land/x/denon/denon.ts dev"
   supplier_prod:
     build:
       context: ./supplier-service

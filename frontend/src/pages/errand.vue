@@ -24,7 +24,7 @@
         <supplier-image v-if="supplier" :height="260" :supplier="supplier" />
 
         <div v-else class="d-flex align-center justify-center bg-grey-lighten-3" style="height: 260px">
-          <v-icon color="grey" size="48">mdi-store-outline</v-icon>
+          <v-icon color="grey" size="48">{{ order.pickupType === 'BUILDING' ? 'mdi-office-building-outline' : 'mdi-store-outline' }}</v-icon>
         </div>
 
         <v-card-item>
@@ -99,8 +99,12 @@
       <!-- Details -->
       <v-card rounded="lg">
         <v-list class="py-2" lines="two">
-          <v-list-item prepend-icon="mdi-store-marker-outline" :subtitle="order.pickupLocation" title="Pickup from">
-            <template #append>
+          <v-list-item
+            :prepend-icon="order.pickupType === 'BUILDING' ? 'mdi-office-building-marker-outline' : 'mdi-store-marker-outline'"
+            :subtitle="order.pickupLocation"
+            title="Pickup from"
+          >
+            <template v-if="order.supplierId !== null" #append>
               <v-btn
                 size="small"
                 :to="{ name: 'supplier', params: { id: order.supplierId } }"
@@ -290,7 +294,8 @@
 
   // shared cache, so the photo is not fetched again on every refresh
   watch(() => order.value?.supplierId, async id => {
-    supplier.value = id === undefined ? null : await getSupplierCached(id)
+    // building pickups have no supplier, so no photo
+    supplier.value = id === undefined || id === null ? null : await getSupplierCached(id)
   })
 </script>
 

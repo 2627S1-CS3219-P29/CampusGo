@@ -11,6 +11,9 @@ export type TargetStatus = 'ACCEPTED' | 'PICKED_UP' | 'COMPLETED' | 'CANCELLED'
 // open: errands a courier can accept; requested: mine; delivering: I am the courier; all: admins only
 export type OrderScope = 'open' | 'requested' | 'delivering' | 'all'
 
+// SUPPLIER: a registered supplier; BUILDING: any spot in a building, e.g. a friend's room
+export type PickupType = 'SUPPLIER' | 'BUILDING'
+
 export interface Order {
   // UUID
   id: string
@@ -18,9 +21,21 @@ export interface Order {
   // user ids from the user service
   requesterId: number
   courierId: number | null
-  // every pickup is a registered supplier
-  supplierId: number
-  // snapshot of the supplier when the order was made, e.g. "Printer @ Com 2, Com 2, Level 1"
+  pickupType: PickupType
+  // null for a BUILDING pickup
+  supplierId: number | null
+  // location (building) ids from the supplier service. A SUPPLIER pickup is a preset spot:
+  // the supplier's building and floor (floor null if it has none), no room.
+  // Floors: ground is 1, basements negative (-1 = B1)
+  pickupLocationId: number | null
+  pickupFloor: number | null
+  pickupRoom: string | null
+  // null only on errands made before dropoff had to be a building
+  dropoffLocationId: number | null
+  dropoffFloor: number | null
+  dropoffRoom: string | null
+  // readable snapshots made when the order was created,
+  // e.g. "Printer @ Com 2, Com 2, Level 1" or "Com 2, Level 3, #01-23, outside the lift"
   pickupLocation: string
   dropoffLocation: string
   itemDescription: string
@@ -52,10 +67,17 @@ export interface OrderPage {
   }
 }
 
-// body of POST /orders; the requester and pickup text are set by the order service
+// body of POST /orders; the requester and the readable location text are set by the order service.
+// A SUPPLIER pickup sends supplierId only; a BUILDING pickup sends the pickupLocationId/Floor/Room fields
 export interface OrderInput {
-  supplierId: number
-  dropoffLocation: string
+  pickupType: PickupType
+  supplierId?: number
+  pickupLocationId?: number
+  pickupFloor?: number
+  pickupRoom?: string | null
+  dropoffLocationId: number
+  dropoffFloor: number
+  dropoffRoom: string | null
   itemDescription: string
   creditBounty: number
   additionalDetails: string | null

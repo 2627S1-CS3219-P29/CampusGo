@@ -4,7 +4,7 @@ import log from "../log.ts";
 import { Role } from "../common.ts";
 import type { AuthenticatedUser } from "../middleware/auth.ts";
 import type { CreateOrderBody, ListOrdersQuery, UpdateOrderStatusBody } from "../schema/order.ts";
-import { lookupPickup } from "../util/supplierService.ts";
+import { describeBuildingSpot, fetchBuildingNames, lookupPickup } from "../util/supplierService.ts";
 import {
     createOrder as insertOrder,
     expireDueOrders,
@@ -12,6 +12,7 @@ import {
     findOrderByIdempotencyKey,
     listOrders,
     transitionOrder,
+    type NewOrder,
     type Order,
 } from "../prisma/orders.ts";
 
@@ -148,15 +149,59 @@ export const createOrder = async (ctx: Context) => {
             }
         }
 
-        // 2. the pickup must be a live supplier; its name and building become the pickup location
-        const pickup = await lookupPickup(body.supplierId, ctx.request.headers.get("authorization") ?? "");
-        if (!pickup.found) {
-            if (pickup.reason === "NOT_FOUND")
-                respond(ctx, 400, { error: "invalid request body", fields: { supplierId: ["Supplier not found"] } });
-            else
-                respond(ctx, 503, { error: "Supplier service is unavailable, try again later" });
+        // 2. the pickup supplier and the buildings must be live; their names go into the
+        //    readable pickup and dropoff locations
+        const authorization = ctx.request.headers.get("authorization") ?? "";
+        const unavailable = () => respond(ctx, 503, { error: "Supplier service is unavailable, try again later" });
+        const buildingNames = await fetchBuildingNames(authorization);
+        if (!buildingNames) {
+            unavailable();
             return;
         }
+
+        const notFound: Record<string, string[]> = {};
+        const dropoffBuilding = buildingNames.get(body.dropoffLocationId);
+        if (!dropoffBuilding)
+            notFound.dropoffLocationId = ["Building not found"];
+
+        let pickup: NewOrder["pickup"] | null = null;
+        let pickupLocation = "";
+        if (body.pickupType === "SUPPLIER") {
+            // a supplier is a preset building spot: its building and floor fill in the pickup fields
+            const supplier = await lookupPickup(body.supplierId!, authorization);
+            if (supplier.found) {
+                pickup = { type: "SUPPLIER", supplierId: body.supplierId!, locationId: supplier.locationId, floor: supplier.floor };
+                pickupLocation = supplier.pickupLocation;
+            } else if (supplier.reason === "NOT_FOUND")
+                notFound.supplierId = ["Supplier not found"];
+            else {
+                unavailable();
+                return;
+            }
+        } else {
+            pickup = {
+                type: "BUILDING",
+                locationId: body.pickupLocationId!,
+                floor: body.pickupFloor!,
+                room: body.pickupRoom ?? null,
+            };
+            const building = buildingNames.get(pickup.locationId);
+            if (building)
+                pickupLocation = describeBuildingSpot(building, pickup.floor, pickup.room);
+            else
+                notFound.pickupLocationId = ["Building not found"];
+        }
+
+        if (Object.keys(notFound).length > 0 || !pickup) {
+            respond(ctx, 400, { error: "invalid request body", fields: notFound });
+            return;
+        }
+
+        const dropoff = {
+            locationId: body.dropoffLocationId,
+            floor: body.dropoffFloor,
+            room: body.dropoffRoom ?? null,
+        };
 
         // 3. credit escrow hold
         const rejected = await callCreditService("reserve", {
@@ -175,9 +220,10 @@ export const createOrder = async (ctx: Context) => {
             order = await insertOrder({
                 idempotencyKey,
                 requesterId: user.id,
-                supplierId: body.supplierId,
-                pickupLocation: pickup.pickupLocation,
-                dropoffLocation: body.dropoffLocation,
+                pickup,
+                dropoff,
+                pickupLocation,
+                dropoffLocation: describeBuildingSpot(dropoffBuilding!, dropoff.floor, dropoff.room),
                 itemDescription: body.itemDescription,
                 creditBounty: body.creditBounty,
                 additionalDetails: body.additionalDetails || null,
