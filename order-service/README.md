@@ -16,7 +16,7 @@ ORDER_DB_PW=mysecretpassword
 From the repository root (the folder containing `compose.yaml`):
 ```docker compose --profile dev up -d --build order_db order_dev```
 
-`order_dev` waits for the database, applies the schema (`deno task db:update_dev`) and starts with live reload. It is reachable as `order_api:3000` inside Docker and at `http://localhost:8003` from your machine.
+`order_dev` waits for the database, applies the schema (`deno task db:update_dev`) and starts with live reload. It is reachable as `order_api:3000` inside Docker and at `http://localhost:8004` from your machine.
 
 ## 3. Seed Data
 Seed the database with dummy UI testing data:
@@ -38,7 +38,7 @@ Authentication: every endpoint needs a signed-in user. Log in through the user s
 
 Validation: request bodies are checked; invalid or unknown fields return 400 with the reason per field, e.g. `{ "error": "invalid request body", "fields": { "creditBounty": ["Must be at least 1"] } }`.
 
-URLs: through the edge (as the frontend does) use http://localhost:8000/api/public/order/orders. The service is also exposed directly at http://localhost:8003/public/orders for debugging.
+URLs: through the edge (as the frontend does) use http://localhost:8000/api/public/order/orders. The service is also exposed directly at http://localhost:8004/public/orders for debugging.
 
 List Orders (GET)
 - Method: GET
