@@ -66,7 +66,7 @@
           />
 
           <!-- Dropoff: always a spot in a building -->
-          <div class="text-subtitle-2 mt-2 mb-2">Deliver to</div>
+          <div class="text-subtitle-2 mb-4">Deliver to</div>
 
           <building-spot-fields
             v-model="form.dropoff"
@@ -94,12 +94,13 @@
           />
 
           <!-- Credits offered -->
+          <!-- mb-5: the hint wraps to two lines on phones and needs room before the next label -->
           <v-text-field
             v-model="form.creditBounty"
-            class="mb-2"
+            class="mb-5"
             density="comfortable"
             :error-messages="serverErrors.creditBounty"
-            hint="Reserved from your balance now, paid to the courier on delivery"
+            hint="Reserved from your balance now; the courier earns them on delivery"
             label="Credits offered *"
             min="1"
             persistent-hint
@@ -109,15 +110,15 @@
             variant="outlined"
           />
 
-          <!-- How long to wait for a courier: a preset (24 hours pre-selected) or a custom duration -->
+          <!-- The deadline, shared by requester and courier: a preset (24 hours pre-selected) or a custom duration -->
           <v-select
             v-model="form.expiryChoice"
-            class="mb-2"
+            class="mb-5"
             density="comfortable"
             :error-messages="serverErrors.expiresInMinutes"
             :hint="expiryHint"
             :items="expiryItems"
-            label="Wait for a courier for"
+            label="Deliver within"
             persistent-hint
             prepend-inner-icon="mdi-timer-sand"
             variant="outlined"
@@ -300,8 +301,8 @@
   const clock = setInterval(() => (now.value = Date.now()), 30_000)
   onUnmounted(() => clearInterval(clock))
   const expiryHint = computed(() => expiresInMinutes.value === null
-    ? 'Choose how long to wait, between 15 minutes and 24 hours'
-    : `If no courier accepts by ${formatDateTime(new Date(now.value + expiresInMinutes.value * 60_000).toISOString())}, the errand expires and your credits are released`)
+    ? 'Choose a deadline between 15 minutes and 24 hours'
+    : `It must be delivered by ${formatDateTime(new Date(now.value + expiresInMinutes.value * 60_000).toISOString())}, or it expires and your credits are returned`)
 
   // switching to Custom starts from the duration chosen so far, e.g. 24 hours -> 24 h 0 min
   watch(() => form.value.expiryChoice, (choice, previous) => {

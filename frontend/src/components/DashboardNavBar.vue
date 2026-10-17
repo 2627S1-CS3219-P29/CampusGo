@@ -1,10 +1,15 @@
 <template>
   <!-- TODO: navigation highlighting and updating of title -->
   <v-layout class="fullscreen">
+    <!-- Desktop: an icon rail that expands on hover. Phones and small tablets have no hover,
+         so there it is hidden and slides over the page from the menu button instead -->
     <v-navigation-drawer
-      permanent
-      expand-on-hover
-      rail
+      :expand-on-hover="!isSmallScreen"
+      :model-value="isSmallScreen ? isNavbarOpened : true"
+      :permanent="!isSmallScreen"
+      :rail="!isSmallScreen"
+      :temporary="isSmallScreen"
+      @update:model-value="isNavbarOpened = $event"
     >
       <v-list density="compact" nav>
         <v-list-item to="/" prepend-icon="mdi-home" title="Dashboard" exact />
@@ -33,7 +38,7 @@
     </v-navigation-drawer>
 
     <v-app-bar :order="-1">
-      <template v-slot:prepend>
+      <template v-if="isSmallScreen" v-slot:prepend>
         <v-app-bar-nav-icon @click="isNavbarOpened = !isNavbarOpened" />
       </template>
   
@@ -63,15 +68,33 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onUnmounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useDisplay } from 'vuetify';
 import { useAuthStore } from '@/stores/auth';
 import GlobalAlerts from './GlobalAlerts.vue';
 
+// The hover rail needs a mouse: on a touchscreen (phones and tablets of any size, where nothing
+// un-hovers it after a tap) or below 960 px, the menu slides in from the menu button instead
+const { smAndDown } = useDisplay();
+const noHover = window.matchMedia('(hover: none)');
+const isTouchOnly = ref(noHover.matches);
+const onHoverChange = (e: MediaQueryListEvent) => {
+  isTouchOnly.value = e.matches;
+};
+noHover.addEventListener('change', onHoverChange);
+onUnmounted(() => noHover.removeEventListener('change', onHoverChange));
+const isSmallScreen = computed(() => smAndDown.value || isTouchOnly.value);
 const isNavbarOpened = ref(false);
 // admins also see the Users page
 const auth = useAuthStore();
 const router = useRouter();
+const route = useRoute();
+
+// on small screens, close the menu once a page is picked so it does not cover the page
+watch(() => route.fullPath, () => {
+  isNavbarOpened.value = false;
+});
 
 const isLogoutOpen = ref(false);
 
