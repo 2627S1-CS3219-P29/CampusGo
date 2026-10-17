@@ -6,7 +6,8 @@ networks:
 services:
   # reverse proxy for backend api routing
   api_gateway:
-    image: nginx:1.31-alpine
+    build:
+      context: ./api-gateway
     # restart: unless-stopped
     ports:
       - "127.0.0.1:8080:80"
@@ -16,14 +17,10 @@ services:
     networks:
       - public_net
       - private_net
-    depends_on:
-      - user_${PROFILE}
-      - supplier_${PROFILE}
-      - order_${PROFILE}
-      - rabbitmq
 
   edge_dev:
-    image: nginx:1.31-alpine
+    build:
+      context: ./edge
     profiles: ["dev"]
     ports:
       - "8000:80"
@@ -31,9 +28,6 @@ services:
       - ./edge/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - public_net
-    depends_on:
-      - api_gateway
-      - frontend_dev
 
   # frontend
   frontend_dev:
