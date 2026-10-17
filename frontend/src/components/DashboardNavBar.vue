@@ -12,6 +12,7 @@
         <v-list-item to="/errands/new" prepend-icon="mdi-plus-box-outline" title="Request Errand" />
         <v-list-item to="/errands" prepend-icon="mdi-bike-fast" title="Open Errands" exact />
         <v-list-item to="/my-errands" prepend-icon="mdi-clipboard-list-outline" title="My Errands" />
+        <v-list-item v-if="auth.isAdmin" to="/admin/users" prepend-icon="mdi-account-group" title="Users" />
         <v-list-item to="/login" prepend-icon="mdi-lock" title="Login" />
       </v-list>
 
@@ -45,9 +46,12 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue';
+import { useAuthStore } from '@/stores/auth';
 import GlobalAlerts from './GlobalAlerts.vue';
 
 const isNavbarOpened = ref(false);
+// admins also see the Users page
+const auth = useAuthStore();
 </script>
 
 <style scoped>

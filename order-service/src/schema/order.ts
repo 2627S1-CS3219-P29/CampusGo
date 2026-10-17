@@ -67,6 +67,8 @@ export const listOrdersQuerySchema = z.object({
         .pipe(z.array(z.enum(orderStatuses)))
         .optional(),
     page: z.coerce.number().int().positive().default(1),
+    // admins only: list the "requested" or "delivering" errands of this user instead of their own
+    userId: z.coerce.number().int().positive().optional(),
 }).strict();
 
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>;

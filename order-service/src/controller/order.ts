@@ -77,14 +77,20 @@ export const expireDueErrands = async (): Promise<void> => {
  *   ?scope=all             every order, admins only
  *   &status=A,B            only these statuses, e.g. DELIVERED,CANCELLED,EXPIRED for past orders
  *   &page=N                20 per page
+ *   &userId=N              admins only: the requested or delivering errands of user N instead of your own
  */
 export const fetchOrders = async (ctx: Context) => {
     // set by validateQuery(listOrdersQuerySchema) and authenticationMiddleware in routes
     const query = <ListOrdersQuery>ctx.state.validatedQuery;
     const user = <AuthenticatedUser>ctx.state.user;
 
-    if (query.scope === "all" && !user.roles.includes(Role.Admin)) {
+    const isAdmin = user.roles.includes(Role.Admin);
+    if (query.scope === "all" && !isAdmin) {
         respond(ctx, 403, { error: "Only admins can list every order" });
+        return;
+    }
+    if (query.userId !== undefined && !isAdmin) {
+        respond(ctx, 403, { error: "Only admins can list another user's orders" });
         return;
     }
 
@@ -95,7 +101,8 @@ export const fetchOrders = async (ctx: Context) => {
         const limit = config.order.pageSize;
         const { data, total } = await listOrders({
             scope: query.scope,
-            userId: user.id,
+            // an admin viewing someone's history, otherwise the signed-in user
+            userId: query.userId ?? user.id,
             statuses: query.status,
             page: query.page,
             pageSize: limit,

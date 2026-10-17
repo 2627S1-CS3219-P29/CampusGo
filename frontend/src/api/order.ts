@@ -54,6 +54,8 @@ export interface OrderQuery {
   statuses?: OrderStatus[]
   // 1-based, 20 orders per page
   page: number
+  // admins only: another user's requested or delivering errands instead of the signed-in user's
+  userId?: number
 }
 
 // same shape as the supplier list
@@ -92,6 +94,9 @@ export async function listOrders (query: OrderQuery) {
   }
   if (query.statuses?.length) {
     params.status = query.statuses.join(',')
+  }
+  if (query.userId !== undefined) {
+    params.userId = String(query.userId)
   }
 
   const response = await client.get<OrderPage>('/public/order/orders', { params })

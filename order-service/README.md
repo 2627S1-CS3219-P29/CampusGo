@@ -47,6 +47,7 @@ List Orders (GET)
     - scope: open (default) = errands a courier can accept (open, not expired, not your own); requested = errands you created; delivering = errands you are the courier on; all = every order (admins only, 403 otherwise)
     - status: comma separated, e.g. status=DELIVERED,CANCELLED,EXPIRED for past orders, or OPEN,ACCEPTED,COLLECTED for active ones
     - page: 20 orders per page, newest first
+    - userId: admins only, with scope requested or delivering: list that user's errands instead of your own (403 for anyone else)
 - Result: same shape as the supplier list, e.g.
         { "data": [ ...orders ], "pagination": { "page": 1, "limit": 20, "total": 32, "totalPage": 2 } }
   Orders that are due to expire are marked EXPIRED before listing (see Expiry). Invalid or unknown query parameters return 400.
