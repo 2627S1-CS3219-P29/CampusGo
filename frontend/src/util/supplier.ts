@@ -89,3 +89,12 @@ export function openStatus (supplier: Supplier): { label: string, color: string 
     ? { label: 'Open now', color: 'success' }
     : { label: 'Closed', color: 'error' }
 }
+
+// when the open/closed status next changes, e.g. "Closes at 21:30" or "Opens at 08:00"; null without hours
+export function nextOpeningChange (supplier: Supplier): string | null {
+  const open = isOpenNow(supplier)
+  if (open === null) {
+    return null
+  }
+  return open ? `Closes at ${toHourMinute(supplier.closesAt)}` : `Opens at ${toHourMinute(supplier.opensAt)}`
+}

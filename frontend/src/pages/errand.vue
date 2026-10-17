@@ -103,7 +103,7 @@
           :color="action.color"
           :prepend-icon="action.icon"
           :variant="action.target === 'CANCELLED' ? 'outlined' : 'flat'"
-          @click="pendingAction = action"
+          @click="startAction(action)"
         >
           {{ action.label }}
         </v-btn>
@@ -165,28 +165,80 @@
       </p>
     </template>
 
-    <!-- Confirm before changing the status -->
-    <v-dialog max-width="440" :model-value="pendingAction !== null" :persistent="isUpdating" @update:model-value="pendingAction = null">
-      <v-card v-if="pendingAction" rounded="lg">
-        <v-card-title class="pt-5 px-6">{{ pendingAction.label }}?</v-card-title>
+    <!-- Confirm before changing the status, in one or more steps (see dialogSteps) -->
+    <v-dialog max-width="460" :model-value="pendingAction !== null" :persistent="isUpdating" @update:model-value="closeDialog">
+      <v-card v-if="pendingAction && order" rounded="lg">
+        <!-- Step: little time left before the deadline -->
+        <template v-if="dialogStep === 'deadline'">
+          <v-card-title class="pt-5 px-6">Short deadline</v-card-title>
 
-        <v-card-text class="px-6">
-          <v-alert
-            v-if="pendingAction.warning"
-            class="mb-3"
-            density="compact"
-            :text="pendingAction.warning"
-            type="warning"
-            variant="tonal"
-          />
-          {{ pendingAction.confirm }}
-        </v-card-text>
+          <v-card-text class="px-6">
+            <v-alert density="compact" :text="pendingAction.warning" type="warning" variant="tonal" />
+          </v-card-text>
+        </template>
+
+        <!-- Step: the supplier's hours, so the courier can judge whether they can collect in time -->
+        <template v-else-if="dialogStep === 'supplier'">
+          <v-card-title class="pt-5 px-6">Check the supplier's hours</v-card-title>
+
+          <v-card-text class="px-6">
+            <template v-if="supplier">
+              <div class="text-subtitle-1 font-weight-medium">{{ supplier.name }}</div>
+
+              <div class="d-flex flex-wrap align-center ga-2 my-2">
+                <v-chip :color="openStatus(supplier).color" label size="small">{{ openStatus(supplier).label }}</v-chip>
+                <span v-if="nextOpeningChange(supplier)" class="text-body-2">{{ nextOpeningChange(supplier) }}</span>
+              </div>
+
+              <v-list class="pa-0 mb-2" density="compact">
+                <v-list-item class="px-0" prepend-icon="mdi-clock-outline" :subtitle="formatHours(supplier)" title="Opening hours" />
+                <v-list-item class="px-0" prepend-icon="mdi-timer-sand" :subtitle="formatDateTime(order.expiresAt)" title="Deliver by" />
+              </v-list>
+            </template>
+
+            <v-alert
+              v-else
+              class="mb-3"
+              density="compact"
+              text="This supplier's opening hours could not be loaded. Check that it will be open before you accept."
+              type="warning"
+              variant="tonal"
+            />
+
+            Make sure the supplier will be open when you go to collect, and that you can deliver by the deadline. Accept this errand?
+          </v-card-text>
+        </template>
+
+        <!-- Step: plain confirmation, for every other action -->
+        <template v-else>
+          <v-card-title class="pt-5 px-6">{{ pendingAction.label }}?</v-card-title>
+
+          <v-card-text class="px-6">
+            <v-alert
+              v-if="pendingAction.warning"
+              class="mb-3"
+              density="compact"
+              :text="pendingAction.warning"
+              type="warning"
+              variant="tonal"
+            />
+            {{ pendingAction.confirm }}
+          </v-card-text>
+        </template>
 
         <v-card-actions class="px-6 pb-4">
           <v-spacer />
-          <v-btn :disabled="isUpdating" variant="text" @click="pendingAction = null">Not now</v-btn>
+          <v-btn :disabled="isUpdating" variant="text" @click="closeDialog">Not now</v-btn>
 
-          <v-btn :color="pendingAction.color" :loading="isUpdating" variant="flat" @click="confirmAction">
+          <v-btn v-if="!isLastStep" color="primary" variant="flat" @click="stepIndex++">Continue</v-btn>
+
+          <v-btn
+            v-else
+            :color="pendingAction.color"
+            :loading="isUpdating"
+            variant="flat"
+            @click="confirmAction"
+          >
             {{ pendingAction.label }}
           </v-btn>
         </v-card-actions>
@@ -217,6 +269,7 @@
     PROGRESS_STEPS,
     progressIndex,
   } from '@/util/order'
+  import { formatHours, nextOpeningChange, openStatus } from '@/util/supplier'
   import { getSupplierCached } from '@/util/supplierCache'
 
   // how often an active errand is refreshed, so both sides see progress without reloading
@@ -233,6 +286,34 @@
   const isLoading = ref(true)
   const isUpdating = ref(false)
   const pendingAction = ref<OrderAction | null>(null)
+
+  /**
+   * The confirmation dialog's steps, in order:
+   *   deadline  the errand has little time left (accepting only)
+   *   supplier  the supplier's hours, always shown before accepting a supplier pickup
+   *   confirm   a plain confirmation, for everything else
+   * The last step's button makes the change.
+   */
+  type DialogStep = 'deadline' | 'supplier' | 'confirm'
+  const dialogSteps = ref<DialogStep[]>([])
+  const stepIndex = ref(0)
+  const dialogStep = computed(() => dialogSteps.value[stepIndex.value] ?? null)
+  const isLastStep = computed(() => stepIndex.value >= dialogSteps.value.length - 1)
+
+  function startAction (action: OrderAction) {
+    const isSupplierAccept = action.target === 'ACCEPTED' && order.value?.pickupType === 'SUPPLIER'
+    if (isSupplierAccept) {
+      dialogSteps.value = action.warning ? ['deadline', 'supplier'] : ['supplier']
+    } else {
+      dialogSteps.value = ['confirm']
+    }
+    stepIndex.value = 0
+    pendingAction.value = action
+  }
+
+  function closeDialog () {
+    pendingAction.value = null
+  }
   // ticks every second for the countdown and so buttons disappear the moment an errand expires
   const now = useClock()
 
