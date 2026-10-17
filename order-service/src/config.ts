@@ -24,9 +24,6 @@ const config = {
             defaultMinutes: 24 * 60,
             minMinutes: 15,
             maxMinutes: 24 * 60,
-            // a collected errand is overdue after its deadline, and only expires (refunding the
-            // requester) once this much longer has passed, so a late courier holding the item can still deliver
-            collectedGraceMinutes: 2 * 60,
             // how often the background job expires due errands
             checkIntervalMs: 60_000,
         },

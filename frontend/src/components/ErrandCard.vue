@@ -44,12 +44,8 @@
 
       <v-spacer />
 
-      <!-- time left while active; "Overdue" in red once collected and past the deadline -->
-      <span
-        v-if="deadlineLabel(errand, now)"
-        class="text-caption"
-        :class="isOverdue(errand, now) ? 'text-error font-weight-bold' : 'text-medium-emphasis'"
-      >
+      <!-- time left while active -->
+      <span v-if="deadlineLabel(errand, now)" class="text-caption text-medium-emphasis">
         {{ deadlineLabel(errand, now) }}
       </span>
 
@@ -63,7 +59,7 @@
   import type { Supplier } from '@/api/supplier'
   import { ref, watch } from 'vue'
   import SupplierImage from '@/components/SupplierImage.vue'
-  import { deadlineLabel, isOverdue, orderStatusInfo } from '@/util/order'
+  import { deadlineLabel, orderStatusInfo } from '@/util/order'
   import { getSupplierCached } from '@/util/supplierCache'
 
   const props = defineProps<{

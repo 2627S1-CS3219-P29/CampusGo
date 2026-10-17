@@ -91,12 +91,10 @@ Update Order Status (PATCH)
     targetStatus is one of ACCEPTED, COLLECTED, DELIVERED, CANCELLED:
     - ACCEPTED: anyone but the requester, while the order is OPEN and before its deadline
     - COLLECTED: the assigned courier, before the deadline
-    - DELIVERED: the assigned courier, before the deadline plus the grace period; the credits go to the courier
+    - DELIVERED: the assigned courier, before the deadline; the credits go to the courier
     - CANCELLED: the requester, while the order is OPEN or ACCEPTED; the credits go back to the requester. Nobody (not even an admin) can cancel once the item is collected.
 - Result: Returns a 200 OK with the newly updated state. Errors: 403 when the caller may not make the change, 400 or 409 when the order is in the wrong status, 410 when it has expired.
 - Every status change is a single conditional database update, so two requests racing on the same order (e.g. two couriers accepting at once) cannot both succeed; the loser gets 409.
 
-Expiry
-- The requester and courier share one deadline (expiresAt). An OPEN or ACCEPTED order not collected by then expires.
-- A COLLECTED order past its deadline is overdue but can still be delivered; it expires only after a further grace period (collectedGraceMinutes in src/config.ts, 2 hours), so a late courier holding the item is not cut off straight away.
+- The requester and courier share one deadline (expiresAt). Any errand not delivered by then (OPEN, ACCEPTED or COLLECTED) expires; there is no grace period, so the courier must collect and deliver before the deadline.
 - Expired orders refund the requester. A background job expires due orders every minute, and they are also checked before any order is read or changed.

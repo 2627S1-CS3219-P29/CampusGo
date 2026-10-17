@@ -1,6 +1,5 @@
 import { param } from "@prisma/orm-postgres/relational-core/expression";
 import { db } from "./db.ts";
-import config from "../config.ts";
 
 export type OrderStatus = "OPEN" | "ACCEPTED" | "COLLECTED" | "DELIVERED" | "CANCELLED" | "EXPIRED";
 
@@ -167,14 +166,9 @@ export interface Transition {
     to: OrderStatus;
     // set the courier, e.g. when accepting
     courierId?: number;
-    // only change it before this time: "deadline" is expiresAt, "grace" is expiresAt plus the
-    // grace period a collected order gets; left out, there is no time limit
-    before?: "deadline" | "grace";
+    // only change it before the order's deadline (expiresAt)
+    beforeDeadline?: boolean;
 }
-
-// SQL for "expiresAt plus the grace period"
-const graceEnd = () => db.raw.sql`
-    "expiresAt" + make_interval(mins => ${int(config.order.expiry.collectedGraceMinutes)})`.returns("pg/timestamptz-string@1");
 
 /**
  * Changes an order's status in one UPDATE statement, so it is atomic: the
@@ -193,8 +187,7 @@ export const transitionOrder = async (id: string, t: Transition): Promise<Order 
             "updatedAt" = now()
         WHERE id = ${text(id)}
             AND status = ${text(t.from)}
-            AND (NOT ${bool(t.before === "deadline")} OR "expiresAt" > now())
-            AND (NOT ${bool(t.before === "grace")} OR ${graceEnd()} > now())
+            AND (NOT ${bool(t.beforeDeadline ?? false)} OR "expiresAt" > now())
         RETURNING ${orderColumns()}
     `.returnsRow(rowSpec).build();
 
@@ -203,16 +196,14 @@ export const transitionOrder = async (id: string, t: Transition): Promise<Order 
 };
 
 /**
- * Marks every order that is due as EXPIRED in one statement:
- *   OPEN or ACCEPTED past its deadline (nobody accepted it, or the courier did not collect it)
- *   COLLECTED past its deadline plus the grace period (the courier did not deliver it)
+ * Marks every active order past its deadline as EXPIRED in one statement: nobody accepted it,
+ * or the courier did not collect or deliver it in time.
  * Returns the orders that expired, whose requesters get their credits back.
  */
 export const expireDueOrders = async (): Promise<Order[]> => {
     const plan = db.raw.sql`
         UPDATE orders SET status = 'EXPIRED', "updatedAt" = now()
-        WHERE (status IN ('OPEN', 'ACCEPTED') AND "expiresAt" <= now())
-            OR (status = 'COLLECTED' AND ${graceEnd()} <= now())
+        WHERE status IN ('OPEN', 'ACCEPTED', 'COLLECTED') AND "expiresAt" <= now()
         RETURNING ${orderColumns()}
     `.returnsRow(rowSpec).build();
     const rows = await db.runtime().query(plan);

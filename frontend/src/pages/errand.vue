@@ -37,14 +37,6 @@
               {{ statusInfo.label }}
             </v-chip>
 
-            <v-chip
-              v-if="isOverdue(order, now)"
-              color="error"
-              label
-              prepend-icon="mdi-alert-outline"
-              size="small"
-            >Overdue</v-chip>
-
             <v-chip v-if="myRole" label size="small" variant="outlined">{{ myRole }}</v-chip>
           </div>
 
@@ -98,9 +90,7 @@
         class="mb-4"
         density="compact"
         icon="mdi-information-outline"
-        :text="isOverdue(order, now)
-          ? `The courier is past the deadline. If they do not deliver by ${formatDateTime(new Date(expiryTime(order)!).toISOString())}, the errand expires and your credits are returned.`
-          : 'The courier has your item and will mark the errand as delivered when they hand it over. It can no longer be cancelled.'"
+        :text="`The courier has your item and will mark the errand as delivered when they hand it over. It can no longer be cancelled. If it is not delivered by ${formatDateTime(order.expiresAt)}, it expires and your credits are returned.`"
         type="info"
         variant="tonal"
       />
@@ -219,10 +209,8 @@
     apiErrorMessage,
     availableActions,
     deadlineLabel,
-    expiryTime,
     formatDateTime,
     isActive,
-    isOverdue,
     type OrderAction,
     orderStatusInfo,
     personLabel,

@@ -268,8 +268,8 @@ export const createOrder = async (ctx: Context) => {
  *   OPEN -> ACCEPTED -> COLLECTED -> DELIVERED
  *   OPEN or ACCEPTED -> CANCELLED (by the requester; never once collected, by anyone)
  *   -> EXPIRED is only set by the service (see expireDueOrders)
- * The requester and courier share one deadline: the courier must collect the item before it,
- * and deliver it before the deadline plus the grace period.
+ * The requester and courier share one deadline: the courier must collect the item,
+ * and deliver it, before it; at the deadline any unfinished errand expires.
  * Each change is a single conditional UPDATE (see transitionOrder), so two requests
  * racing on the same order cannot both succeed.
  */
@@ -314,7 +314,7 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                     from: "OPEN",
                     to: "ACCEPTED",
                     courierId: callerId,
-                    before: "deadline",
+                    beforeDeadline: true,
                 });
                 if (!updated) {
                     respond(ctx, 409, { error: "Order was already accepted by another courier" });
@@ -334,7 +334,7 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                 }
 
                 // the item must be collected before the deadline
-                updated = await transitionOrder(orderId, { from: "ACCEPTED", to: "COLLECTED", before: "deadline" });
+                updated = await transitionOrder(orderId, { from: "ACCEPTED", to: "COLLECTED", beforeDeadline: true });
                 if (!updated) {
                     changedMeanwhile();
                     return;
@@ -363,8 +363,8 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                     return;
                 }
 
-                // late delivery is allowed until the end of the grace period
-                updated = await transitionOrder(orderId, { from: "COLLECTED", to: "DELIVERED", before: "grace" });
+                // the item must be delivered before the deadline
+                updated = await transitionOrder(orderId, { from: "COLLECTED", to: "DELIVERED", beforeDeadline: true });
                 if (!updated) {
                     changedMeanwhile();
                     return;

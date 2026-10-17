@@ -25,29 +25,17 @@ export const PROGRESS_STEPS: { status: OrderStatus, label: string }[] = [
   { status: 'DELIVERED', label: 'Delivered' },
 ]
 
-// the order service's collectedGraceMinutes: a collected errand past its deadline is overdue,
-// and only expires this much later
-export const COLLECTED_GRACE_MINUTES = 120
-
 // a courier accepting an errand with this little time left is warned first
 export const SHORT_DEADLINE_MINUTES = 15
 
 const time = (iso: string) => new Date(iso).getTime()
 
 /**
- * When the order service will expire this errand: the deadline while it is open or accepted
- * (not collected yet), the deadline plus the grace period once collected; null when it has ended.
+ * When the order service will expire this errand: its deadline while it is active
+ * (the courier must collect and deliver by then); null when it has ended.
  */
 export function expiryTime (order: Order): number | null {
-  if (order.status === 'OPEN' || order.status === 'ACCEPTED') {
-    return time(order.expiresAt)
-  }
-  return order.status === 'COLLECTED' ? time(order.expiresAt) + COLLECTED_GRACE_MINUTES * 60_000 : null
-}
-
-// collected, past the deadline, but still within the grace period to deliver
-export function isOverdue (order: Order, now = Date.now()): boolean {
-  return order.status === 'COLLECTED' && time(order.expiresAt) <= now
+  return isActive(order.status) ? time(order.expiresAt) : null
 }
 
 // index of the last completed step; -1 when cancelled or expired (off the happy path)
@@ -87,15 +75,16 @@ export function formatTimeLeft (expiresAt: string, now = Date.now()): string {
 
 /**
  * The time line for an active errand, or null once it has ended:
- * "Expires in 3h" while open or accepted (the item must be collected by then),
- * "Due in 20m" once collected, then "Overdue" during the grace period.
+ * "Expires in 3h 0m 0s" while open or accepted, "Due in 20m 0s" once collected
+ * (it must be delivered by then), and "Expired" when the deadline passes.
  */
 export function deadlineLabel (order: Order, now = Date.now()): string | null {
   if (order.status === 'OPEN' || order.status === 'ACCEPTED') {
     return formatTimeLeft(order.expiresAt, now)
   }
   if (order.status === 'COLLECTED') {
-    return isOverdue(order, now) ? 'Overdue' : `Due in ${formatDuration(time(order.expiresAt) - now)}`
+    const left = time(order.expiresAt) - now
+    return left > 0 ? `Due in ${formatDuration(left)}` : 'Expired'
   }
   return null
 }
@@ -150,9 +139,9 @@ export function availableActions (order: Order, myId: number | null, now = Date.
       label: 'Accept errand',
       icon: 'mdi-hand-okay',
       color: 'primary',
-      confirm: `Accept this errand? You will be its courier, and must collect the item by ${formatDateTime(order.expiresAt)}.`,
+      confirm: `Accept this errand? You will be its courier, and must deliver the item by ${formatDateTime(order.expiresAt)}.`,
       warning: minutesLeft <= SHORT_DEADLINE_MINUTES
-        ? `Only ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'} left. If you haven't collected the item by then, the errand expires and you won't earn the credits. Accept anyway?`
+        ? `Only ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'} left. If you haven't delivered the item by then, the errand expires and you won't earn the credits. Accept anyway?`
         : undefined,
     })
   }

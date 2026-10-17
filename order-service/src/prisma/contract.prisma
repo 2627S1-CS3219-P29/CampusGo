@@ -9,7 +9,7 @@ enum OrderStatus {
     COLLECTED // the courier has the item
     DELIVERED // the courier delivered it; credits go to the courier
     CANCELLED // the requester cancelled before collection
-    EXPIRED // not collected by the deadline, or not delivered by the deadline plus the grace period
+    EXPIRED // not delivered by the deadline
 }
 
 // where the courier collects the item
