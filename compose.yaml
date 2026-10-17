@@ -90,7 +90,7 @@ services:
       network: host
     profiles: ["dev"]
     ports:
-      - "8001:3000"
+      - "127.0.0.1:8001:3000"
     volumes:
       - ./user-service:/app
       - /app/node_modules
@@ -157,7 +157,7 @@ services:
       network: host
     profiles: ["dev"]
     ports:
-      - "8002:3000"
+      - "127.0.0.1:8002:3000"
     volumes:
       - ./supplier-service:/app
       - /app/node_modules
@@ -223,7 +223,7 @@ services:
       network: host
     profiles: ["dev"]
     ports:
-      - "8004:3000"
+      - "127.0.0.1:8004:3000"
     volumes:
       - ./order-service:/app
       - /app/node_modules

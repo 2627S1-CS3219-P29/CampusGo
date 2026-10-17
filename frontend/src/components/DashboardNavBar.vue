@@ -13,7 +13,6 @@
         <v-list-item to="/errands" prepend-icon="mdi-bike-fast" title="Open Errands" exact />
         <v-list-item to="/my-errands" prepend-icon="mdi-clipboard-list-outline" title="My Errands" />
         <v-list-item v-if="auth.isAdmin" to="/admin/users" prepend-icon="mdi-account-group" title="Users" />
-        <v-list-item to="/login" prepend-icon="mdi-lock" title="Login" />
       </v-list>
 
       <template #append>
