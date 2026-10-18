@@ -176,6 +176,8 @@ export interface Transition {
     to: OrderStatus;
     // set the courier, e.g. when accepting
     courierId?: number;
+    // remove the courier, e.g. when an accept is undone (cannot be combined with courierId)
+    clearCourier?: boolean;
     // only change it before this time: "deadline" is expiresAt, "grace" is expiresAt plus the
     // grace period a collected order gets; left out, there is no time limit
     before?: "deadline" | "grace";
@@ -204,7 +206,8 @@ export const transitionOrder = async (
     const plan = db.raw.sql`
         UPDATE orders
         SET status = ${text(t.to)},
-            "courierId" = COALESCE(${int(t.courierId ?? null)}, "courierId"),
+            "courierId" = CASE WHEN ${bool(t.clearCourier === true)} THEN NULL
+                ELSE COALESCE(${int(t.courierId ?? null)}, "courierId") END,
             "updatedAt" = now()
         WHERE id = ${text(id)}
             AND status = ${text(t.from)}

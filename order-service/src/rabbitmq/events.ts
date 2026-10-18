@@ -8,11 +8,14 @@ export const EXCHANGE = "app.events"; // durable topic exchange, declared by bot
 export const ROUTING = {
     // Order -> Credit
     orderCreated: "order.created", // ask Credit to hold the bounty
-    orderReleased: "order.released", // delivered: pay the courier from the hold
-    orderRefunded: "order.refunded", // cancelled / expired / rejected: give the hold back
+    orderAccepted: "order.accepted", // a courier accepted: tell Credit who will be paid
+    orderReleased: "order.completed", // delivered: Credit pays the courier from the hold
+    orderRefunded: "order.cancelled", // cancelled / expired / rejected: Credit gives the hold back
     // Credit -> Order
     creditsHeld: "credits.held",
     creditsHoldRejected: "credits.hold.rejected",
+    creditsAccepted: "credits.accepted",
+    creditsAcceptedRejected: "credits.accepted.rejected",
     creditsReleased: "credits.released",
     creditsReleasedRejected: "credits.released.rejected",
     creditsRefunded: "credits.refunded",
@@ -40,16 +43,23 @@ export const orderCreatedEvent = (o: OrderRef): OutboxEvent => ({
     payload: { errandId: o.id, requestorId: o.requesterId, courierId: o.courierId, amount: o.creditBounty },
 });
 
+// sent when a courier accepts, so Credit records who to pay when the errand is delivered
+export const orderAcceptedEvent = (o: OrderRef): OutboxEvent => ({
+    topic: ROUTING.orderAccepted,
+    type: "orderAccepted",
+    payload: { errandId: o.id, courierId: o.courierId },
+});
+
 // courierId and amount are extra for now: Credit only reads errandId today
 export const orderReleasedEvent = (o: OrderRef): OutboxEvent => ({
     topic: ROUTING.orderReleased,
-    type: "orderReleased",
+    type: "orderCompleted",
     payload: { errandId: o.id, courierId: o.courierId, amount: o.creditBounty },
 });
 
 export const orderRefundedEvent = (o: OrderRef): OutboxEvent => ({
     topic: ROUTING.orderRefunded,
-    type: "orderRefunded",
+    type: "orderCancelled",
     payload: { errandId: o.id },
 });
 

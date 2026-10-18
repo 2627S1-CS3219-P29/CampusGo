@@ -16,7 +16,7 @@ import {
     type NewOrder,
     type Order,
 } from "../prisma/orders.ts";
-import { orderRefundedEvent, orderReleasedEvent } from "../rabbitmq/events.ts";
+import { orderAcceptedEvent, orderRefundedEvent, orderReleasedEvent } from "../rabbitmq/events.ts";
 
 const respond = (ctx: Context, status: number, body: Context["response"]["body"]) => {
     ctx.response.status = status;
@@ -36,8 +36,12 @@ const internalError = (ctx: Context, action: string, e: unknown) => {
  * on an order that should already have expired.
  */
 export const expireDueErrands = async (): Promise<void> => {
-    await expireDueOrders();
-    await rejectStalePendingOrders(config.order.pendingTimeoutMinutes);
+    const expired = await expireDueOrders();
+    const rejected = await rejectStalePendingOrders(config.order.pendingTimeoutMinutes);
+    for (const o of expired)
+        log.info(`Order ${o.id} EXPIRED, refund requested`);
+    for (const o of rejected)
+        log.warn(`Order ${o.id} REJECTED: no reply from the credit service within ${config.order.pendingTimeoutMinutes} min, refund requested`);
 };
 
 /**
@@ -271,13 +275,14 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                     return;
                 }
 
-                // concurrency guard: only one courier's update can match status OPEN
+                // concurrency guard: only one courier's update can match status OPEN.
+                // order.accepted (tells Credit who to pay) is queued in the same transaction
                 updated = await transitionOrder(orderId, {
                     from: "OPEN",
                     to: "ACCEPTED",
                     courierId: callerId,
                     before: "deadline",
-                });
+                }, o => [orderAcceptedEvent(o)]);
                 if (!updated) {
                     respond(ctx, 409, { error: "Order was already accepted by another courier" });
                     return;

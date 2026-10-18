@@ -15,6 +15,8 @@ const DLQ_NAME = "order.events.dlq";
 const REPLY_KEYS = [
     ROUTING.creditsHeld,
     ROUTING.creditsHoldRejected,
+    ROUTING.creditsAccepted,
+    ROUTING.creditsAcceptedRejected,
     ROUTING.creditsReleased,
     ROUTING.creditsReleasedRejected,
     ROUTING.creditsRefunded,
@@ -160,6 +162,24 @@ const handleIncomingMessage = async (msg: amqplib.ConsumeMessage) => {
             const { reason } = payload as CreditsRejectionEvent;
             const o = await transitionOrder(errandId, { from: "PENDING", to: "REJECTED" });
             log.info(o ? `Order ${o.id} REJECTED: ${reason}` : `credits.hold.rejected ignored for ${errandId} (duplicate)`);
+            break;
+        }
+        case ROUTING.creditsAccepted:
+            log.info(`Credit recorded the courier for errand ${errandId}`);
+            break;
+        case ROUTING.creditsAcceptedRejected: {
+            const { reason } = payload as CreditsRejectionEvent;
+            // Only a problem with the courier is fixed by undoing the accept: another courier can
+            // take the errand. Any other reason means the hold itself is wrong; that needs a human.
+            if (reason === "COURIER_NOT_FOUND" || reason === "COURIER_ALREADY_ASSIGNED") {
+                const o = await transitionOrder(errandId, { from: "ACCEPTED", to: "OPEN", clearCourier: true });
+                if (o)
+                    log.warn(`Accept undone for order ${o.id} (${reason}); it is OPEN again`);
+                else
+                    log.error(`credits.accepted.rejected for ${errandId} (${reason}) but the order is no longer ACCEPTED`);
+            } else {
+                log.error(`Credit refused the accept for errand ${errandId}: ${reason}`);
+            }
             break;
         }
         case ROUTING.creditsReleased:
