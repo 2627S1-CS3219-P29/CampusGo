@@ -5,7 +5,7 @@
       <h1 class="text-h5 font-weight-bold">Users</h1>
 
       <span v-if="!isLoading" class="text-body-2 text-medium-emphasis">
-        {{ users.length }} user{{ users.length === 1 ? '' : 's' }}
+        {{ users.length }}{{ nextCursor === null ? '' : '+' }} user{{ users.length === 1 && nextCursor === null ? '' : 's' }}
       </span>
     </div>
 
@@ -18,7 +18,7 @@
       title="No users yet"
     />
 
-    <!-- One row per user, newest first; opens their errand history -->
+    <!-- One row per user, in the order they joined; opens their errand history -->
     <v-card v-else rounded="lg" variant="outlined">
       <v-list lines="two">
         <template v-for="(user, i) in users" :key="user.id">
@@ -47,6 +47,11 @@
         </template>
       </v-list>
     </v-card>
+
+    <!-- The user service sends 20 users at a time -->
+    <div v-if="nextCursor !== null" class="d-flex justify-center mt-4">
+      <v-btn :loading="isLoadingMore" prepend-icon="mdi-chevron-down" variant="tonal" @click="loadMore">Load more</v-btn>
+    </div>
   </v-container>
 </template>
 
@@ -56,20 +61,41 @@
   import UserAvatar from '@/components/UserAvatar.vue'
   import { useAlertStore } from '@/stores/alerts'
   import { apiErrorMessage } from '@/util/order'
-  import { formatDate, parseTimestamp } from '@/util/user'
+  import { formatDate } from '@/util/user'
 
   const alertStore = useAlertStore()
 
   const users = ref<UserSummary[]>([])
+  // where the next page starts, or null once every user is loaded
+  const nextCursor = ref<number | null>(null)
   const isLoading = ref(true)
+  const isLoadingMore = ref(false)
+
+  // appends the next page of users (the first page when cursor is left out)
+  async function loadPage (cursor?: number) {
+    const page = await listUsers(cursor)
+    users.value = [...users.value, ...page.data]
+    nextCursor.value = page.pagination.nextCursor
+  }
+
+  async function loadMore () {
+    if (nextCursor.value === null || isLoadingMore.value) {
+      return
+    }
+    isLoadingMore.value = true
+    try {
+      await loadPage(nextCursor.value)
+    } catch (error) {
+      console.error('Error loading more users', error)
+      alertStore.error(apiErrorMessage(error, 'Could not load more users'))
+    } finally {
+      isLoadingMore.value = false
+    }
+  }
 
   onMounted(async () => {
     try {
-      const all = await listUsers()
-      // newest first, so recent sign-ups are easy to find. Sorts the fresh response in place:
-      // toSorted() is not in this project's TypeScript lib yet
-      // eslint-disable-next-line unicorn/no-array-sort
-      users.value = all.sort((a, b) => parseTimestamp(b.createdAt) - parseTimestamp(a.createdAt))
+      await loadPage()
     } catch (error) {
       console.error('Error loading users', error)
       alertStore.error(apiErrorMessage(error, 'Could not load users'))

@@ -14,9 +14,20 @@ export interface UserSummary extends UserProfile {
   createdAt: string
 }
 
-// every user; admins only
-export async function listUsers () {
-  const response = await client.get<UserSummary[]>('/public/user/user')
+// one page of users, oldest account first; fetch the next with cursor = pagination.nextCursor
+export interface UserPage {
+  data: UserSummary[]
+  pagination: {
+    limit: number
+    hasMore: boolean
+    nextCursor: number | null
+  }
+}
+
+// a page of users (20 by default); admins only. The user service can also filter by name and role
+export async function listUsers (cursor?: number) {
+  const params = cursor === undefined ? {} : { cursor: String(cursor) }
+  const response = await client.get<UserPage>('/public/user/user', { params })
   return response.data
 }
 
