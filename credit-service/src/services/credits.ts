@@ -14,7 +14,7 @@ export async function ensureCreditAccount(userId: number): Promise<void> {
     );
 }
 
-export async function ensureCreditsHeld(errandId: number, requestorId: number, amount: number): Promise<void> {
+export async function ensureCreditsHeld(errandId: string, requestorId: number, amount: number): Promise<void> {
     try {
         await db.transaction(async tx => {
             const outbox = new OutboxRepository(tx);
@@ -84,7 +84,7 @@ export async function ensureCreditsHeld(errandId: number, requestorId: number, a
     }
 }
 
-export async function ensureCreditsAccepted(errandId: number, courierId: number): Promise<void> {
+export async function ensureCreditsAccepted(errandId: string, courierId: number): Promise<void> {
     await db.transaction(async tx => {
         const outbox = new OutboxRepository(tx);
         const reject = async (reason: string) => {
@@ -139,7 +139,7 @@ export async function ensureCreditsAccepted(errandId: number, courierId: number)
     });
 }
 
-export async function ensureCreditsReleased(errandId: number) {
+export async function ensureCreditsReleased(errandId: string) {
     try {
         await db.transaction(async tx => {
             const outbox = new OutboxRepository(tx);
@@ -207,7 +207,7 @@ export async function ensureCreditsReleased(errandId: number) {
     }
 }
 
-export async function ensureCreditsRefunded(errandId: number) {
+export async function ensureCreditsRefunded(errandId: string) {
     try {
         await db.transaction(async tx => {
             const outbox = new OutboxRepository(tx);
