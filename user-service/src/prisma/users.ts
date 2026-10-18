@@ -17,6 +17,22 @@ export type PublicUserWithRoles = {
     roles: Role[];
 };
 
+export type ListUsersOptions = {
+    name?: string;
+    role: Role[];
+    limit: number;
+    cursor?: number;
+};
+
+export type ListUsersResult = {
+    data: PublicUserWithRoles[];
+    pagination: {
+        limit: number;
+        hasMore: boolean;
+        nextCursor: number | null;
+    };
+};
+
 export interface IUserRepository {
     registerUser(email: string, hashedPassword: string, nickname: string): Promise<RawUserRecord>;
     getUserByEmail(email: string): Promise<UserWithRoles | null>;
@@ -24,7 +40,7 @@ export interface IUserRepository {
     getUserByIdWithPassword(id: number): Promise<UserWithRoles | null>;
     updateUserBasic(id: number, nickname: string, contact: string | null): Promise<RawUserRecord | null>;
     updateUserPassword(id: number, hashedPassword: string): Promise<RawUserRecord | null>;
-    listUsers(): Promise<PublicUserWithRoles[]>;
+    listUsers(options: ListUsersOptions): Promise<ListUsersResult>;
 }
 
 const viewProfileValidFields: Parameters<typeof db.orm.public.User.select> = ["id", "email", "createdAt", "nickname", "contact"];
@@ -166,19 +182,44 @@ export class UserRepository implements IUserRepository {
     }
 
     /**
-     * Lists all users with public fields only.
+     * Lists a filtered page of users with public fields only.
      */
-    async listUsers(): Promise<PublicUserWithRoles[]> {
+    async listUsers(options: ListUsersOptions): Promise<ListUsersResult> {
         try {
-            const users = await this.db.orm.public.User
+            let query = this.db.orm.public.User
                 .select(...viewProfileValidFields)
-                .include("roles")
+                .include("roles");
+
+            if (options.name !== undefined) {
+                const escapedName = options.name.replace(/[\\%_]/g, "\\$&");
+                query = query.where(user => user.nickname.ilike(`%${escapedName}%`));
+            }
+            for (const role of options.role) {
+                query = query.where(user => user.roles.some(assigned => assigned.name.eq(role)));
+            }
+            if (options.cursor !== undefined) {
+                const cursor = options.cursor;
+                query = query.where(user => user.id.gt(cursor));
+            }
+
+            const users = await query
+                .orderBy(user => user.id.asc())
+                .limit(options.limit + 1)
                 .all();
 
-            return users.map(user => ({
+            const hasMore = users.length > options.limit;
+            const data = users.slice(0, options.limit).map(user => ({
                 ...user,
                 roles: user.roles.map(fromRawRoleThrows),
             }));
+            return {
+                data,
+                pagination: {
+                    limit: options.limit,
+                    hasMore,
+                    nextCursor: hasMore ? data[data.length - 1].id : null,
+                },
+            };
         } catch (e) {
             log.error(`unknown error listing users: ${JSON.stringify(e)}`);
             throw new DbError({
