@@ -3,11 +3,9 @@
 
 import { describe, it } from "@std/testing/bdd";
 import { assertEquals } from "@std/assert";
-import { spy, stub } from "@std/testing/mock";
+import { spy } from "@std/testing/mock";
 import { UserController } from "../src/controller/user.ts";
-import { ADMIN_PAYLOAD, FakeCtx, makePublicUser, makeRoleRepo, makeUserRepo, TEST_ADMIN_ID, TEST_REQUESTOR_ID, USER_PAYLOAD } from "./util.ts";
-import { JWTPayload } from "jose";
-import { IRoleRepository } from "../src/prisma/roles.ts";
+import { ADMIN_PAYLOAD, FakeCtx, makePublicUser, makeRoleRepo, makeUserRepo, TEST_REQUESTOR_ID, USER_PAYLOAD } from "./util.ts";
 import { IUserRepository } from "../src/prisma/users.ts";
 import { Role } from "../src/prisma/common.ts";
 
@@ -160,5 +158,24 @@ describe("UserController.updateUserRole", () => {
         assertEquals(ctx.response.body, "updated");
         assertEquals(roleRepo.assignRoles.calls[0].args, [Number(NON_EXISTENT_USER_ID), new Set([Role.Admin])]);
         assertEquals(roleRepo.removeRoles.calls.length, 0);
+    });
+});
+
+describe("UserController.listUsers", () => {
+    it("passes filters and pagination to repository and returns its page", async () => {
+        const options = { name: "ann", role: [Role.Admin, Role.Courier], limit: 1, cursor: 42 };
+        const pagedUserView = {
+            data: [makePublicUser(43, { roles: [Role.Admin, Role.Courier, Role.Requestor] })],
+            pagination: { limit: 1, hasMore: true, nextCursor: 43 },
+        };
+        const listUsers = spy(async () => pagedUserView);
+        const controller = new UserController(makeUserRepo({ listUsers }), {} as never, {} as never);
+        const ctx = new FakeCtx({ jwtPayload: ADMIN_PAYLOAD, validatedQuery: options });
+
+        await controller.listUsers(ctx.asCtx());
+
+        assertEquals(listUsers.calls[0].args, [options]);
+        assertEquals(ctx.response.status, 200);
+        assertEquals(ctx.response.body, pagedUserView);
     });
 });

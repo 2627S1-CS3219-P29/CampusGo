@@ -2,9 +2,10 @@
 // generated unit tests given mock functions and example tests. picked, cleaned up code and added some missing tests on top
 
 import { describe, it } from "@std/testing/bdd";
-import { assertEquals } from "@std/assert";
+import { Application, Router } from "@oak/oak";
+import { assertEquals, assertRejects } from "@std/assert";
 import { spy } from "@std/testing/mock";
-import { validateBody } from "../src/middleware/schema.ts";
+import { validateBody, validateQuery } from "../src/middleware/schema.ts";
 import { CtxOpts, FakeCtx, makeJwtService } from "./util.ts";
 import { JWTPayload } from "jose";
 import { Role } from "../src/prisma/common.ts";
@@ -177,5 +178,95 @@ describe("body schema validation middleware", () => {
         assertEquals(next.calls.length, 1);
         assertEquals(ctx.state.validatedBody, { name: "hello" });
         assertEquals(ctx.response.status, 200);
+    });
+});
+
+describe("query schema validation middleware", () => {
+    const schema = z.object({
+        name: z.string().trim().min(1).optional(),
+        limit: z.coerce.number().int().positive("expected positive limit").default(20),
+    }).strict();
+
+    it("parses a required limit and repeated roles from real Oak requests without a default", async () => {
+        const querySchema = z.object({
+            limit: z.coerce.number().int().min(1).max(100),
+            role: z.array(z.enum(Role)).optional(),
+        }).strict();
+        const app = new Application();
+        const router = new Router();
+        router.get("/user/", validateQuery(querySchema), ctx => {
+            ctx.response.body = ctx.state.validatedQuery;
+        });
+        app.use(router.routes());
+
+        const response = await app.handle(new Request("http://localhost/user/?limit=2"));
+
+        assertEquals(response?.status, 200);
+        assertEquals(await response?.json(), { limit: 2 });
+
+        const repeated = await app.handle(new Request("http://localhost/user/?limit=2&role=admin&role=courier"));
+
+        assertEquals(repeated?.status, 200);
+        assertEquals(await repeated?.json(), { limit: 2, role: [Role.Admin, Role.Courier] });
+    });
+
+    it("reports a missing required limit when the query string never reaches Oak", async () => {
+        const app = new Application();
+        const router = new Router();
+        router.get("/user/", validateQuery(z.object({ limit: z.coerce.number().int().positive() })), ctx => {
+            ctx.response.body = ctx.state.validatedQuery;
+        });
+        app.use(router.routes());
+
+        const response = await app.handle(new Request("http://localhost/user/"));
+
+        assertEquals(response?.status, 400);
+        const body = await response?.json();
+        assertEquals(body.error, "query schema violation");
+        assertEquals(body.details.properties.limit.errors, ["Invalid input: expected number, received NaN"]);
+    });
+
+    it("stores transformed query values before calling the next middleware", async () => {
+        const mw = validateQuery(schema);
+        const ctx = new FakeCtx({ url: "http://localhost/?name=%20Ann%20&limit=5" });
+        const next = spy(async () => {
+            assertEquals(ctx.state.validatedQuery, { name: "Ann", limit: 5 });
+        });
+
+        await mw(ctx.asCtx(), next);
+
+        assertEquals(ctx.response.status, 200);
+        assertEquals(next.calls.length, 1);
+        assertEquals(ctx.state.validatedBody, undefined);
+    });
+
+    it("treats repeated keys as arrays", async () => {
+        const mw = validateQuery(z.object({ tag: z.array(z.string()), name: z.string() }));
+        const ctx = new FakeCtx({ url: "http://localhost/?tag=first&name=Ann&tag=second&tag=first" });
+        const next = spy(async () => {});
+
+        await mw(ctx.asCtx(), next);
+
+        assertEquals(ctx.state.validatedQuery, { tag: ["first", "second", "first"], name: "Ann" });
+        assertEquals(next.calls.length, 1);
+    });
+
+    it("returns 400 with field details when validation fails", async () => {
+        const mw = validateQuery(schema);
+        const ctx = new FakeCtx({ url: "http://localhost/?limit=0" });
+        const next = spy(async () => {});
+
+        await mw(ctx.asCtx(), next);
+
+        assertEquals(ctx.response.status, 400);
+        assertEquals(ctx.response.body, {
+            error: "query schema violation",
+            details: {
+                errors: [],
+                properties: { limit: { errors: ["expected positive limit"] } },
+            },
+        });
+        assertEquals(ctx.state.validatedQuery, undefined);
+        assertEquals(next.calls.length, 0);
     });
 });
