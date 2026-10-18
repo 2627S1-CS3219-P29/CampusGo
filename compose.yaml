@@ -176,9 +176,9 @@ services:
     # reruns are safe), then start with denon (workaround for docker in wsl).
     # seeded rows are credited to user 1; a failed seed does not block startup
     command: >
-      sh -c "deno run -A npm:prisma@8.0.0-rc.15 db update --no-interactive --confirm suppliers &&
+      sh -c "deno task db:update_dev &&
              (deno run -A src/tasks/seedSuppliers.ts /seed/supplier-seed-data.csv --actor-id=1 || echo 'supplier seed failed, continuing') &&
-             deno run -A https://deno.land/x/denon/denon.ts dev"
+             exec deno run -A https://deno.land/x/denon/denon.ts dev"
   supplier_prod:
     build:
       context: ./supplier-service

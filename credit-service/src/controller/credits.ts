@@ -2,6 +2,7 @@ import type { RouterContext } from "@oak/oak";
 import type { Context } from "@oak/oak";
 import { db } from "../prisma/db.ts";
 import type { AuthenticatedUser } from "../middleware/auth.ts";
+import { resolveCreditAccount, resolveHoldCreditAccount } from "../services/credits.ts";
 
 function validateId(ctx: Context, id: number): boolean {
     if (!Number.isInteger(id) || id <= 0) {
@@ -26,6 +27,7 @@ function validateErrandId(ctx: Context, errandId: string): boolean {
 export const getBalance = async (ctx: Context, userId: number) => {
     if (!validateId(ctx, userId)) return;
     try {
+        await resolveCreditAccount(userId);
         const balance = await db.orm.public.UserCredits
             .where({ userId: userId })
             .first();
@@ -49,6 +51,11 @@ export const getBalance = async (ctx: Context, userId: number) => {
 export const listTransactions = async (ctx: Context, userId: number) => {
     if (!validateId(ctx, userId)) return;
     try {
+        if (!await resolveCreditAccount(userId)) {
+            ctx.response.status = 404;
+            ctx.response.body = { error: "User not found" };
+            return;
+        }
         const balance = await db.orm.public.CreditsOnHold
             .where({ requestorId: userId })
             .all();
@@ -66,10 +73,17 @@ export const listTransactions = async (ctx: Context, userId: number) => {
 export const registerUser = async (ctx: Context, userId: number) => {
     if (!validateId(ctx, userId)) return;
     try {
-        const userCredits = await db.orm.public.UserCredits.create({
-            userId: userId,
-            balance: 100
-        })
+        if (await db.orm.public.UserCredits.where({ userId }).first()) {
+            ctx.response.status = 409;
+            ctx.response.body = { error: "User credit account already exists" };
+            return;
+        }
+        if (!await resolveCreditAccount(userId)) {
+            ctx.response.status = 404;
+            ctx.response.body = { error: "User not found" };
+            return;
+        }
+        const userCredits = await db.orm.public.UserCredits.where({ userId }).first();
         ctx.response.status = 201;
         ctx.response.body = userCredits;
     } catch (error) {
@@ -88,6 +102,7 @@ export const releaseCredits = async (ctx: Context, errandId: string) => {
     if (!validateErrandId(ctx, errandId)) return;
 
     try {
+        await resolveHoldCreditAccount(errandId, "courierId");
         const result = await db.transaction(async tx => {
             const hold = await tx.orm.public.CreditsOnHold
                 .where({ errandId })
@@ -143,6 +158,7 @@ export const refundCredits = async (ctx: Context, errandId: string) => {
     if (!validateErrandId(ctx, errandId)) return;
 
     try {
+        await resolveHoldCreditAccount(errandId, "requestorId");
         const result = await db.transaction(async tx => {
             const hold = await tx.orm.public.CreditsOnHold
                 .where({ errandId })
@@ -217,6 +233,8 @@ export const createTransaction = async (ctx: Context) => {
     const supplierId: number | null = body.supplierId ?? null;
 
     try {
+        await resolveCreditAccount(requesterId);
+        await resolveCreditAccount(supplierId);
         const result = await db.transaction(async tx => {
             const credits = await tx.orm.public.UserCredits
                 .where({ userId: requesterId })

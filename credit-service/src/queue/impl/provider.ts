@@ -6,6 +6,8 @@ import { consumeOrderCreated } from "./orderCreated.ts";
 import { consumeOrderReleased } from "./orderReleased.ts";
 import { consumeOrderRefunded } from "./orderRefunded.ts";
 import { consumeOrderAccepted } from "./orderAccepted.ts";
+import { TransientReplyQueue } from "../transientReplyQueue.ts";
+import { setUserReplyQueue } from "./rpc.ts";
 
 const defaultChannelSetup = async (ch: amqp.ConfirmChannel) => {
     // main router: publishes to interested services (which are their own queues)
@@ -64,6 +66,11 @@ const defaultChannelSetup = async (ch: amqp.ConfirmChannel) => {
         "app.events",
         "user.registered",
     );
+
+    const userReplies = new TransientReplyQueue(ch, 5000, 1000);
+    ch.once("close", () => userReplies.handleDisconnect());
+    await userReplies.start();
+    setUserReplyQueue(userReplies);
 
     await ch.prefetch(10);
     await consumeUserRegistered(ch);

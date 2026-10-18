@@ -1,5 +1,23 @@
 import { db } from "../prisma/db.ts";
 import { OutboxRepository } from "../prisma/outbox.ts";
+import { userExists } from "../queue/impl/rpc.ts";
+
+export async function resolveCreditAccount(userId: number): Promise<boolean> {
+    const credits = await db.orm.public.UserCredits.where({ userId }).first();
+    if (credits) return true;
+    if (!await userExists(userId)) return false;
+    await ensureCreditAccount(userId);
+    return true;
+}
+
+// Do the remote lookup before taking transaction locks.
+export async function resolveHoldCreditAccount(errandId: string, role: "courierId" | "requestorId") {
+    const hold = await db.orm.public.CreditsOnHold.where({ errandId }).first();
+    const userId = hold?.[role];
+    if (hold?.status === "HELD" && userId != null) {
+        await resolveCreditAccount(userId);
+    }
+}
 
 export async function ensureCreditAccount(userId: number): Promise<void> {
     if (!Number.isSafeInteger(userId) || userId <= 0) {
@@ -15,6 +33,7 @@ export async function ensureCreditAccount(userId: number): Promise<void> {
 }
 
 export async function ensureCreditsHeld(errandId: string, requestorId: number, amount: number): Promise<void> {
+    await resolveCreditAccount(requestorId);
     try {
         await db.transaction(async tx => {
             const outbox = new OutboxRepository(tx);
@@ -85,6 +104,7 @@ export async function ensureCreditsHeld(errandId: string, requestorId: number, a
 }
 
 export async function ensureCreditsAccepted(errandId: string, courierId: number): Promise<void> {
+    await resolveCreditAccount(courierId);
     await db.transaction(async tx => {
         const outbox = new OutboxRepository(tx);
         const reject = async (reason: string) => {
@@ -140,6 +160,7 @@ export async function ensureCreditsAccepted(errandId: string, courierId: number)
 }
 
 export async function ensureCreditsReleased(errandId: string) {
+    await resolveHoldCreditAccount(errandId, "courierId");
     try {
         await db.transaction(async tx => {
             const outbox = new OutboxRepository(tx);
@@ -208,6 +229,7 @@ export async function ensureCreditsReleased(errandId: string) {
 }
 
 export async function ensureCreditsRefunded(errandId: string) {
+    await resolveHoldCreditAccount(errandId, "requestorId");
     try {
         await db.transaction(async tx => {
             const outbox = new OutboxRepository(tx);
