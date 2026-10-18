@@ -14,15 +14,15 @@ export async function ensureCreditAccount(userId: number): Promise<void> {
     );
 }
 
-export async function ensureCreditsHeld(errandId: string, requestorId: number, courierId: number | null, amount: number): Promise<void> {
+export async function ensureCreditsHeld(errandId: number, requestorId: number, amount: number): Promise<void> {
     try {
         await db.transaction(async tx => {
             const outbox = new OutboxRepository(tx);
 
             const credits = await tx.orm.public.UserCredits
-                .where({ userId: requestorId })
-                .forUpdate()
-                .first()
+            .where({userId: requestorId })
+            .forUpdate()
+            .first()
 
             if (!credits) {
                 await outbox.createEvent("credits.hold.rejected", "creditsHoldRejected", {
@@ -30,6 +30,8 @@ export async function ensureCreditsHeld(errandId: string, requestorId: number, c
                     reason: "REQUESTOR_NOT_FOUND",
                     occurredAt: new Date().toISOString(),
                 });
+                // emit new event to order service using rabbitmq
+                // errandId, error
                 return;
             }
 
@@ -38,8 +40,6 @@ export async function ensureCreditsHeld(errandId: string, requestorId: number, c
                 .first();
 
             if (existingHold) {
-                // courierId is deliberately not compared: it is filled in later by order.accepted,
-                // so a redelivered order.created must not look like a mismatch.
                 if (
                     existingHold.requestorId !== requestorId ||
                     existingHold.amount !== amount
@@ -54,22 +54,6 @@ export async function ensureCreditsHeld(errandId: string, requestorId: number, c
                 return; // Already processed; do not deduct again.
             }
 
-            // No courier exists when an errand is created; only validate one if it was supplied.
-            if (courierId !== null) {
-                const courierCredits = await tx.orm.public.UserCredits
-                    .where({ userId: courierId })
-                    .first()
-
-                if (!courierCredits) {
-                    await outbox.createEvent("credits.hold.rejected", "creditsHoldRejected", {
-                        errandId,
-                        reason: "COURIER_NOT_FOUND",
-                        occurredAt: new Date().toISOString(),
-                    });
-                    return;
-                }
-            }
-
             if (credits.balance < amount) {
                 await outbox.createEvent("credits.hold.rejected", "creditsHoldRejected", {
                     errandId,
@@ -80,61 +64,64 @@ export async function ensureCreditsHeld(errandId: string, requestorId: number, c
             }
 
             await tx.orm.public.CreditsOnHold.create(
-                { errandId, requestorId, courierId, amount, status: "HELD" }
+                { errandId, requestorId, amount, status: "HELD" }
             )
 
             await tx.orm.public.UserCredits
                 .where({ userId: requestorId })
                 .update({ balance: credits.balance - amount })
 
+            // emit new event order created successfully
+            // errandId
             await outbox.createEvent("credits.held", "creditsHeld", {
                 errandId,
                 occurredAt: new Date().toISOString(),
             })
         })
     } catch (error) {
-        // Let the consumer handle failures.
+        // Let the consumer handle failures without acknowledging the event.
         throw error;
     }
 }
 
-export async function ensureCreditsAccepted(errandId: string, courierId: number): Promise<void> {
+export async function ensureCreditsAccepted(errandId: number, courierId: number): Promise<void> {
     await db.transaction(async tx => {
         const outbox = new OutboxRepository(tx);
-        const reject = (reason: string) =>
-            outbox.createEvent("credits.accepted.rejected", "creditsAcceptedRejected", {
+        const reject = async (reason: string) => {
+            await outbox.createEvent("credits.accepted.rejected", "creditsAcceptedRejected", {
                 errandId,
                 reason,
                 occurredAt: new Date().toISOString(),
             });
+        };
 
         const hold = await tx.orm.public.CreditsOnHold
             .where({ errandId })
             .forUpdate()
-            .first()
+            .first();
 
         if (!hold) {
             await reject("ERRAND_NOT_FOUND");
             return;
         }
 
+        if (hold.courierId === courierId) {
+            return; // Already processed; do not emit another acceptance event.
+        }
+
         if (hold.status !== "HELD") {
-            await reject("HOLD_NOT_ACTIVE");
+            await reject(hold.status === "REFUNDED" ? "HOLD_ALREADY_REFUNDED" : "HOLD_ALREADY_RELEASED");
             return;
         }
 
-        if (hold.courierId === courierId) {
-            return; // Duplicate delivery; already accepted by this courier.
-        }
-
         if (hold.courierId !== null) {
-            await reject("COURIER_ALREADY_ASSIGNED");
+            await reject("RECORD_NOT_MATCHING");
             return;
         }
 
         const courier = await tx.orm.public.UserCredits
             .where({ userId: courierId })
-            .first()
+            .first();
 
         if (!courier) {
             await reject("COURIER_NOT_FOUND");
@@ -143,7 +130,7 @@ export async function ensureCreditsAccepted(errandId: string, courierId: number)
 
         await tx.orm.public.CreditsOnHold
             .where({ errandId })
-            .update({ courierId })
+            .update({ courierId });
 
         await outbox.createEvent("credits.accepted", "creditsAccepted", {
             errandId,
@@ -152,7 +139,7 @@ export async function ensureCreditsAccepted(errandId: string, courierId: number)
     });
 }
 
-export async function ensureCreditsReleased(errandId: string) {
+export async function ensureCreditsReleased(errandId: number) {
     try {
         await db.transaction(async tx => {
             const outbox = new OutboxRepository(tx);
@@ -161,7 +148,7 @@ export async function ensureCreditsReleased(errandId: string) {
                 .where({ errandId: errandId })
                 .forUpdate()
                 .first()
-
+            
             if (!hold) {
                 await outbox.createEvent("credits.released.rejected", "creditsReleasedRejected", {
                     errandId,
@@ -170,8 +157,8 @@ export async function ensureCreditsReleased(errandId: string) {
                 });
                 return;
             }
-
-            const { courierId, amount, status } = hold
+            
+            const { courierId, amount, status } = hold 
 
             if (status === "RELEASED") {
                 return;
@@ -181,15 +168,6 @@ export async function ensureCreditsReleased(errandId: string) {
                 await outbox.createEvent("credits.released.rejected", "creditsReleasedRejected", {
                     errandId,
                     reason: "HOLD_ALREADY_REFUNDED",
-                    occurredAt: new Date().toISOString(),
-                });
-                return;
-            }
-
-            if (courierId === null) {
-                await outbox.createEvent("credits.released.rejected", "creditsReleasedRejected", {
-                    errandId,
-                    reason: "COURIER_NOT_ASSIGNED",
                     occurredAt: new Date().toISOString(),
                 });
                 return;
@@ -208,7 +186,7 @@ export async function ensureCreditsReleased(errandId: string) {
                 })
                 return;
             }
-
+            
             await tx.orm.public.UserCredits
                 .where({ userId: courierId })
                 .update({ balance: courier.balance + amount })
@@ -229,7 +207,7 @@ export async function ensureCreditsReleased(errandId: string) {
     }
 }
 
-export async function ensureCreditsRefunded(errandId: string) {
+export async function ensureCreditsRefunded(errandId: number) {
     try {
         await db.transaction(async tx => {
             const outbox = new OutboxRepository(tx);
@@ -238,7 +216,7 @@ export async function ensureCreditsRefunded(errandId: string) {
                 .where({ errandId: errandId })
                 .forUpdate()
                 .first()
-
+            
             if (!hold) {
                 await outbox.createEvent("credits.refunded.rejected", "creditsRefundedRejected", {
                     errandId,
@@ -247,8 +225,8 @@ export async function ensureCreditsRefunded(errandId: string) {
                 });
                 return;
             }
-
-            const { requestorId, amount, status } = hold
+            
+            const { requestorId, amount, status } = hold 
 
             if (status === "REFUNDED") {
                 return;
@@ -276,7 +254,7 @@ export async function ensureCreditsRefunded(errandId: string) {
                 })
                 return;
             }
-
+            
             await tx.orm.public.UserCredits
                 .where({ userId: requestorId })
                 .update({ balance: requestor.balance + amount })

@@ -1,25 +1,48 @@
 import type amqp from "amqplib";
 import { ensureCreditsReleased } from "../../services/credits.ts";
-import { isNonEmptyString } from "../../util/isNonEmptyString.ts";
+import { isPositiveInt } from "../../util/isPositiveInt.ts";
 
 export async function consumeOrderReleased(ch: amqp.ConfirmChannel): Promise<void> {
+    let closed = false;
+    ch.once("close", () => { closed = true; });
+
     await ch.consume("credit.order-released", async msg => {
-        if (msg === null) return;
+        if (msg === null || closed) return;
 
         try {
-            const payload = JSON.parse(msg.content.toString()) as {
-                errandId?: unknown;
-            } | null; 
-            if (payload === null || !isNonEmptyString(payload.errandId)) {
-                throw new Error("order.released must contain valid errandId")
+            let payload: { errandId: number };
+            try {
+                const parsed = JSON.parse(msg.content.toString()) as {
+                    errandId?: unknown;
+                } | null;
+                if (!isPositiveInt(parsed?.errandId)) {
+                    throw new Error("credit.order-released must contain valid errandId");
+                }
+                payload = { errandId: parsed.errandId };
+            } catch (error) {
+                console.error("Invalid credit.order-released event", error);
+                // Invalid messages cannot succeed on retry.
+                if (!closed) ch.nack(msg, false, false);
+                return;
             }
 
-            const { errandId } = payload;
+            try {
+                await ensureCreditsReleased(payload.errandId);
+            } catch (error) {
+                console.error("Failed to process credit.order-released event", error);
+                // Back off before retrying dependency failures.
+                if (!closed) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+                if (!closed) ch.nack(msg, false, true);
+                return;
+            }
 
-            await ensureCreditsReleased(errandId);
-            ch.ack(msg)
+            // Business rejections are handled by the service's committed outbox events.
+            if (!closed) ch.ack(msg);
         } catch (error) {
-            console.error("Failed to process credit.order-released event", error);
+            // If the channel closes during settlement, RabbitMQ requeues the delivery.
+            console.error("Failed to settle credit.order-released event", error);
         }
-    }, { noAck: false })
+    }, { noAck: false });
 }

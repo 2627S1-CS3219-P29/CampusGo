@@ -2,19 +2,20 @@ import type { RouterContext } from "@oak/oak";
 import type { Context } from "@oak/oak";
 import { db } from "../prisma/db.ts";
 import type { AuthenticatedUser } from "../middleware/auth.ts";
-import { isNonEmptyString } from "../util/isNonEmptyString.ts";
 
-function validateErrandId(ctx: Context, id: string): boolean {
-    if (!isNonEmptyString(id)) {
+function validateId(ctx: Context, id: number): boolean {
+    if (!Number.isInteger(id) || id <= 0) {
         ctx.response.status = 400;
-        ctx.response.body = { error: "Errand ID must be a non-empty string" };
+        ctx.response.body = {
+            error: "Supplier ID must be a positive integer"
+        }
         return false;
     }
     return true;
 }
 
 export const getBalance = async (ctx: Context, userId: number) => {
-    if (!validateErrandId(ctx, userId)) return;
+    if (!validateId(ctx, userId)) return;
     try {
         const balance = await db.orm.public.UserCredits
             .where({ userId: userId })
@@ -37,7 +38,7 @@ export const getBalance = async (ctx: Context, userId: number) => {
 }
 
 export const listTransactions = async (ctx: Context, userId: number) => {
-    if (!validateErrandId(ctx, userId)) return;
+    if (!validateId(ctx, userId)) return;
     try {
         const balance = await db.orm.public.CreditsOnHold
             .where({ requestorId: userId })
@@ -54,7 +55,7 @@ export const listTransactions = async (ctx: Context, userId: number) => {
 }
 
 export const registerUser = async (ctx: Context, userId: number) => {
-    if (!validateErrandId(ctx, userId)) return;
+    if (!validateId(ctx, userId)) return;
     try {
         const userCredits = await db.orm.public.UserCredits.create({
             userId: userId,
@@ -74,8 +75,8 @@ export const registerUser = async (ctx: Context, userId: number) => {
     }
 }
 
-export const releaseCredits = async (ctx: Context, errandId: string) => {
-    if (!validateErrandId(ctx, errandId)) return;
+export const releaseCredits = async (ctx: Context, errandId: number) => {
+    if (!validateId(ctx, errandId)) return;
 
     try {
         const result = await db.transaction(async tx => {
@@ -89,10 +90,6 @@ export const releaseCredits = async (ctx: Context, errandId: string) => {
             }
             if (hold.status !== "HELD") {
                 ctx.throw(409, "Credit hold has already been settled");
-            }
-            
-            if (hold.courierId === null) {
-                ctx.throw(409, "No courier is assigned to this credit hold");
             }
 
             const credits = await tx.orm.public.UserCredits
@@ -129,8 +126,8 @@ export const releaseCredits = async (ctx: Context, errandId: string) => {
     }
 };
 
-export const refundCredits = async (ctx: Context, errandId: string) => {
-    if (!validateErrandId(ctx, errandId)) return;
+export const refundCredits = async (ctx: Context, errandId: number) => {
+    if (!validateId(ctx, errandId)) return;
 
     try {
         const result = await db.transaction(async tx => {
@@ -190,10 +187,10 @@ export const createTransaction = async (ctx: Context) => {
         return;
     }
 
-    if (!body || !isNonEmptyString(body.errandId) || [body.requesterId, body.supplierId, body.amount]
+    if (!body || [body.errandId, body.requesterId, body.supplierId, body.amount]
         .some(value => !Number.isInteger(value) || value <= 0 || value > 2_147_483_647)) {
         ctx.response.status = 400;
-        ctx.response.body = { error: "errandId must be a non-empty string; requesterId, supplierId and amount must be positive PostgreSQL integers" };
+        ctx.response.body = { error: "errandId, requesterId, supplierId and amount must be positive PostgreSQL integers" };
         return;
     }
 
