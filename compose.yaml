@@ -117,7 +117,7 @@ services:
       RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
     # command: deno task dev
     # workaround for docker in wsl
-    command: sh -c "deno task db:update_dev && deno run -A https://deno.land/x/denon/denon.ts dev"
+      command: sh -c "deno task db:update_dev && exec deno run -A https://deno.land/x/denon/denon.ts dev"
   user_prod:
     build:
       context: ./user-service
@@ -152,10 +152,10 @@ services:
     volumes:
       - supplier_pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d suppliers"]
-      interval: 2s
-      timeout: 3s
-      retries: 15
+      test: ["CMD-SHELL", "pg_isready -U postgres -d suppliers"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   supplier_dev:
     build:
       context: ./supplier-service

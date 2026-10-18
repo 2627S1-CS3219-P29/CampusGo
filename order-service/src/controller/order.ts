@@ -11,13 +11,12 @@ import {
     findOrderById,
     findOrderByIdempotencyKey,
     listOrders,
+    rejectStalePendingOrders,
     transitionOrder,
     type NewOrder,
     type Order,
 } from "../prisma/orders.ts";
-
-// TODO: replace these synchronous calls with the order/credit events (credit service not ready yet)
-const CREDIT_SERVICE_URL = "http://localhost:8002/credits";
+import { orderRefundedEvent, orderReleasedEvent } from "../rabbitmq/events.ts";
 
 const respond = (ctx: Context, status: number, body: Context["response"]["body"]) => {
     ctx.response.status = status;
@@ -30,43 +29,15 @@ const internalError = (ctx: Context, action: string, e: unknown) => {
 };
 
 /**
- * Calls the credit service. Returns an error message if it rejected the request,
- * or null to carry on. As before, if it cannot be reached at all the error is
- * only logged and the order carries on (fixed once credits move to events).
- */
-const callCreditService = async (path: string, body: unknown, rejectedMessage: string): Promise<string | null> => {
-    try {
-        const res = await fetch(`${CREDIT_SERVICE_URL}/${path}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-        });
-        return res.ok ? null : rejectedMessage;
-    } catch (e) {
-        log.error(`credit service ${path} failed: ${e}`);
-        return null;
-    }
-};
-
-/** Gives the requester back the credits held for an order that ended without delivery. */
-const refundRequester = (order: Order) => callCreditService("release", {
-    userId: order.requesterId,
-    amount: order.creditBounty,
-    orderId: order.id,
-}, "Credit Service rejected refund release");
-
-/**
- * Expires every order that is due (see expireDueOrders) and refunds each requester.
+ * Expires every order that is due (see expireDueOrders) and rejects PENDING orders the credit
+ * service never answered. Refunds for both are queued as order.refunded events in the same
+ * transaction as the status change, so no requester is left without their credits.
  * Run by the background job, and before reading or changing orders so nobody sees or acts
  * on an order that should already have expired.
  */
 export const expireDueErrands = async (): Promise<void> => {
-    const expired = await expireDueOrders();
-    for (const order of expired) {
-        const rejected = await refundRequester(order);
-        if (rejected)
-            log.error(`refund for expired order ${order.id} failed: ${rejected}`);
-    }
+    await expireDueOrders();
+    await rejectStalePendingOrders(config.order.pendingTimeoutMinutes);
 };
 
 /**
@@ -220,18 +191,7 @@ export const createOrder = async (ctx: Context) => {
             room: body.dropoffRoom ?? null,
         };
 
-        // 3. credit escrow hold
-        const rejected = await callCreditService("reserve", {
-            userId: user.id,
-            amount: body.creditBounty,
-            referenceId: idempotencyKey,
-        }, "Insufficient credits or Credit Service rejected hold.");
-        if (rejected) {
-            respond(ctx, 402, { error: rejected });
-            return;
-        }
-
-        // 4. persist; the requester is whoever is signed in, never taken from the body
+        // 3. persist as PENDING; the requester is whoever is signed in, never taken from the body
         let order: Order;
         try {
             order = await insertOrder({
@@ -257,6 +217,8 @@ export const createOrder = async (ctx: Context) => {
             return;
         }
 
+        // The credit hold happens asynchronously (order.created -> credits.held / credits.hold.rejected).
+        // The order is PENDING until then; clients poll it and see OPEN or REJECTED.
         respond(ctx, 201, order);
     } catch (e) {
         internalError(ctx, "create order", e);
@@ -352,19 +314,13 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                     return;
                 }
 
-                // credit transfer to the courier
-                const rejected = await callCreditService("transfer", {
-                    courierId: order.courierId,
-                    amount: order.creditBounty,
-                    orderId: order.id,
-                }, "Credit Service rejected payout transfer");
-                if (rejected) {
-                    respond(ctx, 502, { error: rejected });
-                    return;
-                }
-
-                // late delivery is allowed until the end of the grace period
-                updated = await transitionOrder(orderId, { from: "COLLECTED", to: "DELIVERED", before: "grace" });
+                // late delivery is allowed until the end of the grace period.
+                // order.released (pay the courier) is queued in the same transaction
+                updated = await transitionOrder(
+                    orderId,
+                    { from: "COLLECTED", to: "DELIVERED", before: "grace" },
+                    o => [orderReleasedEvent(o)],
+                );
                 if (!updated) {
                     changedMeanwhile();
                     return;
@@ -383,14 +339,12 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                     return;
                 }
 
-                // credit release back to the requester
-                const rejected = await refundRequester(order);
-                if (rejected) {
-                    respond(ctx, 502, { error: rejected });
-                    return;
-                }
-
-                updated = await transitionOrder(orderId, { from: order.status, to: "CANCELLED" });
+                // order.refunded (give the hold back) is queued in the same transaction
+                updated = await transitionOrder(
+                    orderId,
+                    { from: order.status, to: "CANCELLED" },
+                    o => [orderRefundedEvent(o)],
+                );
                 if (!updated) {
                     changedMeanwhile();
                     return;

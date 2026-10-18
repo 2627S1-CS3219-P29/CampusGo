@@ -30,11 +30,18 @@ const config = {
             // how often the background job expires due errands
             checkIntervalMs: 60_000,
         },
+        // an order waits in PENDING for the credit service to confirm the hold. If no answer
+        // arrives within this time it is REJECTED and a refund is requested, so it can never
+        // stay stuck (a late "held" reply is refunded too, see rabbitmq/client.ts)
+        pendingTimeoutMinutes: 2,
         // orders per page in GET /orders, same as the supplier list
         pageSize: 20,
     },
     // supplier service on the private docker network (alias supplier_api)
     supplierServiceUrl: Deno.env.get("SUPPLIER_SERVICE_URL") ?? 'http://supplier_api:3000',
+    // RABBITMQ_CONNECTION is what docker compose passes (host "rabbitmq"); RABBITMQ_URL is the
+    // older name in order-service/.env, still accepted so running `deno task dev` keeps working
+    rabbitMqUrl: Deno.env.get("RABBITMQ_CONNECTION")?.trim() || Deno.env.get("RABBITMQ_URL")?.trim(),
     dbConnectionString,
 };
 

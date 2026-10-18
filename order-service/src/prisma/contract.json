@@ -7,6 +7,10 @@
     "orders": {
       "model": "Order",
       "namespace": "public"
+    },
+    "outbox": {
+      "model": "Outbox",
+      "namespace": "public"
     }
   },
   "domain": {
@@ -16,6 +20,14 @@
           "OrderStatus": {
             "codecId": "pg/text@1",
             "members": [
+              {
+                "name": "PENDING",
+                "value": "PENDING"
+              },
+              {
+                "name": "REJECTED",
+                "value": "REJECTED"
+              },
               {
                 "name": "OPEN",
                 "value": "OPEN"
@@ -39,6 +51,19 @@
               {
                 "name": "EXPIRED",
                 "value": "EXPIRED"
+              }
+            ]
+          },
+          "OutboxStatus": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "PENDING",
+                "value": "PENDING"
+              },
+              {
+                "name": "COMPLETED",
+                "value": "COMPLETED"
               }
             ]
           },
@@ -289,6 +314,113 @@
               "namespaceId": "public",
               "table": "orders"
             }
+          },
+          "Outbox": {
+            "fields": {
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              },
+              "errorMessage": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "nextRetryAt": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              },
+              "payload": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/json@1",
+                  "kind": "scalar"
+                }
+              },
+              "retryCount": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "status": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "OutboxStatus",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "topic": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "type": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {},
+            "storage": {
+              "fields": {
+                "createdAt": {
+                  "column": "createdAt"
+                },
+                "errorMessage": {
+                  "column": "errorMessage"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "nextRetryAt": {
+                  "column": "nextRetryAt"
+                },
+                "payload": {
+                  "column": "payload"
+                },
+                "retryCount": {
+                  "column": "retryCount"
+                },
+                "status": {
+                  "column": "status"
+                },
+                "topic": {
+                  "column": "topic"
+                },
+                "type": {
+                  "column": "type"
+                }
+              },
+              "namespaceId": "public",
+              "table": "outbox"
+            }
           }
         }
       }
@@ -307,8 +439,8 @@
                   "prefix": "orders_pickupType_check"
                 },
                 {
-                  "expression": "\"status\" IN ('OPEN', 'ACCEPTED', 'COLLECTED', 'DELIVERED', 'CANCELLED', 'EXPIRED')",
-                  "name": "orders_status_check_cdc61f5a",
+                  "expression": "\"status\" IN ('PENDING', 'REJECTED', 'OPEN', 'ACCEPTED', 'COLLECTED', 'DELIVERED', 'CANCELLED', 'EXPIRED')",
+                  "name": "orders_status_check_74fc1fc6",
                   "prefix": "orders_status_check"
                 }
               ],
@@ -486,18 +618,123 @@
                   ]
                 }
               ]
+            },
+            "outbox": {
+              "checks": [
+                {
+                  "expression": "\"status\" IN ('PENDING', 'COMPLETED')",
+                  "name": "outbox_status_check_c62c2a0e",
+                  "prefix": "outbox_status_check"
+                }
+              ],
+              "columns": {
+                "createdAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
+                "errorMessage": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "id": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "expression": "autoincrement()",
+                    "kind": "function"
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "nextRetryAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "nativeType": "timestamptz",
+                  "nullable": true
+                },
+                "payload": {
+                  "codecId": "pg/json@1",
+                  "nativeType": "json",
+                  "nullable": false
+                },
+                "retryCount": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "status": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "PENDING"
+                  },
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "OutboxStatus",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "topic": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "type": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [],
+              "indexes": [
+                {
+                  "columns": [
+                    "status",
+                    "createdAt"
+                  ],
+                  "name": "outbox_status_createdAt_idx_58610442",
+                  "prefix": "outbox_status_createdAt_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
             }
           },
           "valueSet": {
             "OrderStatus": {
               "kind": "valueSet",
               "values": [
+                "PENDING",
+                "REJECTED",
                 "OPEN",
                 "ACCEPTED",
                 "COLLECTED",
                 "DELIVERED",
                 "CANCELLED",
                 "EXPIRED"
+              ]
+            },
+            "OutboxStatus": {
+              "kind": "valueSet",
+              "values": [
+                "PENDING",
+                "COMPLETED"
               ]
             },
             "PickupType": {
@@ -513,7 +750,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "1a3bce0892b3141bc4f8b011baa337e00088aec1fb8d306e0f78329b1a337eea"
+    "storageHash": "962d7bc4d31bd981a3217df485bf71dffcbafb5c5896035c3639b5f14de778af"
   },
   "capabilities": {
     "postgres": {
@@ -540,4 +777,4 @@
     "message": "This file is automatically generated by \"prisma contract emit\".",
     "regenerate": "To regenerate, run: prisma contract emit"
   }
-}
+}

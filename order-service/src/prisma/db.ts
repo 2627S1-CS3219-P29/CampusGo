@@ -13,6 +13,9 @@ if (!databaseUrl) {
 
 export const db = postgres<Contract>({ contractJson, url: databaseUrl });
 
+export type Db = typeof db;
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
 let connection: Promise<void> | undefined;
 
 // ensure connection happens, invocation not required due to lazy db init
