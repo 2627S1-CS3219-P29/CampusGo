@@ -1,5 +1,6 @@
 import type amqp from "amqplib";
 import { ensureCreditsHeld } from "../../services/credits.ts";
+import { isNonEmptyString } from "../../util/isNonEmptyString.ts";
 import { isPositiveInt } from "../../util/isPositiveInt.ts";
 
 export async function consumeOrderCreated(ch: amqp.ConfirmChannel): Promise<void> {
@@ -12,22 +13,25 @@ export async function consumeOrderCreated(ch: amqp.ConfirmChannel): Promise<void
                 requestorId?: unknown;
                 courierId?: unknown;
                 amount?: unknown
-            } | null; 
+            } | null;
             if (payload === null
-                || !isPositiveInt(payload.errandId)
+                || !isNonEmptyString(payload.errandId)
                 || !isPositiveInt(payload.requestorId)
-                || !isPositiveInt(payload.courierId)
                 || !isPositiveInt(payload.amount)
             ) {
-                throw new Error("order.created must contain valid errandId, requestorId, courierId and amount")
+                throw new Error("order.created must contain valid errandId, requestorId and amount")
             }
 
-            const { errandId, requestorId, courierId, amount } = payload;
+            const { errandId, requestorId, amount } = payload;
+            // No courier exists yet when an errand is posted; Order sends null.
+            const courierId = isPositiveInt(payload.courierId) ? payload.courierId : null;
 
             await ensureCreditsHeld(errandId, requestorId, courierId, amount);
             ch.ack(msg)
         } catch (error) {
-            console.error("Failed to process credit.order-completed event", error);
+            console.error("Failed to process credit.order-created event", error);
+            // Retry once, then give up so the queue doesn't stall.
+            ch.nack(msg, false, !msg.fields.redelivered);
         }
     }, { noAck: false })
 }

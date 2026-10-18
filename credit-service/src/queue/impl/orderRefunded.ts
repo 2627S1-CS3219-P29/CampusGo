@@ -1,6 +1,6 @@
 import type amqp from "amqplib";
 import { ensureCreditsRefunded } from "../../services/credits.ts";
-import { isPositiveInt } from "../../util/isPositiveInt.ts";
+import { isNonEmptyString } from "../../util/isNonEmptyString.ts";
 
 export async function consumeOrderRefunded(ch: amqp.ConfirmChannel): Promise<void> {
     await ch.consume("credit.order-refunded", async msg => {
@@ -10,7 +10,7 @@ export async function consumeOrderRefunded(ch: amqp.ConfirmChannel): Promise<voi
             const payload = JSON.parse(msg.content.toString()) as {
                 errandId?: unknown;
             } | null; 
-            if (payload === null || !isPositiveInt(payload.errandId)) {
+            if (payload === null || !isNonEmptyString(payload.errandId)) {
                 throw new Error("order.refunded must contain valid errandId")
             }
 

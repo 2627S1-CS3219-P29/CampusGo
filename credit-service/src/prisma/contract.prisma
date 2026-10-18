@@ -6,9 +6,9 @@ model UserCredits {
 }
 
 model CreditsOnHold {
-  errandId    Int @id
+  errandId    String @id
   requestorId Int
-  courierId  Int
+  courierId  Int?
   amount      Int
   status      CreditHoldStatus
 }
