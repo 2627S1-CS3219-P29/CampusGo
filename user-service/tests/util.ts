@@ -132,6 +132,8 @@ export type CtxOpts = {
     params?: Record<string, string>;
     jwtPayload?: JWTPayload;
     validatedBody?: unknown;
+    validatedQuery?: unknown;
+    url?: string;
     bodyJson?: unknown | Error;
     headers?: Record<string, string>;
 };
@@ -145,9 +147,11 @@ export class FakeCtx {
     state: {
         jwtPayload: JWTPayload;
         validatedBody: unknown;
+        validatedQuery: unknown;
     };
     response: { status: number, body: unknown };
     request: {
+        url: URL;
         headers: { get: (name: string) => string | null };
         body: unknown | Error;
         hasBody: boolean,
@@ -167,9 +171,11 @@ export class FakeCtx {
         this.state = ctxAccessWrapper({
             jwtPayload: opts.jwtPayload ?? {},
             validatedBody: opts.validatedBody,
+            validatedQuery: opts.validatedQuery,
         });
         this.response = ctxAccessWrapper({ status: 200, body: null as unknown });
         this.request = ctxAccessWrapper({
+            url: new URL(opts.url ?? "http://localhost/user/"),
             headers: {
                 get: (name: string) => opts.headers?.[name] ?? null
             },

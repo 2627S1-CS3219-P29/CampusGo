@@ -1,7 +1,7 @@
 import { Router, type RouterContext } from "@oak/oak";
-import { UserController, userUpdateBasicSchema, userUpdatePasswordSchema, userUpdateRoleSchema } from "../controller/user.ts"
+import { UserController, listUsersQuerySchema, userUpdateBasicSchema, userUpdatePasswordSchema, userUpdateRoleSchema } from "../controller/user.ts"
 import { authenticationMiddleware } from "../middleware/auth.ts";
-import { validateBody } from "../middleware/schema.ts";
+import { validateBody, validateQuery } from "../middleware/schema.ts";
 import { Role } from "../prisma/common.ts";
 import { defaultHasher } from "../util/hash.ts";
 import { repoFactory } from "../prisma/factory.ts";
@@ -12,7 +12,7 @@ const userController = new UserController(user, role, defaultHasher);
 const createUserRouter = () => {
     const router = new Router({ prefix: "/user" });
 
-    router.get("/", authenticationMiddleware(new Set([Role.Admin])), async ctx => {
+    router.get("/", authenticationMiddleware(new Set([Role.Admin])), validateQuery(listUsersQuerySchema), async ctx => {
         // HACK: ctx typing seems to break only in root path
         await userController.listUsers(ctx as RouterContext<"/">);
     });
