@@ -7,6 +7,7 @@ import type { JWTPayload } from "jose";
 import config from "../config.ts";
 import { type IPasswordHash } from "../util/hash.ts";
 import { Role } from "../prisma/common.ts";
+import log from "../log.ts";
 
 const idReqSchema = z.coerce.number().int("expected valid id format");
 
@@ -22,6 +23,15 @@ export const userUpdatePasswordSchema = z.object({
 });
 
 export const userUpdateRoleSchema = z.partialRecord(z.enum(Role), z.boolean());
+
+export const listUsersQuerySchema = z.object({
+    name: z.string().trim().min(1).optional(),
+    role: z.union([z.enum(Role), z.array(z.enum(Role))])
+        .transform(value => [...new Set(Array.isArray(value) ? value : [value])])
+        .default([]),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    cursor: z.coerce.number().int().positive().optional(),
+}).strict();
 
 export class UserController {
     userRepo: IUserRepository;
@@ -51,11 +61,18 @@ export class UserController {
     }
 
     /**
-     * Admin-only: list all users (public fields)
+     * Admin-only: list a filtered page of users (public fields)
+     * 
+     * Infinite scrolling: request the next page with the same
+     * filters and `cursor` set to `nextCursor`
+     *
+     * Role filter is an intersection (a user's roles must contain all specified roles)
      */
     async listUsers(ctx: RouterContext<"/">) {
+        const query = ctx.state.validatedQuery as z.output<typeof listUsersQuerySchema>;
         try {
-            ctx.response.body = await this.userRepo.listUsers();
+            log.debug(query);
+            ctx.response.body = await this.userRepo.listUsers(query);
         } catch (e) {
             applyDbError(ctx, e);
         }
