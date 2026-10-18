@@ -92,3 +92,11 @@ it("strips extra fields when schema is strict", async () => {
 ```
 Generate code to help me seed locations from the csv first then proceed to seed the suppliers, follow the format given by the comments given in the contract.prisma
 ```
+
+# 18/10/2026
+- Tool used: codex chat
+- Mode: Generation
+- Prompt:
+```
+Generate code so that when a user's credit account is missing, credit-service queries user-service via RPC. If the user exists, create their UserCredits entry without resetting any existing balance. If the user does not exist, retain the existing rejection behavior. Propagate RPC failures so they are not treated as nonexistent users.
+```
