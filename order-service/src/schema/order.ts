@@ -54,7 +54,7 @@ export const createOrderSchema = z.object({
 
 export type CreateOrderBody = z.infer<typeof createOrderSchema>;
 
-const orderStatuses = ["OPEN", "ACCEPTED", "COLLECTED", "DELIVERED", "CANCELLED", "EXPIRED"] as const;
+const orderStatuses = ["PENDING", "REJECTED", "OPEN", "ACCEPTED", "COLLECTED", "DELIVERED", "CANCELLED", "EXPIRED"] as const;
 
 // query of GET /orders; query strings are always text, so coerce them here
 export const listOrdersQuerySchema = z.object({

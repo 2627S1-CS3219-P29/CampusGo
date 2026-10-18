@@ -51,15 +51,19 @@
       <v-card class="mb-4" rounded="lg">
         <v-card-text>
           <v-alert
-            v-if="order.status === 'CANCELLED' || order.status === 'EXPIRED'"
+            v-if="order.status === 'CANCELLED' || order.status === 'EXPIRED' || order.status === 'REJECTED' || order.status === 'PENDING'"
             :icon="statusInfo.icon"
-            :text="order.status === 'CANCELLED'
-              ? 'This errand was cancelled. Any reserved credits are returned to the requester.'
-              : order.courierId === null
-                ? 'No courier accepted this errand in time, so it expired. Any reserved credits are returned to the requester.'
-                : 'The courier did not complete this errand in time, so it expired. Any reserved credits are returned to the requester.'"
+            :text="order.status === 'PENDING'
+              ? 'Your credits are being reserved for this errand. Couriers can see it once that is done, usually within seconds.'
+              : order.status === 'REJECTED'
+                ? 'The credits for this errand could not be reserved, usually because the balance is too low, so it was not posted. Any credits reserved are returned.'
+                : order.status === 'CANCELLED'
+                  ? 'This errand was cancelled. Any reserved credits are returned to the requester.'
+                  : order.courierId === null
+                    ? 'No courier accepted this errand in time, so it expired. Any reserved credits are returned to the requester.'
+                    : 'The courier did not complete this errand in time, so it expired. Any reserved credits are returned to the requester.'"
             :title="statusInfo.label"
-            :type="order.status === 'CANCELLED' ? 'info' : 'warning'"
+            :type="order.status === 'CANCELLED' || order.status === 'PENDING' ? 'info' : order.status === 'REJECTED' ? 'error' : 'warning'"
             variant="tonal"
           />
 

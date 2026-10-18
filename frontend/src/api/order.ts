@@ -2,7 +2,7 @@
 // functions instead of using HTTP directly.
 import client from './http'
 
-export const ORDER_STATUSES = ['OPEN', 'ACCEPTED', 'COLLECTED', 'DELIVERED', 'CANCELLED', 'EXPIRED'] as const
+export const ORDER_STATUSES = ['PENDING', 'REJECTED', 'OPEN', 'ACCEPTED', 'COLLECTED', 'DELIVERED', 'CANCELLED', 'EXPIRED'] as const
 export type OrderStatus = typeof ORDER_STATUSES[number]
 
 // statuses a user can move an order to; OPEN and EXPIRED are only set by the service

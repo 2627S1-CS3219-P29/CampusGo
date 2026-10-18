@@ -2,6 +2,8 @@ import type { Order, OrderStatus, TargetStatus } from '@/api/order'
 import axios from 'axios'
 
 export const orderStatusInfo: Record<OrderStatus, { label: string, color: string, icon: string }> = {
+  PENDING: { label: 'Checking credits', color: 'grey', icon: 'mdi-progress-clock' },
+  REJECTED: { label: 'Rejected', color: 'error', icon: 'mdi-cancel' },
   OPEN: { label: 'Waiting for courier', color: 'info', icon: 'mdi-clock-outline' },
   ACCEPTED: { label: 'Courier on the way', color: 'primary', icon: 'mdi-bike-fast' },
   COLLECTED: { label: 'Collected', color: 'deep-purple', icon: 'mdi-package-variant-closed' },
@@ -10,8 +12,9 @@ export const orderStatusInfo: Record<OrderStatus, { label: string, color: string
   EXPIRED: { label: 'Expired', color: 'warning', icon: 'mdi-timer-off-outline' },
 }
 
-export const ACTIVE_STATUSES: OrderStatus[] = ['OPEN', 'ACCEPTED', 'COLLECTED']
-export const PAST_STATUSES: OrderStatus[] = ['DELIVERED', 'CANCELLED', 'EXPIRED']
+// PENDING: the credit service is still holding the bounty; REJECTED: it could not (not enough credits)
+export const ACTIVE_STATUSES: OrderStatus[] = ['PENDING', 'OPEN', 'ACCEPTED', 'COLLECTED']
+export const PAST_STATUSES: OrderStatus[] = ['DELIVERED', 'CANCELLED', 'EXPIRED', 'REJECTED']
 
 export function isActive (status: OrderStatus): boolean {
   return ACTIVE_STATUSES.includes(status)
@@ -35,7 +38,8 @@ const time = (iso: string) => new Date(iso).getTime()
  * (the courier must collect and deliver by then); null when it has ended.
  */
 export function expiryTime (order: Order): number | null {
-  return isActive(order.status) ? time(order.expiresAt) : null
+  // a PENDING order is not expired by its deadline; the order service rejects it if credits are not held in time
+  return isActive(order.status) && order.status !== 'PENDING' ? time(order.expiresAt) : null
 }
 
 // index of the last completed step; -1 when cancelled or expired (off the happy path)

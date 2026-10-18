@@ -4,6 +4,8 @@ import { connectDatabase } from "./prisma/db.ts";
 import { expireDueErrands } from "./controller/order.ts";
 import config from "./config.ts";
 import log from "./log.ts";
+import { connectRabbitMQ } from "./rabbitmq/client.ts";
+import { startOutboxWorker } from "./rabbitmq/outbox.ts";
 
 const port = Number(Deno.env.get("PORT") ?? 3000);
 
@@ -29,7 +31,12 @@ app.use(publicRouter.allowedMethods());
 app.use(privateRouter.routes());
 app.use(privateRouter.allowedMethods());
 
-// expire due errands (and refund their requesters) even if nobody opens them
+// RabbitMQ: connect with retry in the background (no await: the HTTP server must start even if
+// the broker is not ready yet), and relay the outbox once the connection is up
+void connectRabbitMQ();
+startOutboxWorker();
+
+// expire due errands (their refund events are queued by expireDueOrders) even if nobody opens them
 setInterval(() => {
     expireDueErrands().catch(e => log.error(`expiry job failed: ${e}`));
 }, config.order.expiry.checkIntervalMs);

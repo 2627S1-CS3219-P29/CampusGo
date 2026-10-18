@@ -1,11 +1,13 @@
 import { param } from "@prisma/orm-postgres/relational-core/expression";
-import { db } from "./db.ts";
+import { db } from "../prisma/db.ts";
+import { enqueueEvents } from "./outbox.ts";
+import { orderCreatedEvent, orderRefundedEvent, type OutboxEvent } from "../rabbitmq/events.ts";
 
-export type OrderStatus = "OPEN" | "ACCEPTED" | "COLLECTED" | "DELIVERED" | "CANCELLED" | "EXPIRED";
+export type OrderStatus = "PENDING" | "REJECTED" | "OPEN" | "ACCEPTED" | "COLLECTED" | "DELIVERED" | "CANCELLED" | "EXPIRED";
 
-// the status a new order starts in. With the credit service integration this becomes PENDING,
-// and the order moves to OPEN once its credits are held (or REJECTED if they cannot be)
-const INITIAL_STATUS: OrderStatus = "OPEN";
+// a new order waits for the credit service to hold its bounty: it moves to OPEN once the
+// credits are held (credits.held), or to REJECTED if they cannot be (credits.hold.rejected)
+const INITIAL_STATUS: OrderStatus = "PENDING";
 export type PickupType = "SUPPLIER" | "BUILDING";
 
 // a building pickup or dropoff: the building, then where in it
@@ -106,19 +108,26 @@ export const findOrderByIdempotencyKey = async (idempotencyKey: string): Promise
 export const createOrder = async (order: NewOrder): Promise<Order> => {
     const { pickup, dropoff, ...rest } = order;
     const building = pickup.type === "BUILDING" ? pickup : null;
-    const row = await db.orm.public.Order.create({
-        ...rest,
-        id: crypto.randomUUID(),
-        status: INITIAL_STATUS,
-        expiresAt: order.expiresAt.toISOString(),
-        pickupType: pickup.type,
-        supplierId: pickup.type === "SUPPLIER" ? pickup.supplierId : null,
-        pickupLocationId: pickup.locationId,
-        pickupFloor: pickup.floor,
-        pickupRoom: building?.room ?? null,
-        dropoffLocationId: dropoff.locationId,
-        dropoffFloor: dropoff.floor,
-        dropoffRoom: dropoff.room,
+    // The order and its "order.created" event are written in ONE transaction (transactional
+    // outbox): either both exist or neither does, so an order can never be saved without the
+    // credit service eventually being asked to hold its bounty.
+    const row = await db.transaction(async tx => {
+        const created = await tx.orm.public.Order.create({
+            ...rest,
+            id: crypto.randomUUID(),
+            status: INITIAL_STATUS,
+            expiresAt: order.expiresAt.toISOString(),
+            pickupType: pickup.type,
+            supplierId: pickup.type === "SUPPLIER" ? pickup.supplierId : null,
+            pickupLocationId: pickup.locationId,
+            pickupFloor: pickup.floor,
+            pickupRoom: building?.room ?? null,
+            dropoffLocationId: dropoff.locationId,
+            dropoffFloor: dropoff.floor,
+            dropoffRoom: dropoff.room,
+        });
+        await enqueueEvents(tx, [orderCreatedEvent(created)]);
+        return created;
     });
     return toOrder(row);
 };
@@ -166,6 +175,8 @@ export interface Transition {
     to: OrderStatus;
     // set the courier, e.g. when accepting
     courierId?: number;
+    // remove the courier, e.g. when an accept is undone (cannot be combined with courierId)
+    clearCourier?: boolean;
     // only change it before the order's deadline (expiresAt)
     beforeDeadline?: boolean;
 }
@@ -179,11 +190,18 @@ export interface Transition {
  * Not done with the ORM's where().update(), which checks with a SELECT and then
  * writes with a separate UPDATE, so two requests could both pass the check.
  */
-export const transitionOrder = async (id: string, t: Transition): Promise<Order | null> => {
+export const transitionOrder = async (
+    id: string,
+    t: Transition,
+    // events to publish because of this change (e.g. order.released); written to the outbox in
+    // the same transaction as the status change, and only if the change actually happened
+    events?: (order: Order) => OutboxEvent[],
+): Promise<Order | null> => {
     const plan = db.raw.sql`
         UPDATE orders
         SET status = ${text(t.to)},
-            "courierId" = COALESCE(${int(t.courierId ?? null)}, "courierId"),
+            "courierId" = CASE WHEN ${bool(t.clearCourier === true)} THEN NULL
+                ELSE COALESCE(${int(t.courierId ?? null)}, "courierId") END,
             "updatedAt" = now()
         WHERE id = ${text(id)}
             AND status = ${text(t.from)}
@@ -191,14 +209,22 @@ export const transitionOrder = async (id: string, t: Transition): Promise<Order 
         RETURNING ${orderColumns()}
     `.returnsRow(rowSpec).build();
 
-    const [row] = await db.runtime().query(plan);
-    return row ? toOrder(<OrderRow>row) : null;
+    return await db.transaction(async tx => {
+        const [row] = await tx.query(plan);
+        if (!row)
+            return null;
+        const order = toOrder(<OrderRow>row);
+        if (events)
+            await enqueueEvents(tx, events(order));
+        return order;
+    });
 };
 
 /**
  * Marks every active order past its deadline as EXPIRED in one statement: nobody accepted it,
  * or the courier did not collect or deliver it in time.
- * Returns the orders that expired, whose requesters get their credits back.
+ * Returns the orders that expired. An order.refunded event for each is written in the same
+ * transaction, so their requesters always get their credits back (see rabbitmq/outbox.ts).
  */
 export const expireDueOrders = async (): Promise<Order[]> => {
     const plan = db.raw.sql`
@@ -206,8 +232,29 @@ export const expireDueOrders = async (): Promise<Order[]> => {
         WHERE status IN ('OPEN', 'ACCEPTED', 'COLLECTED') AND "expiresAt" <= now()
         RETURNING ${orderColumns()}
     `.returnsRow(rowSpec).build();
-    const rows = await db.runtime().query(plan);
-    return rows.map(r => toOrder(<OrderRow>r));
+    return await db.transaction(async tx => {
+        const orders = (await tx.query(plan)).map(r => toOrder(<OrderRow>r));
+        await enqueueEvents(tx, orders.map(orderRefundedEvent));
+        return orders;
+    });
+};
+
+/**
+ * Orders still PENDING after `minutes` never got an answer from the credit service. They are
+ * REJECTED and a refund is queued, in case the credit service did hold the credits but its
+ * reply was lost (Credit ignores a refund for a hold it never made, and refunds are idempotent).
+ */
+export const rejectStalePendingOrders = async (minutes: number): Promise<Order[]> => {
+    const plan = db.raw.sql`
+        UPDATE orders SET status = 'REJECTED', "updatedAt" = now()
+        WHERE status = 'PENDING' AND "createdAt" < now() - make_interval(mins => ${int(minutes)})
+        RETURNING ${orderColumns()}
+    `.returnsRow(rowSpec).build();
+    return await db.transaction(async tx => {
+        const orders = (await tx.query(plan)).map(r => toOrder(<OrderRow>r));
+        await enqueueEvents(tx, orders.map(orderRefundedEvent));
+        return orders;
+    });
 };
 
 /**
