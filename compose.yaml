@@ -20,6 +20,7 @@ services:
       - user_${PROFILE}
       - supplier_${PROFILE}
       - order_${PROFILE}
+      - credit_${PROFILE}
       - rabbitmq
 
   edge_dev:
@@ -54,6 +55,11 @@ services:
   rabbitmq:
     image: rabbitmq:4-management
     container_name: rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     ports:
       - "127.0.0.1:5672:5672" # amqp
       - "127.0.0.1:15672:15672" # management ui
@@ -234,10 +240,13 @@ services:
     depends_on:
       order_db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       NODE_ENV: development
       DATABASE_URL: ${ORDER_DB_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
     # sync the schema, then start with denon (workaround for docker in wsl)
     command: sh -c "deno task db:update_dev && deno run -A https://deno.land/x/denon/denon.ts dev"
   order_prod:
@@ -253,13 +262,86 @@ services:
     depends_on:
       order_db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: ${ORDER_DB_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
+
+  # credit service database
+  credit_db:
+    image: postgres:18-alpine
+    container_name: credit_postgres_db
+    networks:
+      private_net:
+        aliases:
+          - credit
+    environment:
+      POSTGRES_PASSWORD: ${CREDIT_DB_PW}
+      POSTGRES_DB: credit
+    ports:
+      - "127.0.0.1:5435:5432"
+    volumes:
+      - credit_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d credit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  credit_dev:
+    command: sh -c "deno task db:update_dev && exec deno run -A --watch src/index.ts"
+    build:
+      context: ./credit-service
+      target: development
+    profiles: ["dev"]
+    ports:
+      - "127.0.0.1:8003:3000"
+    volumes:
+      - ./credit-service:/app
+      - /app/node_modules
+    networks:
+      private_net:
+        aliases:
+          - credit_api
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      credit_db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: "3000"
+      DATABASE_URL: postgresql://postgres:${CREDIT_DB_PW}@credit_db:5432/credit
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
+
+  credit_prod:
+    build:
+      context: ./credit-service
+      target: production
+    profiles: ["prod"]
+    networks:
+      private_net:
+        aliases:
+          - credit_api
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      credit_db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://postgres:${CREDIT_DB_PW}@credit_db:5432/credit
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
 
 volumes:
   user_pgdata:
   supplier_pgdata:
   order_pgdata:
+  credit_pgdata:
   rabbitmq_data:
