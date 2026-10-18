@@ -15,10 +15,38 @@ export function toHourMinute (time: string | null): string | null {
   return time === null ? null : time.slice(0, 5)
 }
 
+// floors are stored as numbers: ground is 1, basements negative (-1 = B1), there is no floor 0
+export const LOWEST_FLOOR = -10
+export const HIGHEST_FLOOR = 100
+
+// 3 -> "Level 3", -1 -> "B1", as the order service writes errand locations
+export function formatFloor (floor: number): string {
+  return floor < 0 ? `B${-floor}` : `Level ${floor}`
+}
+
+// what people type -> stored number: "3" or "L3" -> 3, "B1" -> -1, "G" -> 1; null if it is not a floor
+export function parseFloor (text: string): number | null {
+  if (/^\s*g\s*$/i.test(text)) {
+    return 1
+  }
+  const match = /^\s*(b|l|level\s*)?(\d+)\s*$/i.exec(text)
+  if (!match) {
+    return null
+  }
+  const level = Number(match[2])
+  const floor = match[1]?.toLowerCase() === 'b' ? -level : level
+  return floor === 0 || floor < LOWEST_FLOOR || floor > HIGHEST_FLOOR ? null : floor
+}
+
+// stored number -> what people type: -1 -> "B1", 3 -> "3"
+export function floorInput (floor: number): string {
+  return floor < 0 ? `B${-floor}` : String(floor)
+}
+
 // suppliers only store locationId, so the name comes from the list of locations
 export function formatLocation (supplier: Supplier, locations: Location[]): string {
   const building = locations.find(l => l.id === supplier.locationId)?.name ?? 'Unknown building'
-  return supplier.floor === null ? building : `${building}, Level ${supplier.floor}`
+  return supplier.floor === null ? building : `${building}, ${formatFloor(supplier.floor)}`
 }
 
 export function formatHours (supplier: Supplier): string {
@@ -60,4 +88,13 @@ export function openStatus (supplier: Supplier): { label: string, color: string 
   return open
     ? { label: 'Open now', color: 'success' }
     : { label: 'Closed', color: 'error' }
+}
+
+// when the open/closed status next changes, e.g. "Closes at 21:30" or "Opens at 08:00"; null without hours
+export function nextOpeningChange (supplier: Supplier): string | null {
+  const open = isOpenNow(supplier)
+  if (open === null) {
+    return null
+  }
+  return open ? `Closes at ${toHourMinute(supplier.closesAt)}` : `Opens at ${toHourMinute(supplier.opensAt)}`
 }

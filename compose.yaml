@@ -77,6 +77,11 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - user_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d users"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
   user_dev:
     build:
       context: ./user-service
@@ -84,7 +89,7 @@ services:
       network: host
     profiles: ["dev"]
     ports:
-      - "8001:3000"
+      - "127.0.0.1:8001:3000"
     volumes:
       - ./user-service:/app
       - /app/node_modules
@@ -92,6 +97,9 @@ services:
       private_net:
         aliases:
           - user_api
+    depends_on:
+      user_db:
+        condition: service_healthy
     environment:
       NODE_ENV: development
       DATABASE_URL: ${USER_DB_URL}
@@ -102,9 +110,7 @@ services:
       RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
     # command: deno task dev
     # workaround for docker in wsl
-    command: sh -c "deno task db:update_dev && deno run -A https://deno.land/x/denon/denon.ts dev"
-    depends_on:
-      - user_db
+    command: sh -c "deno task db:update_dev && exec deno run -A https://deno.land/x/denon/denon.ts dev"
   user_prod:
     build:
       context: ./user-service
@@ -115,6 +121,9 @@ services:
       private_net:
         aliases:
           - user_api
+    depends_on:
+      user_db:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: ${USER_DB_URL}
@@ -136,34 +145,40 @@ services:
     volumes:
       - supplier_pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d suppliers"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d suppliers"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
   supplier_dev:
-    depends_on:
-      supplier_db:
-        condition: service_healthy
     build:
       context: ./supplier-service
       target: development
       network: host
     profiles: ["dev"]
     ports:
-      - "8002:3000"
+      - "127.0.0.1:8002:3000"
     volumes:
       - ./supplier-service:/app
       - /app/node_modules
+      - ./data/csv:/seed:ro
     networks:
       private_net:
         aliases:
           - supplier_api
+    depends_on:
+      supplier_db:
+        condition: service_healthy
     environment:
       NODE_ENV: development
       DATABASE_URL: ${SUPPLIER_DB_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-    # workaround for docker in wsl
-    command: sh -c "deno task db:update_dev && exec deno run -A https://deno.land/x/denon/denon.ts dev"
+    # sync the schema, import the seed csv (skips suppliers that already exist, so
+    # reruns are safe), then start with denon (workaround for docker in wsl).
+    # seeded rows are credited to user 1; a failed seed does not block startup
+    command: >
+      sh -c "deno task db:update_dev &&
+             (deno run -A src/tasks/seedSuppliers.ts /seed/supplier-seed-data.csv --actor-id=1 || echo 'supplier seed failed, continuing') &&
+             exec deno run -A https://deno.land/x/denon/denon.ts dev"
   supplier_prod:
     build:
       context: ./supplier-service
@@ -174,23 +189,79 @@ services:
       private_net:
         aliases:
           - supplier_api
+    depends_on:
+      supplier_db:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: ${SUPPLIER_DB_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
 
   # order service
-  order-db:
-    image: postgres:15-alpine
-    restart: always
+  order_db:
+    image: postgres:18-alpine
+    container_name: order_postgres_db
+    networks: [private_net]
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: order_db
+      POSTGRES_PASSWORD: ${ORDER_DB_PW}
+      POSTGRES_DB: orders
     ports:
-      - "5434:5432" # Using 5434 locally so it doesn't clash with your User/Supplier DBs
+      - "127.0.0.1:5434:5432"
     volumes:
-      - order-db-data:/var/lib/postgresql/data
+      - order_pgdata:/var/lib/postgresql
+    # lets order_dev wait until postgres accepts connections before syncing the schema
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d orders"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+  order_dev:
+    build:
+      context: ./order-service
+      target: development
+      network: host
+    profiles: ["dev"]
+    ports:
+      - "127.0.0.1:8004:3000"
+    volumes:
+      - ./order-service:/app
+      - /app/node_modules
+    networks:
+      private_net:
+        aliases:
+          - order_api
+    depends_on:
+      order_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: ${ORDER_DB_URL}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
+    # sync the schema, then start with denon (workaround for docker in wsl)
+    command: sh -c "deno task db:update_dev && deno run -A https://deno.land/x/denon/denon.ts dev"
+  order_prod:
+    build:
+      context: ./order-service
+      target: production
+      network: host
+    profiles: ["prod"]
+    networks:
+      private_net:
+        aliases:
+          - order_api
+    depends_on:
+      order_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${ORDER_DB_URL}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
 
   # credit service database
   credit_db:
@@ -208,7 +279,7 @@ services:
     volumes:
       - credit_pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d credit"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d credit"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -250,6 +321,8 @@ services:
         aliases:
           - credit_api
     depends_on:
+      rabbitmq:
+        condition: service_healthy
       credit_db:
         condition: service_healthy
     environment:
@@ -257,11 +330,11 @@ services:
       PORT: "3000"
       DATABASE_URL: postgresql://postgres:${CREDIT_DB_PW}@credit_db:5432/credit
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
 
 volumes:
   user_pgdata:
   supplier_pgdata:
-  order-db-data:
-
+  order_pgdata:
   credit_pgdata:
   rabbitmq_data:

@@ -76,7 +76,7 @@
               "errandId": {
                 "nullable": false,
                 "type": {
-                  "codecId": "pg/int4@1",
+                  "codecId": "pg/text@1",
                   "kind": "scalar"
                 }
               },
@@ -291,8 +291,8 @@
                   "nullable": true
                 },
                 "errandId": {
-                  "codecId": "pg/int4@1",
-                  "dataType": "pg/int4",
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
                   "nullable": false
                 },
                 "requestorId": {
@@ -463,7 +463,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "0f7f6573fd3f91554caf8121b2013c74ddb4317fc78de502c87e57edfb76b207"
+    "storageHash": "9defba96cf84f7365ec90e5bca62c26411653e397bf352030772bb7fc06394d7"
   },
   "capabilities": {
     "postgres": {

@@ -11,7 +11,7 @@ export async function resolveCreditAccount(userId: number): Promise<boolean> {
 }
 
 // Do the remote lookup before taking transaction locks.
-export async function resolveHoldCreditAccount(errandId: number, role: "courierId" | "requestorId") {
+export async function resolveHoldCreditAccount(errandId: string, role: "courierId" | "requestorId") {
     const hold = await db.orm.public.CreditsOnHold.where({ errandId }).first();
     const userId = hold?.[role];
     if (hold?.status === "HELD" && userId != null) {
@@ -32,7 +32,7 @@ export async function ensureCreditAccount(userId: number): Promise<void> {
     );
 }
 
-export async function ensureCreditsHeld(errandId: number, requestorId: number, amount: number): Promise<void> {
+export async function ensureCreditsHeld(errandId: string, requestorId: number, amount: number): Promise<void> {
     await resolveCreditAccount(requestorId);
     try {
         await db.transaction(async tx => {
@@ -103,7 +103,7 @@ export async function ensureCreditsHeld(errandId: number, requestorId: number, a
     }
 }
 
-export async function ensureCreditsAccepted(errandId: number, courierId: number): Promise<void> {
+export async function ensureCreditsAccepted(errandId: string, courierId: number): Promise<void> {
     await resolveCreditAccount(courierId);
     await db.transaction(async tx => {
         const outbox = new OutboxRepository(tx);
@@ -159,7 +159,7 @@ export async function ensureCreditsAccepted(errandId: number, courierId: number)
     });
 }
 
-export async function ensureCreditsReleased(errandId: number) {
+export async function ensureCreditsReleased(errandId: string) {
     await resolveHoldCreditAccount(errandId, "courierId");
     try {
         await db.transaction(async tx => {
@@ -228,7 +228,7 @@ export async function ensureCreditsReleased(errandId: number) {
     }
 }
 
-export async function ensureCreditsRefunded(errandId: number) {
+export async function ensureCreditsRefunded(errandId: string) {
     await resolveHoldCreditAccount(errandId, "requestorId");
     try {
         await db.transaction(async tx => {

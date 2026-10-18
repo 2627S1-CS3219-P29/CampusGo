@@ -15,6 +15,15 @@ function validateId(ctx: Context, id: number): boolean {
     return true;
 }
 
+function validateErrandId(ctx: Context, errandId: string): boolean {
+    if (typeof errandId !== "string" || errandId.trim() === "") {
+        ctx.response.status = 400;
+        ctx.response.body = { error: "Errand ID must be a non-empty string" };
+        return false;
+    }
+    return true;
+}
+
 export const getBalance = async (ctx: Context, userId: number) => {
     if (!validateId(ctx, userId)) return;
     try {
@@ -89,8 +98,8 @@ export const registerUser = async (ctx: Context, userId: number) => {
     }
 }
 
-export const releaseCredits = async (ctx: Context, errandId: number) => {
-    if (!validateId(ctx, errandId)) return;
+export const releaseCredits = async (ctx: Context, errandId: string) => {
+    if (!validateErrandId(ctx, errandId)) return;
 
     try {
         await resolveHoldCreditAccount(errandId, "courierId");
@@ -105,6 +114,10 @@ export const releaseCredits = async (ctx: Context, errandId: number) => {
             }
             if (hold.status !== "HELD") {
                 ctx.throw(409, "Credit hold has already been settled");
+            }
+
+            if (hold.courierId === null) {
+                ctx.throw(409, "No courier has been assigned to this errand");
             }
 
             const credits = await tx.orm.public.UserCredits
@@ -141,8 +154,8 @@ export const releaseCredits = async (ctx: Context, errandId: number) => {
     }
 };
 
-export const refundCredits = async (ctx: Context, errandId: number) => {
-    if (!validateId(ctx, errandId)) return;
+export const refundCredits = async (ctx: Context, errandId: string) => {
+    if (!validateErrandId(ctx, errandId)) return;
 
     try {
         await resolveHoldCreditAccount(errandId, "requestorId");
@@ -203,14 +216,21 @@ export const createTransaction = async (ctx: Context) => {
         return;
     }
 
-    if (!body || [body.errandId, body.requesterId, body.supplierId, body.amount]
-        .some(value => !Number.isInteger(value) || value <= 0 || value > 2_147_483_647)) {
+    const isPgInt = (value: unknown) =>
+        Number.isInteger(value) && (value as number) > 0 && (value as number) <= 2_147_483_647;
+
+    if (!body
+        || typeof body.errandId !== "string" || body.errandId.trim() === ""
+        || !isPgInt(body.requesterId)
+        || !isPgInt(body.amount)
+        || (body.supplierId != null && !isPgInt(body.supplierId))) {
         ctx.response.status = 400;
-        ctx.response.body = { error: "errandId, requesterId, supplierId and amount must be positive PostgreSQL integers" };
+        ctx.response.body = { error: "errandId must be a non-empty string; requesterId and amount must be positive PostgreSQL integers; supplierId is optional" };
         return;
     }
 
-    const { errandId, requesterId, supplierId, amount } = body;
+    const { errandId, requesterId, amount } = body;
+    const supplierId: number | null = body.supplierId ?? null;
 
     try {
         await resolveCreditAccount(requesterId);
@@ -235,11 +255,13 @@ export const createTransaction = async (ctx: Context) => {
                 ctx.throw(409, "Insufficient credits");
             }
 
-            const supplierCredits = await tx.orm.public.UserCredits
-                .where({ userId: supplierId })
-                .first();
-            if (!supplierCredits) {
-                ctx.throw(404, "Supplier credit balance not found");
+            if (supplierId !== null) {
+                const supplierCredits = await tx.orm.public.UserCredits
+                    .where({ userId: supplierId })
+                    .first();
+                if (!supplierCredits) {
+                    ctx.throw(404, "Supplier credit balance not found");
+                }
             }
 
             const hold = await tx.orm.public.CreditsOnHold.create({

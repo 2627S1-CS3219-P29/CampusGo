@@ -1,5 +1,6 @@
 import type amqp from "amqplib";
 import { ensureCreditsAccepted } from "../../services/credits.ts";
+import { isNonEmptyString } from "../../util/isNonEmptyString.ts";
 import { isPositiveInt } from "../../util/isPositiveInt.ts";
 
 export async function consumeOrderAccepted(ch: amqp.ConfirmChannel): Promise<void> {
@@ -10,13 +11,13 @@ export async function consumeOrderAccepted(ch: amqp.ConfirmChannel): Promise<voi
         if (msg === null || closed) return;
 
         try {
-            let payload: { errandId: number; courierId: number };
+            let payload: { errandId: string; courierId: number };
             try {
                 const parsed = JSON.parse(msg.content.toString()) as {
                     errandId?: unknown;
                     courierId?: unknown;
                 } | null;
-                if (!isPositiveInt(parsed?.errandId)
+                if (!isNonEmptyString(parsed?.errandId)
                     || !isPositiveInt(parsed?.courierId)) {
                     throw new Error("credit.order-accepted must contain valid errandId, courierId");
                 }

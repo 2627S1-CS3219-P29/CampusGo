@@ -11,6 +11,12 @@ import Login from '@/pages/login.vue'
 import Profile from '@/pages/profile.vue'
 import Suppliers from '@/pages/suppliers.vue'
 import SupplierDetail from '@/pages/supplier.vue'
+import RequestErrand from '@/pages/request-errand.vue'
+import ErrandDetail from '@/pages/errand.vue'
+import OpenErrands from '@/pages/open-errands.vue'
+import MyErrands from '@/pages/my-errands.vue'
+import AdminUsers from '@/pages/admin-users.vue'
+import AdminUser from '@/pages/admin-user.vue'
 import DashboardNavBar from '@/components/DashboardNavBar.vue'
 import { useAuthStore } from '@/stores/auth';
 import { watch } from 'vue';
@@ -24,6 +30,13 @@ const routes: RouteRecordRaw[] = [
             { path: "profile", name: "profile", component: Profile },
             { path: "suppliers", name: "suppliers", component: Suppliers },
             { path: "suppliers/:id", name: "supplier", component: SupplierDetail },
+            { path: "errands", name: "open-errands", component: OpenErrands },
+            { path: "errands/new", name: "request-errand", component: RequestErrand },
+            { path: "errands/:id", name: "errand", component: ErrandDetail },
+            { path: "my-errands", name: "my-errands", component: MyErrands },
+            // admin only, see the guard below
+            { path: "admin/users", name: "admin-users", component: AdminUsers, meta: { isAdminRequired: true } },
+            { path: "admin/users/:id", name: "admin-user", component: AdminUser, meta: { isAdminRequired: true } },
         ],
         meta: { isAuthRequired: true }
     },
@@ -45,6 +58,11 @@ router.beforeEach(route => {
 
     if (route.name === "login" && auth.isAuthenticated) {
         return { path: "/" };
+    }
+
+    // admin pages; the services check the role again on every request
+    if (route.meta.isAdminRequired && !auth.isAdmin) {
+        return { name: "dashboard" };
     }
 });
 

@@ -42,14 +42,14 @@ const createPrivateCreditRouter = () => {
     router.post(
         "/holds/:errandId/released",
         async ctx => {
-            await releaseCredits(ctx, Number(ctx.params.errandId));
+            await releaseCredits(ctx, ctx.params.errandId);
         }
     )
 
     router.post(
         "/holds/:errandId/refunded",
         async ctx => {
-            await refundCredits(ctx, Number(ctx.params.errandId));
+            await refundCredits(ctx, ctx.params.errandId);
         }
     )
 
