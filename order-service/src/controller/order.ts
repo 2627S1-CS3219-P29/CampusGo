@@ -324,7 +324,8 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                     beforeDeadline: true,
                 });
                 if (!updated) {
-                    respond(ctx, 409, { error: "Order was already accepted by another courier" });
+                    // another courier accepted it, or the requester cancelled it, or it expired, a moment earlier
+                    respond(ctx, 409, { error: "Order is no longer open: another courier accepted it, or it was cancelled or expired" });
                     return;
                 }
                 break;
@@ -350,32 +351,44 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
             }
 
             case "DELIVERED": {
-                if (order.status !== "COLLECTED") {
-                    respond(ctx, 400, { error: "Cannot mark delivered before the item is collected" });
-                    return;
-                }
                 if (callerId !== order.courierId) {
                     respond(ctx, 403, { error: "Only the assigned courier can mark the errand as delivered" });
                     return;
                 }
+                // a repeated request (double tap, retry) succeeds without paying again
+                if (order.status === "DELIVERED") {
+                    respond(ctx, 200, order);
+                    return;
+                }
+                if (order.status !== "COLLECTED") {
+                    respond(ctx, 400, { error: "Cannot mark delivered before the item is collected" });
+                    return;
+                }
 
-                // credit transfer to the courier
+                // the status changes first, and only the request whose update won pays the courier,
+                // so two requests at the same moment cannot pay twice. The item must be delivered
+                // before the deadline
+                updated = await transitionOrder(orderId, { from: "COLLECTED", to: "DELIVERED", beforeDeadline: true });
+                if (!updated) {
+                    // the other request delivered it first: same outcome, already paid
+                    const current = await findOrderById(orderId);
+                    if (current?.status === "DELIVERED") {
+                        respond(ctx, 200, current);
+                        return;
+                    }
+                    changedMeanwhile();
+                    return;
+                }
+
+                // credit transfer to the courier; a failure is logged for the credit integration to retry,
+                // the errand stays delivered
                 const rejected = await callCreditService("transfer", {
                     courierId: order.courierId,
                     amount: order.creditBounty,
                     orderId: order.id,
                 }, "Credit Service rejected payout transfer");
-                if (rejected) {
-                    respond(ctx, 502, { error: rejected });
-                    return;
-                }
-
-                // the item must be delivered before the deadline
-                updated = await transitionOrder(orderId, { from: "COLLECTED", to: "DELIVERED", beforeDeadline: true });
-                if (!updated) {
-                    changedMeanwhile();
-                    return;
-                }
+                if (rejected)
+                    log.error(`payout for delivered order ${order.id} failed: ${rejected}`);
                 break;
             }
 
@@ -390,18 +403,19 @@ export const updateOrderStatus = async (ctx: RouterContext<"/:id/status">) => {
                     return;
                 }
 
-                // credit release back to the requester
-                const rejected = await refundRequester(order);
-                if (rejected) {
-                    respond(ctx, 502, { error: rejected });
-                    return;
-                }
-
+                // the status changes first, and only if it is still what was read: a courier accepting
+                // or collecting at the same moment makes this match nothing, so nothing is refunded
                 updated = await transitionOrder(orderId, { from: order.status, to: "CANCELLED" });
                 if (!updated) {
                     changedMeanwhile();
                     return;
                 }
+
+                // credit release back to the requester; a failure is logged for the credit integration
+                // to retry, the errand stays cancelled
+                const rejected = await refundRequester(order);
+                if (rejected)
+                    log.error(`refund for cancelled order ${order.id} failed: ${rejected}`);
                 break;
             }
         }
