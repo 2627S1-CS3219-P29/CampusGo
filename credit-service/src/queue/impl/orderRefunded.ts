@@ -3,23 +3,46 @@ import { ensureCreditsRefunded } from "../../services/credits.ts";
 import { isPositiveInt } from "../../util/isPositiveInt.ts";
 
 export async function consumeOrderRefunded(ch: amqp.ConfirmChannel): Promise<void> {
+    let closed = false;
+    ch.once("close", () => { closed = true; });
+
     await ch.consume("credit.order-refunded", async msg => {
-        if (msg === null) return;
+        if (msg === null || closed) return;
 
         try {
-            const payload = JSON.parse(msg.content.toString()) as {
-                errandId?: unknown;
-            } | null; 
-            if (payload === null || !isPositiveInt(payload.errandId)) {
-                throw new Error("order.cancelled must contain valid errandId")
+            let payload: { errandId: number };
+            try {
+                const parsed = JSON.parse(msg.content.toString()) as {
+                    errandId?: unknown;
+                } | null;
+                if (!isPositiveInt(parsed?.errandId)) {
+                    throw new Error("credit.order-refunded must contain valid errandId");
+                }
+                payload = { errandId: parsed.errandId };
+            } catch (error) {
+                console.error("Invalid credit.order-refunded event", error);
+                // Invalid messages cannot succeed on retry.
+                if (!closed) ch.nack(msg, false, false);
+                return;
             }
 
-            const { errandId } = payload;
+            try {
+                await ensureCreditsRefunded(payload.errandId);
+            } catch (error) {
+                console.error("Failed to process credit.order-refunded event", error);
+                // Back off before retrying dependency failures.
+                if (!closed) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+                if (!closed) ch.nack(msg, false, true);
+                return;
+            }
 
-            await ensureCreditsRefunded(errandId);
-            ch.ack(msg)
+            // Business rejections are handled by the service's committed outbox events.
+            if (!closed) ch.ack(msg);
         } catch (error) {
-            console.error("Failed to process order.cancelled event", error);
+            // If the channel closes during settlement, RabbitMQ requeues the delivery.
+            console.error("Failed to settle credit.order-refunded event", error);
         }
-    }, { noAck: false })
+    }, { noAck: false });
 }

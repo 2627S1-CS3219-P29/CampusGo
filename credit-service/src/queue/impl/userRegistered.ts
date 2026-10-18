@@ -1,24 +1,48 @@
 import type amqp from "amqplib";
 import { ensureCreditAccount } from "../../services/credits.ts";
+import { isPositiveInt } from "../../util/isPositiveInt.ts";
 
-// Call after declaring and binding the queue, on each new channel.
 export async function consumeUserRegistered(ch: amqp.ConfirmChannel): Promise<void> {
+    let closed = false;
+    ch.once("close", () => { closed = true; });
+
     await ch.consume("credit.user-registered", async msg => {
-        if (msg === null) return; // RabbitMQ cancelled the consumer.
+        if (msg === null || closed) return;
 
         try {
-            const payload = JSON.parse(msg.content.toString()) as { userId?: unknown } | null;
-            if (typeof payload?.userId !== "number") {
-                throw new Error("user.registered event must contain a numeric userId");
+            let payload: { userId: number };
+            try {
+                const parsed = JSON.parse(msg.content.toString()) as {
+                    userId?: unknown;
+                } | null;
+                if (!isPositiveInt(parsed?.userId)) {
+                    throw new Error("credit.user-registered must contain valid userId");
+                }
+                payload = { userId: parsed.userId };
+            } catch (error) {
+                console.error("Invalid credit.user-registered event", error);
+                // Invalid messages cannot succeed on retry.
+                if (!closed) ch.nack(msg, false, false);
+                return;
             }
 
-            await ensureCreditAccount(payload.userId);
-            // Acknowledge on the channel that delivered this message.
-            ch.ack(msg);
+            try {
+                await ensureCreditAccount(payload.userId);
+            } catch (error) {
+                console.error("Failed to process credit.user-registered event", error);
+                // Back off before retrying dependency failures.
+                if (!closed) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+                if (!closed) ch.nack(msg, false, true);
+                return;
+            }
+
+            // Business rejections are handled by the service's committed outbox events.
+            if (!closed) ch.ack(msg);
         } catch (error) {
-            console.error("Failed to process user.registered event:", error);
-            // Temporary policy: leave failures unacknowledged.
-            // Delayed retries and dead-letter handling are not implemented yet.
+            // If the channel closes during settlement, RabbitMQ requeues the delivery.
+            console.error("Failed to settle credit.user-registered event", error);
         }
     }, { noAck: false });
 }
