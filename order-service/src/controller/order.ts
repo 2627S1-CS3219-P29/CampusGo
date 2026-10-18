@@ -11,7 +11,6 @@ import {
     findOrderById,
     findOrderByIdempotencyKey,
     listOrders,
-    rejectStalePendingOrders,
     transitionOrder,
     type NewOrder,
     type Order,
@@ -29,19 +28,16 @@ const internalError = (ctx: Context, action: string, e: unknown) => {
 };
 
 /**
- * Expires every order that is due (see expireDueOrders) and rejects PENDING orders the credit
- * service never answered. Refunds for both are queued as order.refunded events in the same
+ * Waits indefinitely for credit service to respond before changing PENDING to OPEN or REJECTED. 
+ * Refunds for both are queued as order.refunded events in the same
  * transaction as the status change, so no requester is left without their credits.
  * Run by the background job, and before reading or changing orders so nobody sees or acts
  * on an order that should already have expired.
  */
 export const expireDueErrands = async (): Promise<void> => {
     const expired = await expireDueOrders();
-    const rejected = await rejectStalePendingOrders(config.order.pendingTimeoutMinutes);
     for (const o of expired)
         log.info(`Order ${o.id} EXPIRED, refund requested`);
-    for (const o of rejected)
-        log.warn(`Order ${o.id} REJECTED: no reply from the credit service within ${config.order.pendingTimeoutMinutes} min, refund requested`);
 };
 
 /**
