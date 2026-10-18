@@ -5,6 +5,7 @@ import { consumeUserRegistered } from "./userRegistered.ts";
 import { consumeOrderCreated } from "./orderCreated.ts";
 import { consumeOrderReleased } from "./orderReleased.ts";
 import { consumeOrderRefunded } from "./orderRefunded.ts";
+import { consumeOrderAccepted } from "./orderAccepted.ts";
 
 const defaultChannelSetup = async (ch: amqp.ConfirmChannel) => {
     // main router: publishes to interested services (which are their own queues)
@@ -23,6 +24,10 @@ const defaultChannelSetup = async (ch: amqp.ConfirmChannel) => {
         durable: true,
     });
 
+    await ch.assertQueue("credit.order-accepted", {
+        durable: true,
+    });
+
     await ch.assertQueue("credit.order-released", {
         durable: true,
     });
@@ -38,16 +43,22 @@ const defaultChannelSetup = async (ch: amqp.ConfirmChannel) => {
     )
 
     await ch.bindQueue(
+        "credit.order-accepted",
+        "app.events",
+        "order.accepted"
+    )
+
+    await ch.bindQueue(
         "credit.order-released",
         "app.events",
-        "order.released"
+        "order.completed"
     )
 
     
     await ch.bindQueue(
         "credit.order-refunded",
         "app.events",
-        "order.refunded"
+        "order.cancelled"
     )
 
     await ch.bindQueue(
@@ -59,6 +70,7 @@ const defaultChannelSetup = async (ch: amqp.ConfirmChannel) => {
     await ch.prefetch(10);
     await consumeUserRegistered(ch);
     await consumeOrderCreated(ch);
+    await consumeOrderAccepted(ch);
     await consumeOrderReleased(ch);
     await consumeOrderRefunded(ch);
 }

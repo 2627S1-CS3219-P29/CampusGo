@@ -11,7 +11,7 @@ export async function consumeOrderReleased(ch: amqp.ConfirmChannel): Promise<voi
                 errandId?: unknown;
             } | null; 
             if (payload === null || !isPositiveInt(payload.errandId)) {
-                throw new Error("order.released must contain valid errandId")
+                throw new Error("order.completed must contain valid errandId")
             }
 
             const { errandId } = payload;
@@ -19,7 +19,7 @@ export async function consumeOrderReleased(ch: amqp.ConfirmChannel): Promise<voi
             await ensureCreditsReleased(errandId);
             ch.ack(msg)
         } catch (error) {
-            console.error("Failed to process credit.order-released event", error);
+            console.error("Failed to process order.completed event", error);
         }
     }, { noAck: false })
 }

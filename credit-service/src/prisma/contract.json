@@ -67,7 +67,7 @@
                 }
               },
               "courierId": {
-                "nullable": false,
+                "nullable": true,
                 "type": {
                   "codecId": "pg/int4@1",
                   "kind": "scalar"
@@ -288,7 +288,7 @@
                 "courierId": {
                   "codecId": "pg/int4@1",
                   "dataType": "pg/int4",
-                  "nullable": false
+                  "nullable": true
                 },
                 "errandId": {
                   "codecId": "pg/int4@1",
@@ -463,7 +463,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "98e818bf8bc59cf457fdeaa8573ed15412b7cf5f60ab47669ba8185ac3ee2497"
+    "storageHash": "0f7f6573fd3f91554caf8121b2013c74ddb4317fc78de502c87e57edfb76b207"
   },
   "capabilities": {
     "postgres": {

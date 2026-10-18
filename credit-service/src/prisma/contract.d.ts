@@ -18,7 +18,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'98e818bf8bc59cf457fdeaa8573ed15412b7cf5f60ab47669ba8185ac3ee2497'>;
+  StorageHashBase<'0f7f6573fd3f91554caf8121b2013c74ddb4317fc78de502c87e57edfb76b207'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -235,7 +235,7 @@ export type FieldOutputTypes = {
   readonly public: {
     readonly CreditsOnHold: {
       readonly amount: CodecTypes['pg/int4@1']['output'];
-      readonly courierId: CodecTypes['pg/int4@1']['output'];
+      readonly courierId: CodecTypes['pg/int4@1']['output'] | null;
       readonly errandId: CodecTypes['pg/int4@1']['output'];
       readonly requestorId: CodecTypes['pg/int4@1']['output'];
       readonly status: 'HELD' | 'RELEASED' | 'REFUNDED';
@@ -261,7 +261,7 @@ export type FieldInputTypes = {
   readonly public: {
     readonly CreditsOnHold: {
       readonly amount: CodecTypes['pg/int4@1']['input'];
-      readonly courierId: CodecTypes['pg/int4@1']['input'];
+      readonly courierId: CodecTypes['pg/int4@1']['input'] | null;
       readonly errandId: CodecTypes['pg/int4@1']['input'];
       readonly requestorId: CodecTypes['pg/int4@1']['input'];
       readonly status: 'HELD' | 'RELEASED' | 'REFUNDED';
@@ -287,7 +287,7 @@ export type StorageColumnTypes = {
   readonly public: {
     readonly CreditsOnHold: {
       readonly amount: CodecTypes['pg/int4@1']['output'];
-      readonly courierId: CodecTypes['pg/int4@1']['output'];
+      readonly courierId: CodecTypes['pg/int4@1']['output'] | null;
       readonly errandId: CodecTypes['pg/int4@1']['output'];
       readonly requestorId: CodecTypes['pg/int4@1']['output'];
       readonly status: 'HELD' | 'RELEASED' | 'REFUNDED';
@@ -313,7 +313,7 @@ export type StorageColumnInputTypes = {
   readonly public: {
     readonly CreditsOnHold: {
       readonly amount: CodecTypes['pg/int4@1']['input'];
-      readonly courierId: CodecTypes['pg/int4@1']['input'];
+      readonly courierId: CodecTypes['pg/int4@1']['input'] | null;
       readonly errandId: CodecTypes['pg/int4@1']['input'];
       readonly requestorId: CodecTypes['pg/int4@1']['input'];
       readonly status: 'HELD' | 'RELEASED' | 'REFUNDED';
@@ -339,7 +339,7 @@ export type StorageColumnInputTypes = {
 export namespace Models {
   export type public_CreditsOnHold = {
     amount: CodecTypes['pg/int4@1']['output'];
-    courierId: CodecTypes['pg/int4@1']['output'];
+    courierId: CodecTypes['pg/int4@1']['output'] | null;
     errandId: CodecTypes['pg/int4@1']['output'];
     requestorId: CodecTypes['pg/int4@1']['output'];
     status: 'HELD' | 'RELEASED' | 'REFUNDED';
@@ -401,7 +401,7 @@ type ContractBase = Omit<
                 readonly courierId: {
                   readonly dataType: 'pg/int4';
                   readonly codecId: 'pg/int4@1';
-                  readonly nullable: false;
+                  readonly nullable: true;
                   readonly many: false;
                 };
                 readonly errandId: {
@@ -572,7 +572,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
               readonly courierId: {
-                readonly nullable: false;
+                readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
               readonly errandId: {

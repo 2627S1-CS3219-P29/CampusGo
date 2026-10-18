@@ -14,7 +14,7 @@ export async function ensureCreditAccount(userId: number): Promise<void> {
     );
 }
 
-export async function ensureCreditsHeld(errandId: number, requestorId: number, courierId: number, amount: number): Promise<void> {
+export async function ensureCreditsHeld(errandId: number, requestorId: number, amount: number): Promise<void> {
     try {
         await db.transaction(async tx => {
             const outbox = new OutboxRepository(tx);
@@ -42,7 +42,6 @@ export async function ensureCreditsHeld(errandId: number, requestorId: number, c
             if (existingHold) {
                 if (
                     existingHold.requestorId !== requestorId ||
-                    existingHold.courierId !== courierId ||
                     existingHold.amount !== amount
                 ) {
                     await outbox.createEvent("credits.hold.rejected", "creditsHoldRejected", {
@@ -55,22 +54,6 @@ export async function ensureCreditsHeld(errandId: number, requestorId: number, c
                 return; // Already processed; do not deduct again.
             }
 
-            const courierCredits = await tx.orm.public.UserCredits
-                .where({userId: courierId })
-                .first()
-
-            if (!courierCredits) {
-                console.log("Courier credit balance not found")
-                // emit new event to order service using rabbitmq
-                // errandId, error
-                await outbox.createEvent("credits.hold.rejected", "creditsHoldRejected", {
-                    errandId,
-                    reason: "COURIER_NOT_FOUND",
-                    occurredAt: new Date().toISOString(),
-                });
-                return;
-            }
-
             if (credits.balance < amount) {
                 await outbox.createEvent("credits.hold.rejected", "creditsHoldRejected", {
                     errandId,
@@ -81,7 +64,7 @@ export async function ensureCreditsHeld(errandId: number, requestorId: number, c
             }
 
             await tx.orm.public.CreditsOnHold.create(
-                { errandId, requestorId, courierId, amount, status: "HELD" }
+                { errandId, requestorId, amount, status: "HELD" }
             )
 
             await tx.orm.public.UserCredits
@@ -99,6 +82,61 @@ export async function ensureCreditsHeld(errandId: number, requestorId: number, c
         // Let the consumer handle failures without acknowledging the event.
         throw error;
     }
+}
+
+export async function ensureCreditsAccepted(errandId: number, courierId: number): Promise<void> {
+    await db.transaction(async tx => {
+        const outbox = new OutboxRepository(tx);
+        const reject = async (reason: string) => {
+            await outbox.createEvent("credits.accepted.rejected", "creditsAcceptedRejected", {
+                errandId,
+                reason,
+                occurredAt: new Date().toISOString(),
+            });
+        };
+
+        const hold = await tx.orm.public.CreditsOnHold
+            .where({ errandId })
+            .forUpdate()
+            .first();
+
+        if (!hold) {
+            await reject("ERRAND_NOT_FOUND");
+            return;
+        }
+
+        if (hold.courierId === courierId) {
+            return; // Already processed; do not emit another acceptance event.
+        }
+
+        if (hold.status !== "HELD") {
+            await reject(hold.status === "REFUNDED" ? "HOLD_ALREADY_REFUNDED" : "HOLD_ALREADY_RELEASED");
+            return;
+        }
+
+        if (hold.courierId !== null) {
+            await reject("RECORD_NOT_MATCHING");
+            return;
+        }
+
+        const courier = await tx.orm.public.UserCredits
+            .where({ userId: courierId })
+            .first();
+
+        if (!courier) {
+            await reject("COURIER_NOT_FOUND");
+            return;
+        }
+
+        await tx.orm.public.CreditsOnHold
+            .where({ errandId })
+            .update({ courierId });
+
+        await outbox.createEvent("credits.accepted", "creditsAccepted", {
+            errandId,
+            occurredAt: new Date().toISOString(),
+        });
+    });
 }
 
 export async function ensureCreditsReleased(errandId: number) {

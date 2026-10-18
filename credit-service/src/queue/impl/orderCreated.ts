@@ -10,24 +10,22 @@ export async function consumeOrderCreated(ch: amqp.ConfirmChannel): Promise<void
             const payload = JSON.parse(msg.content.toString()) as {
                 errandId?: unknown;
                 requestorId?: unknown;
-                courierId?: unknown;
                 amount?: unknown
             } | null; 
             if (payload === null
                 || !isPositiveInt(payload.errandId)
                 || !isPositiveInt(payload.requestorId)
-                || !isPositiveInt(payload.courierId)
                 || !isPositiveInt(payload.amount)
             ) {
-                throw new Error("order.created must contain valid errandId, requestorId, courierId and amount")
+                throw new Error("order.created must contain valid errandId, requestorId and amount")
             }
 
-            const { errandId, requestorId, courierId, amount } = payload;
+            const { errandId, requestorId, amount } = payload;
 
-            await ensureCreditsHeld(errandId, requestorId, courierId, amount);
+            await ensureCreditsHeld(errandId, requestorId, amount);
             ch.ack(msg)
         } catch (error) {
-            console.error("Failed to process credit.order-completed event", error);
+            console.error("Failed to process order.created event", error);
         }
     }, { noAck: false })
 }

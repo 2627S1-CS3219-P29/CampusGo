@@ -11,7 +11,7 @@ export async function consumeOrderRefunded(ch: amqp.ConfirmChannel): Promise<voi
                 errandId?: unknown;
             } | null; 
             if (payload === null || !isPositiveInt(payload.errandId)) {
-                throw new Error("order.refunded must contain valid errandId")
+                throw new Error("order.cancelled must contain valid errandId")
             }
 
             const { errandId } = payload;
@@ -19,7 +19,7 @@ export async function consumeOrderRefunded(ch: amqp.ConfirmChannel): Promise<voi
             await ensureCreditsRefunded(errandId);
             ch.ack(msg)
         } catch (error) {
-            console.error("Failed to process credit.order-refunded event", error);
+            console.error("Failed to process order.cancelled event", error);
         }
     }, { noAck: false })
 }
