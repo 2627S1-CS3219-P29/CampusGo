@@ -36,6 +36,7 @@ export const acceptInviteCodeSchema = z.object({
 });
 
 const GENERIC_LOGIN_ERROR = "supplied email/password is incorrect";
+const SUSPENDED_ACCOUNT_ERROR = "your account has been suspended";
 
 export class AuthController {
     db: DbTxUnion;
@@ -108,6 +109,12 @@ export class AuthController {
                 return;
             }
 
+            if (user.isSuspended) {
+                ctx.response.status = 403;
+                ctx.response.body = { error: SUSPENDED_ACCOUNT_ERROR };
+                return;
+            }
+
             const tokens = await this.jwtService.generateJwtTokenPair(user.id.toString(), user.roles);
             ctx.response.body = tokens;
         } catch (e) {
@@ -135,6 +142,12 @@ export class AuthController {
             if (!user) {
                 ctx.response.status = 500;
                 ctx.response.body = { error: "server previously issued token with invalid user reference" };
+                return;
+            }
+
+            if (user.isSuspended) {
+                ctx.response.status = 403;
+                ctx.response.body = { error: SUSPENDED_ACCOUNT_ERROR };
                 return;
             }
 

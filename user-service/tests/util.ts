@@ -34,6 +34,7 @@ export function makePublicUser(id: number, overrides: Partial<PublicUserWithRole
         email: "a@b.com",
         nickname: "A",
         contact: null,
+        isSuspended: false,
         createdAt: "",
         roles: [Role.Requestor],
         ...overrides,

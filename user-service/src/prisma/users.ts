@@ -14,6 +14,7 @@ export type PublicUserWithRoles = {
     email: string;
     nickname: string;
     contact: string | null;
+    isSuspended: boolean;
     roles: Role[];
 };
 
@@ -40,10 +41,11 @@ export interface IUserRepository {
     getUserByIdWithPassword(id: number): Promise<UserWithRoles | null>;
     updateUserBasic(id: number, nickname: string, contact: string | null): Promise<RawUserRecord | null>;
     updateUserPassword(id: number, hashedPassword: string): Promise<RawUserRecord | null>;
+    updateUserSuspension(id: number, isSuspended: boolean): Promise<RawUserRecord | null>;
     listUsers(options: ListUsersOptions): Promise<ListUsersResult>;
 }
 
-const viewProfileValidFields: Parameters<typeof db.orm.public.User.select> = ["id", "email", "createdAt", "nickname", "contact"];
+const viewProfileValidFields: Parameters<typeof db.orm.public.User.select> = ["id", "email", "createdAt", "nickname", "contact", "isSuspended"];
 
 export class UserRepository implements IUserRepository {
     db: DbTxUnion;
@@ -173,6 +175,24 @@ export class UserRepository implements IUserRepository {
             return updatedUser;
         } catch (e) {
             log.error(`unknown error updating password for user by id (${id}): ${JSON.stringify(e)}`);
+            throw new DbError({
+                status: ErrorType.Unknown,
+                isUserFault: false,
+                message: `unknown error: ${e}`
+            });
+        }
+    }
+
+    /**
+     * Updates suspension status without changing roles.
+     */
+    async updateUserSuspension(id: number, isSuspended: boolean): Promise<RawUserRecord | null> {
+        try {
+            const updatedUser = await this.db.orm.public.User.where({ id })
+                .update({ isSuspended });
+            return updatedUser;
+        } catch (e) {
+            log.error(`unknown error updating suspension for user by id (${id}): ${JSON.stringify(e)}`);
             throw new DbError({
                 status: ErrorType.Unknown,
                 isUserFault: false,

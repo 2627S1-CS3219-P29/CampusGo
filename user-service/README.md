@@ -57,8 +57,14 @@ Paths below are relative to the service (`http://localhost:8001` in Compose deve
 | PUT | `/public/user/:id` | Update nickname and contact; self or admin. |
 | PATCH | `/public/user/:id/role` | Add/remove roles; admin, cannot change own admin role. |
 | POST | `/public/user/:id/change-password` | Change password; self with existing password, or admin. |
+| POST | `/public/user/:id/suspend` | Suspend a user; admin, cannot suspend own account. No body required. |
+| DELETE | `/public/user/:id/suspend` | Unsuspend a user; admin. No body required. |
 | GET | `/public/role/` | List available roles; admin. |
 | POST | `/private/auth/invite` | Generate an admin invite; internal route with no bearer check. |
+
+Login and refresh check the current database suspension status and reject suspended accounts with `403` and `{"error":"your account has been suspended"}` without issuing tokens. Login verifies credentials before reporting suspension. Token contents and authentication middleware retain their existing behavior.
+
+Existing access tokens remain usable until they expire. The frontend clears stored tokens and returns to login when refresh is rejected, displaying the suspension message through the shared notification store. After unsuspension, the user can log in again.
 
 ## Database
 
@@ -74,6 +80,7 @@ erDiagram
         Int id PK
         String email UK
         String hashedPassword
+        Boolean isSuspended
         String nickname
         String contact "nullable"
         TimestamptzString createdAt

@@ -148,7 +148,7 @@ describe("AuthController.login", () => {
     it("returns tokens on successful login", async () => {
         const userRepo = makeUserRepo({
             getUserByEmail: spy(async () =>
-                ({ id: 1, hashedPassword: "hash", roles: [Role.Admin] } as never)),
+                ({ id: 1, hashedPassword: "hash", roles: [Role.Admin], isSuspended: false } as never)),
         });
         const hasher = makeHasher({
             verifyPassword: async () => true
@@ -165,6 +165,42 @@ describe("AuthController.login", () => {
 
         assertEquals(ctx.response.body, DEFAULT_TOKEN_PAIR);
         assertEquals(jwtGenTokens.calls[0].args, [TEST_ADMIN_ID, [Role.Admin]]);
+    });
+
+    it("rejects a suspended user without issuing tokens", async () => {
+        const userRepo = makeUserRepo({
+            getUserByEmail: async () =>
+                ({ id: 1, hashedPassword: "hash", roles: [Role.Admin], isSuspended: true } as never),
+        });
+        const generateJwtTokenPair = spy(async () => DEFAULT_TOKEN_PAIR);
+        const controller = makeController(userRepo, makeRoleRepo(), makeHasher(), makeJwtService({ generateJwtTokenPair }));
+        const ctx = new FakeCtx({
+            validatedBody: { email: TEST_EMAIL, password: CORRECT_PASSWORD },
+        });
+
+        await controller.login(ctx.asCtx());
+
+        assertEquals(ctx.response.status, 403);
+        assertEquals(ctx.response.body, { error: "your account has been suspended" });
+        assertEquals(generateJwtTokenPair.calls.length, 0);
+    });
+
+    it("returns the generic credential error for a suspended user with an incorrect password", async () => {
+        const userRepo = makeUserRepo({
+            getUserByEmail: async () =>
+                ({ id: 1, hashedPassword: "hash", roles: [Role.Admin], isSuspended: true } as never),
+        });
+        const generateJwtTokenPair = spy(async () => DEFAULT_TOKEN_PAIR);
+        const controller = makeController(userRepo, makeRoleRepo(), makeHasher({
+            verifyPassword: async () => false,
+        }), makeJwtService({ generateJwtTokenPair }));
+        const ctx = new FakeCtx({ validatedBody: { email: TEST_EMAIL, password: WRONG_PASSWORD } });
+
+        await controller.login(ctx.asCtx());
+
+        assertEquals(ctx.response.status, 401);
+        assertEquals(ctx.response.body, { error: "supplied email/password is incorrect" });
+        assertEquals(generateJwtTokenPair.calls.length, 0);
     });
 });
 
@@ -235,5 +271,35 @@ describe("AuthController.refreshToken", () => {
 
         assertEquals(ctx.response.body, NEW_TOKEN_PAIR);
         assertEquals(generateJwtTokenPair.calls[0].args, [String(publicUser.id), [Role.Requestor]]);
+    });
+
+    it("rejects refresh while suspended and allows it after unsuspension", async () => {
+        let isSuspended = true;
+        const generateJwtTokenPair = spy(async () => NEW_TOKEN_PAIR);
+        const jwtService = makeJwtService({
+            validateRefreshToken: async () => validJwtTokenResult,
+            generateJwtTokenPair,
+        });
+        const userRepo = makeUserRepo({
+            getUserByIdPublic: async () => makePublicUser(1, { isSuspended }),
+        });
+        const controller = makeController(userRepo, makeRoleRepo(), makeHasher(), jwtService);
+
+        const suspendedCtx = new FakeCtx({ validatedBody: { refreshToken: VALID_REFRESH_TOKEN } });
+        await controller.refreshToken(suspendedCtx.asCtx());
+
+        assertEquals(suspendedCtx.response.status, 403);
+        assertEquals(suspendedCtx.response.body, { error: "your account has been suspended" });
+        assertEquals(generateJwtTokenPair.calls.length, 0);
+
+        isSuspended = false;
+        const activeCtx = new FakeCtx({ validatedBody: { refreshToken: VALID_REFRESH_TOKEN } });
+        await controller.refreshToken(activeCtx.asCtx());
+
+        assertEquals(activeCtx.response.status, 200);
+        assertEquals(activeCtx.response.body, NEW_TOKEN_PAIR);
+        assertEquals(generateJwtTokenPair.calls.map(call => call.args), [
+            ["1", [Role.Requestor]],
+        ]);
     });
 });

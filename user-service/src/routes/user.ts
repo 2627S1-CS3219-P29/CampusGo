@@ -48,6 +48,22 @@ const createUserRouter = () => {
         }
     );
 
+    router.post(
+        "/:id/suspend",
+        authenticationMiddleware(new Set([Role.Admin])),
+        async ctx => {
+            await userController.suspendUser(ctx);
+        }
+    );
+
+    router.delete(
+        "/:id/suspend",
+        authenticationMiddleware(new Set([Role.Admin])),
+        async ctx => {
+            await userController.unsuspendUser(ctx);
+        }
+    );
+
     return router;
 };
 
