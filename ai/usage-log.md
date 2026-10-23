@@ -1,5 +1,4 @@
 # 19/9/2026
-## 1
 - Tool used: deepseek chat
 - Mode: Generation
 - Prompt:
@@ -100,3 +99,17 @@ Generate code to help me seed locations from the csv first then proceed to seed 
 ```
 Generate code so that when a user's credit account is missing, credit-service queries user-service via RPC. If the user exists, create their UserCredits entry without resetting any existing balance. If the user does not exist, retain the existing rejection behavior. Propagate RPC failures so they are not treated as nonexistent users.
 ```
+
+# 23/10/2026
+- Tool used: codex
+- Mode: Generation
+- Prompt:
+```
+generate documentation for README.md under user-service. capture the following info:
+- first setup requirements (how to generate first admin invite code, exec into container and run the correct deno task)
+- small table of api endpoints and what they do (summary)
+- mermaidjs db diagram of the prisma schema
+- project structure
+ensure it is concise
+```
+- output used: sections were rearranged to have better logical ordering. the tool generated extra items such as a "how to run without containers" section. this was unnecessary, so similar items were removed.
