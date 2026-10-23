@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'c79c64458470e29aa5a0988a2f3831be551232fbece89da6e07d38e689d0f6da'>;
+  StorageHashBase<'4ebb68bc5a6e3c2b279f9c5a11997afe8076bd6725c512864bea3bd0271c4e6c'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -266,6 +266,7 @@ export type FieldOutputTypes = {
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly email: CodecTypes['pg/text@1']['output'];
       readonly hashedPassword: CodecTypes['pg/text@1']['output'];
+      readonly isSuspended: CodecTypes['pg/bool@1']['output'];
       readonly nickname: CodecTypes['pg/text@1']['output'];
       readonly contact: CodecTypes['pg/text@1']['output'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -305,6 +306,7 @@ export type FieldInputTypes = {
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly email: CodecTypes['pg/text@1']['input'];
       readonly hashedPassword: CodecTypes['pg/text@1']['input'];
+      readonly isSuspended: CodecTypes['pg/bool@1']['input'];
       readonly nickname: CodecTypes['pg/text@1']['input'];
       readonly contact: CodecTypes['pg/text@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
@@ -346,6 +348,7 @@ export type StorageColumnTypes = {
       readonly email: CodecTypes['pg/text@1']['output'];
       readonly hashedPassword: CodecTypes['pg/text@1']['output'];
       readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly isSuspended: CodecTypes['pg/bool@1']['output'];
       readonly nickname: CodecTypes['pg/text@1']['output'];
     };
     readonly userRole: {
@@ -385,6 +388,7 @@ export type StorageColumnInputTypes = {
       readonly email: CodecTypes['pg/text@1']['input'];
       readonly hashedPassword: CodecTypes['pg/text@1']['input'];
       readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly isSuspended: CodecTypes['pg/bool@1']['input'];
       readonly nickname: CodecTypes['pg/text@1']['input'];
     };
     readonly userRole: {
@@ -401,6 +405,7 @@ export namespace Models {
     id: CodecTypes['pg/int4@1']['output'];
     email: CodecTypes['pg/text@1']['output'];
     hashedPassword: CodecTypes['pg/text@1']['output'];
+    isSuspended: CodecTypes['pg/bool@1']['output'];
     nickname: CodecTypes['pg/text@1']['output'];
     contact: CodecTypes['pg/text@1']['output'] | null;
     createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -621,6 +626,15 @@ type ContractBase = Omit<
                   readonly nativeType: 'text';
                   readonly codecId: 'pg/text@1';
                   readonly nullable: false;
+                };
+                readonly isSuspended: {
+                  readonly nativeType: 'bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/bool@1', false>;
+                  };
                 };
                 readonly nickname: {
                   readonly nativeType: 'text';
@@ -916,6 +930,10 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
+              readonly isSuspended: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
               readonly nickname: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
@@ -956,6 +974,7 @@ type ContractBase = Omit<
                 readonly id: { readonly column: 'id' };
                 readonly email: { readonly column: 'email' };
                 readonly hashedPassword: { readonly column: 'hashedPassword' };
+                readonly isSuspended: { readonly column: 'isSuspended' };
                 readonly nickname: { readonly column: 'nickname' };
                 readonly contact: { readonly column: 'contact' };
                 readonly createdAt: { readonly column: 'createdAt' };

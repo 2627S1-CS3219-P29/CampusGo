@@ -67,8 +67,6 @@
       <router-view /> 
     </v-main>
 
-    <global-alerts/>
-
     <!-- Confirm before logging out, so a stray click on the menu does not sign the user out -->
     <v-dialog v-model="isLogoutOpen" max-width="400">
       <v-card rounded="lg">
@@ -91,7 +89,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { useDisplay } from 'vuetify';
 import { useAuthStore } from '@/stores/auth';
 import { useCreditStore } from '@/stores/credit';
-import GlobalAlerts from './GlobalAlerts.vue';
 
 // credits change as errands are requested, completed or cancelled
 const CREDIT_REFRESH_MS = 30_000;

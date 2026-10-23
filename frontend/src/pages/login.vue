@@ -181,24 +181,6 @@
       </div>
     </v-card>
 
-    <!-- ======================= Server error popup ======================= -->
-    <v-snackbar
-      v-model="snackbar.show"
-      :color="snackbar.color"
-      location="bottom"
-      :timeout="5000"
-      rounded="lg"
-      elevation="8"
-    >
-      <div class="d-flex align-center ga-3">
-        <v-icon>{{ snackbar.color === 'error' ? 'mdi-alert-circle-outline' : 'mdi-check-circle-outline' }}</v-icon>
-        <span style="white-space: pre-line;">{{ snackbar.text }}</span>
-      </div>
-
-      <template #actions>
-        <v-btn variant="text" size="small" @click="snackbar.show = false">Close</v-btn>
-      </template>
-    </v-snackbar>
   </v-container>
 </template>
 
@@ -209,7 +191,8 @@ import { z } from 'zod'
 import { register } from "@/api/auth";
 import { formatApiError } from '@/util/zodErrorFormatter';
 import { useAuthStore } from '@/stores/auth';
-import { useRouter } from 'vuetify/lib/composables/router.mjs';
+import { useAlertStore } from '@/stores/alerts';
+import { useRouter } from 'vue-router';
 
 const loginSchema = z.object({
   email: z
@@ -274,8 +257,6 @@ const registerLoading = ref(false);
 const showLoginPassword = ref(false);
 const showRegisterPassword = ref(false);
 
-const snackbar = reactive({ show: false, text: '', color: 'error' as 'error' | 'success' });
-
 // SLIDE-OVER LAYOUT (keeps the card height in sync with the active pane)
 const viewportHeight = ref('auto');
 const loginPane = ref<HTMLElement | null>(null);
@@ -304,12 +285,6 @@ onBeforeUnmount(() => {
 watch(mode, () => nextTick(syncHeight));
 
 // ui actions
-function notify(color: 'error' | 'success', text: string) {
-  snackbar.color = color;
-  snackbar.text = text;
-  snackbar.show = true;
-}
-
 function validateLoginField(field: 'email' | 'password') {
   const result = loginSchema.shape[field].safeParse(loginForm[field]);
   loginErrors[field] = result.success ? '' : (result.error.issues[0]?.message ?? '');
@@ -334,6 +309,7 @@ function goToLogin() {
 
 // integration
 const authStore = useAuthStore();
+const alertStore = useAlertStore();
 const router = useRouter();
 
 async function handleLogin() {
@@ -346,9 +322,10 @@ async function handleLogin() {
   try {
     await authStore.login(loginForm.email, loginForm.password);
     // goto dashboard on successful login
-    router?.push({ name: "dashboard" });
+    router.push({ name: "dashboard" });
   } catch (error) {
-    notify('error', formatApiError((<any>error)?.response?.data) ?? 'Something went wrong. Please try again.');
+    const data = (<any>error)?.response?.data;
+    alertStore.error(data ? formatApiError(data) : 'Something went wrong. Please try again.');
   } finally {
     loginLoading.value = false;
   }
@@ -363,10 +340,11 @@ async function handleRegister() {
   registerLoading.value = true;
   try {
     await register(registerForm.email, registerForm.password);
-    notify('success', `Account registered!`);
+    alertStore.success(`Account registered!`);
     goToLogin();
   } catch (error) {
-    notify('error', formatApiError((<any>error)?.response?.data) ?? 'Something went wrong. Please try again.');
+    const data = (<any>error)?.response?.data;
+    alertStore.error(data ? formatApiError(data) : 'Something went wrong. Please try again.');
   } finally {
     registerLoading.value = false;
   }

@@ -320,6 +320,13 @@
                   "kind": "scalar"
                 }
               },
+              "isSuspended": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
               "nickname": {
                 "nullable": false,
                 "type": {
@@ -374,6 +381,9 @@
                 },
                 "id": {
                   "column": "id"
+                },
+                "isSuspended": {
+                  "column": "isSuspended"
                 },
                 "nickname": {
                   "column": "nickname"
@@ -701,6 +711,15 @@
                   "nativeType": "int4",
                   "nullable": false
                 },
+                "isSuspended": {
+                  "codecId": "pg/bool@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": false
+                  },
+                  "nativeType": "bool",
+                  "nullable": false
+                },
                 "nickname": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
@@ -847,7 +866,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "c79c64458470e29aa5a0988a2f3831be551232fbece89da6e07d38e689d0f6da"
+    "storageHash": "4ebb68bc5a6e3c2b279f9c5a11997afe8076bd6725c512864bea3bd0271c4e6c"
   },
   "capabilities": {
     "postgres": {

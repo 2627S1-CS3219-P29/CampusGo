@@ -7,13 +7,75 @@ import { spy } from "@std/testing/mock";
 import { UserController } from "../src/controller/user.ts";
 import { ADMIN_PAYLOAD, FakeCtx, makePublicUser, makeRoleRepo, makeUserRepo, TEST_REQUESTOR_ID, USER_PAYLOAD } from "./util.ts";
 import { IUserRepository } from "../src/prisma/users.ts";
-import { Role } from "../src/prisma/common.ts";
+import { DbError, ErrorType, Role } from "../src/prisma/common.ts";
 
 // TODO: test updateUserBasic
 
 const publicUser = makePublicUser(Number(TEST_REQUESTOR_ID));
 const OTHER_USER_ID = "3";
 const NON_EXISTENT_USER_ID = "9";
+
+describe("UserController suspension", () => {
+    for (const isSuspended of [true, false]) {
+        const method = isSuspended ? "suspendUser" : "unsuspendUser";
+
+        it(`${method} updates another admin and accepts repeated requests`, async () => {
+            const target = makePublicUser(Number(OTHER_USER_ID), { roles: [Role.Admin], isSuspended: !isSuspended });
+            const updateUserSuspension = spy(async (_id: number, suspended: boolean) => {
+                target.isSuspended = suspended;
+                return target as never;
+            });
+            const controller = new UserController(makeUserRepo({ updateUserSuspension }), makeRoleRepo(), {} as never);
+
+            for (let i = 0; i < 2; i++) {
+                const ctx = new FakeCtx({ params: { id: OTHER_USER_ID }, jwtPayload: ADMIN_PAYLOAD });
+
+                await controller[method](ctx.asCtx());
+
+                assertEquals(ctx.response.status, 200);
+                assertEquals(ctx.response.body, "updated");
+                assertEquals(target.isSuspended, isSuspended);
+                assertEquals(target.roles, [Role.Admin]);
+            }
+
+            assertEquals(updateUserSuspension.calls.map(call => call.args), [
+                [Number(OTHER_USER_ID), isSuspended],
+                [Number(OTHER_USER_ID), isSuspended],
+            ]);
+        });
+
+        it(`${method} returns 400 for an invalid id without updating`, async () => {
+            const controller = new UserController(makeUserRepo(), {} as never, {} as never);
+            const ctx = new FakeCtx({ params: { id: "abc" }, jwtPayload: ADMIN_PAYLOAD });
+
+            await controller[method](ctx.asCtx());
+
+            assertEquals(ctx.response.status, 400);
+        });
+
+        it(`${method} returns 404 for a missing user`, async () => {
+            const controller = new UserController(makeUserRepo({
+                updateUserSuspension: async () => null,
+            }), {} as never, {} as never);
+            const ctx = new FakeCtx({ params: { id: NON_EXISTENT_USER_ID }, jwtPayload: ADMIN_PAYLOAD });
+
+            await controller[method](ctx.asCtx());
+
+            assertEquals(ctx.response.status, 404);
+            assertEquals(ctx.response.body, { error: "no such user" });
+        });
+    }
+
+    it("prevents admin from suspending their own account", async () => {
+        const controller = new UserController(makeUserRepo(), {} as never, {} as never);
+        const ctx = new FakeCtx({ params: { id: ADMIN_PAYLOAD.sub! }, jwtPayload: ADMIN_PAYLOAD });
+
+        await controller.suspendUser(ctx.asCtx());
+
+        assertEquals(ctx.response.status, 403);
+        assertEquals(ctx.response.body, { error: "cannot suspend your own account" });
+    });
+});
 
 describe("UserController.getUser", () => {
     it("returns 400 for invalid id", async () => {

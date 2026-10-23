@@ -276,9 +276,40 @@ export class UserController {
         }
     }
 
-    // TODO: requires either another field in user to mark suspended (so that roles need not be affected)
-    // then jwt can have an additional isSuspended flag
-    // async suspendUser(ctx: RouterContext<"/:id/suspend">) {}
+    async suspendUser(ctx: RouterContext<"/:id/suspend">) {
+        await this.updateUserSuspension(ctx, true);
+    }
 
+    async unsuspendUser(ctx: RouterContext<"/:id/suspend">) {
+        await this.updateUserSuspension(ctx, false);
+    }
+
+    /**
+     * Admin-only: set suspension status. An admin may not suspend themselves.
+     */
+    private async updateUserSuspension(ctx: RouterContext<"/:id/suspend">, isSuspending: boolean) {
+        const parsedUserId = this.validateIdCommon(ctx, ctx.params.id);
+        if (parsedUserId === null)
+            return;
+
+        const requestingUserId = parseInt((<JWTPayload>ctx.state.jwtPayload).sub!);
+        if (requestingUserId === parsedUserId) {
+            ctx.response.status = 403;
+            ctx.response.body = { error: "cannot suspend your own account" };
+            return;
+        }
+
+        try {
+            const updated = await this.userRepo.updateUserSuspension(parsedUserId, isSuspending);
+            if (!updated) {
+                ctx.response.status = 404;
+                ctx.response.body = { error: "no such user" };
+                return;
+            }
+            ctx.response.body = "updated";
+        } catch (e) {
+            applyDbError(ctx, e);
+        }
+    }
 
 }

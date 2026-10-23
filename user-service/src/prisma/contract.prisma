@@ -4,6 +4,7 @@ model User {
     id Int @id @default(autoincrement())
     email String @unique
     hashedPassword String
+    isSuspended Boolean @default(false)
 
     // TODO: profile picture, requires s3 presigned storage
     // profilePictureFileHash String?

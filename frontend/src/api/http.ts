@@ -1,5 +1,6 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import * as TokenStore from '@/auth/tokenStorage';
+import { useAlertStore } from '@/stores/alerts';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -38,10 +39,12 @@ export async function tryRefreshToken() {
         return accessToken;
     } catch (e) {
         if (axios.isAxiosError(e)) {
-            // TODO: more intelligent handling?
             console.warn("token refresh failed, clearing login tokens");
             TokenStore.clearTokens();
-            throw new ApiError(e.status, e.response?.data, "token refresh failed");
+            const isSuspended = e.response?.status === 403;
+            if (isSuspended)
+                useAlertStore().error(e.response?.data?.error ?? "Your account has been suspended.");
+            throw new ApiError(e.response?.status, e.response?.data, isSuspended ? "Your account has been suspended." : "token refresh failed");
         }
         throw e;
     }
