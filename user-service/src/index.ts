@@ -12,6 +12,10 @@ import { repoFactory } from "./prisma/factory.ts";
 import { makeRpcServer } from "./queue/impl/rpc.ts";
 import { makeOutboxWorker } from "./queue/impl/outbox.ts";
 import type { RabbitMqProvider } from "./queue/provider.ts";
+import { createHttpHandler, httpTelemetryMiddleware } from "./middleware/telemetry.ts";
+import { OutboxMetricsMonitor } from "./telemetry/outbox.ts";
+import { outboxWorkerRunning, rabbitAvailable } from "./telemetry/queue.ts";
+import { OutboxRepository } from "./prisma/outbox.ts";
 
 const flags = parseArgs(Deno.args, {
     boolean: ["gen-invite"],
@@ -85,6 +89,7 @@ const createPrivateRouter = () => {
 
 const main = (port: number) => {
     const app = new Application();
+    app.use(httpTelemetryMiddleware);
     
     const publicRouter = createPublicRouter();
     app.use(publicRouter.routes());
@@ -94,12 +99,18 @@ const main = (port: number) => {
     app.use(privateRouter.routes());
     app.use(privateRouter.allowedMethods());
     
-    app.listen({ port });
+    Deno.serve({ port }, createHttpHandler(app));
 };
 
 if (flags["gen-invite"]) {
     await generateInviteCodeCli();
 } else {
+    // Monitoring runs even while the RabbitMQ connection or relay worker is unavailable.
+    rabbitAvailable.record(0);
+    outboxWorkerRunning.record(0);
+    const outboxMonitor = new OutboxMetricsMonitor(() => new OutboxRepository(db).getMetricsSnapshot());
+    outboxMonitor.start();
+    globalThis.addEventListener("unload", () => { void outboxMonitor.stop(); });
     const port = Number(Deno.env.get("PORT") ?? 3000);
     log.info(`starting on port ${port}`);
     startQueueTasks();
