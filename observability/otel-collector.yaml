@@ -23,8 +23,17 @@ exporters:
         - service.name
         - service.namespace
         - deployment.environment.name
-  # FIXME: accept trace exports without storing
-  # TODO: add tempo to collect traces
+  otlphttp/tempo:
+    endpoint: http://tempo:4318
+    sending_queue:
+      enabled: true
+      queue_size: 1024
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 300s
+  # Logs remain accepted without storage until a log backend is introduced.
   nop: {}
 
 extensions:
@@ -41,7 +50,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [nop]
+      exporters: [otlphttp/tempo]
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]

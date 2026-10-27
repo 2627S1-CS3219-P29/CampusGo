@@ -16,6 +16,8 @@ import { createHttpHandler, httpTelemetryMiddleware } from "./middleware/telemet
 import { OutboxMetricsMonitor } from "./telemetry/outbox.ts";
 import { outboxWorkerRunning, rabbitAvailable } from "./telemetry/queue.ts";
 import { OutboxRepository } from "./prisma/outbox.ts";
+import { UserRepository } from "./prisma/users.ts";
+import { AccountMetricsMonitor } from "./telemetry/user.ts";
 
 const flags = parseArgs(Deno.args, {
     boolean: ["gen-invite"],
@@ -36,7 +38,7 @@ const startQueueTasks = async () => {
         try {
             rabbitMqProvider = await buildDefaultProvider();
         } catch (e) {
-            log.warn(`first connection to queue failed: ${e}`);
+            // log.warn(`first connection to queue failed: ${e}`);
             await sleep(ERROR_BACKOFF_MS);
         }
     }
@@ -109,8 +111,12 @@ if (flags["gen-invite"]) {
     rabbitAvailable.record(0);
     outboxWorkerRunning.record(0);
     const outboxMonitor = new OutboxMetricsMonitor(() => new OutboxRepository(db).getMetricsSnapshot());
+    const accountMonitor = new AccountMetricsMonitor(() => new UserRepository(db).getMetricsSnapshot());
     outboxMonitor.start();
-    globalThis.addEventListener("unload", () => { void outboxMonitor.stop(); });
+    accountMonitor.start();
+    globalThis.addEventListener("unload", () => {
+        Promise.allSettled([outboxMonitor.stop(), accountMonitor.stop()]);
+    });
     const port = Number(Deno.env.get("PORT") ?? 3000);
     log.info(`starting on port ${port}`);
     startQueueTasks();

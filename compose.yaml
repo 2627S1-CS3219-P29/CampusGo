@@ -4,11 +4,25 @@ networks:
     # internal: true
 
 services:
-  # metrics pipeline: service pushes to otel-collector -> prometheus ingests -> grafana dashboard
+  # metrics pipeline: service pushes to otel-collector. prometheus ingests metrics from collector and collector exports traces to tempo. grafana is a unified dashboard to show both
+  tempo:
+    image: grafana/tempo:3.1.1
+    working_dir: /var/tempo
+    command: ["-target=all", "-config.file=/etc/tempo/config.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo/config.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"
+    networks: [private_net]
+
   otel-collector:
     image: otel/opentelemetry-collector:0.163.0-nightly.ea6d627
     command: ["--config=/etc/otelcol/config.yaml"]
     mem_limit: 256m
+    depends_on:
+      tempo:
+        condition: service_started
     volumes:
       - ./observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
     ports:
@@ -34,7 +48,7 @@ services:
     networks: [private_net]
 
   grafana:
-    image: grafana/grafana:13.2.4
+    image: grafana/grafana:13.3.0
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
@@ -47,6 +61,8 @@ services:
       - "3000:3000"
     depends_on:
       prometheus:
+        condition: service_started
+      tempo:
         condition: service_started
     networks: [private_net]
 
@@ -147,8 +163,8 @@ services:
     depends_on:
       user_db:
         condition: service_healthy
-      otel-collector:
-        condition: service_started
+      # otel-collector:
+      #   condition: service_started
     environment:
       NODE_ENV: development
       DATABASE_URL: ${USER_DB_URL}
@@ -414,3 +430,4 @@ volumes:
   rabbitmq_data:
   prometheus_data:
   grafana_data:
+  tempo_data:

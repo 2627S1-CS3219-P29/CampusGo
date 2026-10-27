@@ -6,6 +6,7 @@ import { context, createContextKey, SpanKind, trace } from "@opentelemetry/api";
 import { extractTraceContext } from "../telemetry/propagation.ts";
 import { httpActive, httpDuration } from "../telemetry/http.ts";
 import { markSpanError, recordError, traceLogFields, withSpan } from "../telemetry/tracing.ts";
+import { recordAuthResponse } from "../telemetry/user.ts";
 
 interface RequestTelemetry {
     route: string;
@@ -74,6 +75,7 @@ export function createHttpHandler(app: Application) {
                     "http.request.method": method,
                     "http.response.status_code": response.status,
                 });
+                recordAuthResponse(method, state.route, response.status);
                 return response;
             });
         };
