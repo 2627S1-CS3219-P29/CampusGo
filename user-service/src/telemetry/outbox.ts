@@ -26,9 +26,9 @@ export class OutboxMetricsMonitor {
     private running = false;
     private disposed = false;
 
-    private readonly backlog = meter.createObservableGauge("campusgo.outbox.backlog", { unit: "1" });
+    private readonly backlog = meter.createObservableGauge("campusgo.outbox.backlog");
     private readonly oldest = meter.createObservableGauge("campusgo.outbox.oldest_pending.age", { unit: "s" });
-    private readonly available = meter.createObservableGauge("campusgo.outbox.snapshot.available", { unit: "1" });
+    private readonly available = meter.createObservableGauge("campusgo.outbox.snapshot.available");
     private readonly last = meter.createObservableGauge("campusgo.outbox.snapshot.last_success", { unit: "s" });
     private readonly heartbeat = meter.createObservableGauge("campusgo.telemetry.heartbeat", { unit: "s" });
     private readonly failures = meter.createCounter("campusgo.outbox.snapshot.failures", { unit: "1" });

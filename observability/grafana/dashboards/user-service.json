@@ -1052,7 +1052,7 @@
       "id": 16,
       "title": "Outbox backlog",
       "type": "timeseries",
-      "description": "Ready + delayed = pending. Failed rows exhausted retries. Shared database snapshots must not be summed across replicas.",
+      "description": "Row counts from campusgo_outbox_backlog, with no ratio suffix. Ready + delayed = pending. Failed rows exhausted retries. Shared database snapshots must not be summed across replicas.",
       "gridPos": {
         "x": 0,
         "y": 39,
@@ -1066,6 +1066,8 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 0,
+          "min": 0,
           "noValue": "Unavailable",
           "color": {
             "mode": "palette-classic"
@@ -1156,7 +1158,7 @@
       "id": 18,
       "title": "RabbitMQ connection available",
       "type": "stat",
-      "description": "1 = user-service connection open; 0 = connecting/disconnected/closed. Initial connection failures remain 0.",
+      "description": "Unitless 0/1 state, not a percentage. 1 = user-service connection open; 0 = connecting/disconnected/closed. Initial connection failures remain 0.",
       "gridPos": {
         "x": 0,
         "y": 46,
@@ -1170,6 +1172,9 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
           "noValue": "Unavailable",
           "color": {
             "mode": "palette-classic"
@@ -1208,7 +1213,7 @@
       "id": 19,
       "title": "Outbox worker running",
       "type": "stat",
-      "description": "1 = relay loop running. Also inspect poll age; a running worker may be stalled.",
+      "description": "Unitless 0/1 state, not a percentage. 1 = relay loop running. Also inspect poll age; a running worker may be stalled.",
       "gridPos": {
         "x": 12,
         "y": 46,
@@ -1222,6 +1227,9 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
           "noValue": "Unavailable",
           "color": {
             "mode": "palette-classic"
@@ -1780,7 +1788,7 @@
       "id": 30,
       "title": "Total pending outbox events",
       "type": "stat",
-      "description": "Ready + delayed, excluding exhausted rows. Hidden when the database snapshot or application telemetry is stale.",
+      "description": "Row count from campusgo_outbox_backlog (ready + delayed), excluding exhausted rows. Hidden when the database snapshot or application telemetry is stale.",
       "gridPos": {
         "x": 0,
         "y": 85,
@@ -1794,6 +1802,8 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 0,
+          "min": 0,
           "noValue": "Unavailable",
           "color": {
             "mode": "palette-classic"
@@ -1832,7 +1842,7 @@
       "id": 31,
       "title": "Outbox snapshot available",
       "type": "stat",
-      "description": "1 = last successful database snapshot is at most 90s old; 0 = no successful or sufficiently fresh snapshot. Missing = stale application telemetry.",
+      "description": "Unitless 0/1 state, not a percentage. 1 = last successful database snapshot is at most 90s old; 0 = no successful or sufficiently fresh snapshot. Missing = stale application telemetry.",
       "gridPos": {
         "x": 12,
         "y": 85,
@@ -1846,6 +1856,9 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
           "noValue": "Unavailable",
           "color": {
             "mode": "palette-classic"

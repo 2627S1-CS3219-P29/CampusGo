@@ -18,7 +18,6 @@ scrape_configs:
     static_configs:
       - targets: [rabbitmq:15692]
 
-  # Select a few detailed families rather than exporting transient reply queues/channels.
   - job_name: rabbitmq-queues
     metrics_path: /metrics/detailed
     params:
@@ -27,5 +26,5 @@ scrape_configs:
       - targets: [rabbitmq:15692]
     metric_relabel_configs:
       - source_labels: [queue]
-        regex: 'user\.rpc|credit\.(user-registered|order-created|order-accepted|order-released|order-refunded)(\.dlq)?|order\.events\.(queue|dlq)'
+        regex: '^(user|credit|order)\..*'
         action: keep
