@@ -202,8 +202,6 @@ services:
     depends_on:
       user_db:
         condition: service_healthy
-      otel-collector:
-        condition: service_started
     environment:
       NODE_ENV: production
       DATABASE_URL: ${USER_DB_URL}
