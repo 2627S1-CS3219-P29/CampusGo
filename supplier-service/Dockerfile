@@ -17,9 +17,9 @@ FROM denoland/deno:latest AS production
 ENV DENO_DIR=/deno-dir
 WORKDIR /app
 
-# COPY --from=deps /app .
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /deno-dir /deno-dir
 COPY . .
 
-RUN deno task check --all
+RUN deno task build
 CMD ["deno", "task", "start"]
