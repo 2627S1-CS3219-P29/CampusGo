@@ -17,6 +17,9 @@ import OpenErrands from '@/pages/open-errands.vue'
 import MyErrands from '@/pages/my-errands.vue'
 import AdminUsers from '@/pages/admin-users.vue'
 import AdminUser from '@/pages/admin-user.vue'
+import Chats from '@/pages/chats.vue'
+import ChatPage from '@/pages/chat.vue'
+import Favourites from '@/pages/favourites.vue'
 import DashboardNavBar from '@/components/DashboardNavBar.vue'
 import { useAuthStore } from '@/stores/auth';
 import { watch } from 'vue';
@@ -34,6 +37,9 @@ const routes: RouteRecordRaw[] = [
             { path: "errands/new", name: "request-errand", component: RequestErrand },
             { path: "errands/:id", name: "errand", component: ErrandDetail },
             { path: "my-errands", name: "my-errands", component: MyErrands },
+            { path: "chats", name: "chats", component: Chats },
+            { path: "chats/:errandId", name: "chat", component: ChatPage },
+            { path: "favourites", name: "favourites", component: Favourites },
             // admin only, see the guard below
             { path: "admin/users", name: "admin-users", component: AdminUsers, meta: { isAdminRequired: true } },
             { path: "admin/users/:id", name: "admin-user", component: AdminUser, meta: { isAdminRequired: true } },

@@ -316,16 +316,14 @@ const locationExists = async (locationId: number) =>
     Boolean(await withDatabaseOperation("database.Location.first", async () => db.orm.public.Location.where({ id: locationId, deletedAt: null }).first()));
 
 /**
- * Names are unique across all suppliers, including soft-deleted ones.
+ * Names are unique among active suppliers (the supplier_name_active index); a deleted supplier's name can be reused.
  * Returns why the name can't be used, or null if it is free
  */
 const nameConflict = async (name: string, exceptId?: number): Promise<string | null> => {
-    const existing = await withDatabaseOperation("database.Supplier.first", async () => db.orm.public.Supplier.where({ name: name }).first());
+    const existing = await withDatabaseOperation("database.Supplier.first", async () => db.orm.public.Supplier.where({ name: name, deletedAt: null }).first());
     if (!existing || existing.id === exceptId)
         return null;
-    return existing.deletedAt === null
-        ? `"${name}" is already used by another supplier`
-        : `"${name}" belongs to a deleted supplier, choose another name`;
+    return `"${name}" is already used by another supplier`;
 }
 
 export const createSupplier = async (ctx: Context) => {

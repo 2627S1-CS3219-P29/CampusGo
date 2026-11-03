@@ -28,6 +28,27 @@
             <v-btn prepend-icon="mdi-office-building-marker-outline" value="BUILDING">Building</v-btn>
           </v-btn-toggle>
 
+          <!-- favourite suppliers, one tap to pick -->
+          <div
+            v-if="form.pickupType === 'SUPPLIER' && favouriteStore.suppliers.length > 0"
+            class="d-flex flex-wrap align-center ga-2 mb-3"
+          >
+            <span class="text-caption text-medium-emphasis">Favourites:</span>
+
+            <v-chip
+              v-for="f in favouriteStore.suppliers"
+              :key="f.id"
+              :color="form.supplierId === f.targetId ? 'primary' : undefined"
+              :disabled="isSubmitting || !f.supplier"
+              prepend-icon="mdi-star"
+              size="small"
+              :variant="form.supplierId === f.targetId ? 'flat' : 'tonal'"
+              @click="selectSupplier(f.targetId)"
+            >
+              {{ f.label ?? f.supplier?.name ?? 'Supplier' }}
+            </v-chip>
+          </div>
+
           <!-- registered supplier, searched as you type -->
           <v-autocomplete
             v-if="form.pickupType === 'SUPPLIER'"
@@ -56,17 +77,22 @@
           </v-autocomplete>
 
           <!-- any spot in a building, e.g. a friend's room -->
-          <building-spot-fields
-            v-else
-            v-model="form.pickup"
-            :errors="spotErrors('pickup')"
-            icon="mdi-office-building-marker-outline"
-            label="Building"
-            :locations="locations"
-          />
+          <template v-else>
+            <favourite-spot-picker v-model="form.pickup" :disabled="isSubmitting" :locations="locations" />
+
+            <building-spot-fields
+              v-model="form.pickup"
+              :errors="spotErrors('pickup')"
+              icon="mdi-office-building-marker-outline"
+              label="Building"
+              :locations="locations"
+            />
+          </template>
 
           <!-- Dropoff: always a spot in a building -->
           <div class="text-subtitle-2 mb-4">Deliver to</div>
+
+          <favourite-spot-picker v-model="form.dropoff" :disabled="isSubmitting" :locations="locations" />
 
           <building-spot-fields
             v-model="form.dropoff"
@@ -196,7 +222,9 @@
   import { createOrder, getOrder, type PickupType } from '@/api/order'
   import { getSupplier, listLocations, listSuppliers, type Location, type Supplier } from '@/api/supplier'
   import BuildingSpotFields, { type BuildingSpotInput } from '@/components/BuildingSpotFields.vue'
+  import FavouriteSpotPicker from '@/components/FavouriteSpotPicker.vue'
   import { useAlertStore } from '@/stores/alerts'
+  import { useFavouriteStore } from '@/stores/favourites'
   import { apiErrorMessage, DEFAULT_EXPIRY_MINUTES, EXPIRY_OPTIONS, formatDateTime } from '@/util/order'
   import { floorInput, formatLocation, parseFloor } from '@/util/supplier'
 
@@ -205,6 +233,7 @@
   const route = useRoute()
   const router = useRouter()
   const alertStore = useAlertStore()
+  const favouriteStore = useFavouriteStore()
 
   interface FormState {
     pickupType: PickupType
@@ -469,6 +498,6 @@
     } catch (error) {
       console.error('Error loading buildings', error)
     }
-    await Promise.all([searchSuppliers(''), prefill()])
+    await Promise.all([searchSuppliers(''), prefill(), favouriteStore.ensureLoaded()])
   })
 </script>

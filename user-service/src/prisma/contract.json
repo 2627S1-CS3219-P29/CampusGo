@@ -8,6 +8,10 @@
       "model": "AdminInviteCode",
       "namespace": "public"
     },
+    "favourite": {
+      "model": "Favourite",
+      "namespace": "public"
+    },
     "outbox": {
       "model": "Outbox",
       "namespace": "public"
@@ -29,6 +33,19 @@
     "namespaces": {
       "public": {
         "enum": {
+          "FavouriteKind": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "Supplier",
+                "value": "SUPPLIER"
+              },
+              {
+                "name": "Location",
+                "value": "LOCATION"
+              }
+            ]
+          },
           "OutboxStatus": {
             "codecId": "pg/text@1",
             "members": [
@@ -114,6 +131,120 @@
               },
               "namespaceId": "public",
               "table": "adminInviteCode"
+            }
+          },
+          "Favourite": {
+            "fields": {
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              },
+              "floor": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "kind": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "FavouriteKind",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "label": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "room": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "targetId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "userId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "user": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "userId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "User",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "createdAt": {
+                  "column": "createdAt"
+                },
+                "floor": {
+                  "column": "floor"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "kind": {
+                  "column": "kind"
+                },
+                "label": {
+                  "column": "label"
+                },
+                "room": {
+                  "column": "room"
+                },
+                "targetId": {
+                  "column": "targetId"
+                },
+                "userId": {
+                  "column": "userId"
+                }
+              },
+              "namespaceId": "public",
+              "table": "favourite"
             }
           },
           "Outbox": {
@@ -346,6 +477,21 @@
               }
             },
             "relations": {
+              "favourites": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "userId"
+                  ]
+                },
+                "to": {
+                  "model": "Favourite",
+                  "namespace": "public"
+                }
+              },
               "roles": {
                 "cardinality": "N:M",
                 "on": {
@@ -554,6 +700,124 @@
                 {
                   "columns": [
                     "code"
+                  ]
+                }
+              ]
+            },
+            "favourite": {
+              "checks": [
+                {
+                  "expression": "\"kind\" IN ('SUPPLIER', 'LOCATION')",
+                  "name": "favourite_kind_check_3ce70cca",
+                  "prefix": "favourite_kind_check"
+                }
+              ],
+              "columns": {
+                "createdAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
+                "floor": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "expression": "autoincrement()",
+                    "kind": "function"
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "kind": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "FavouriteKind",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "label": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "room": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": ""
+                  },
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "targetId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "userId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "userId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "favourite"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "user"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "userId"
+                  ],
+                  "name": "favourite_userId_idx_a489d58a",
+                  "prefix": "favourite_userId_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": [
+                {
+                  "columns": [
+                    "userId",
+                    "kind",
+                    "targetId",
+                    "floor",
+                    "room"
                   ]
                 }
               ]
@@ -867,6 +1131,13 @@
             }
           },
           "valueSet": {
+            "FavouriteKind": {
+              "kind": "valueSet",
+              "values": [
+                "SUPPLIER",
+                "LOCATION"
+              ]
+            },
             "OutboxStatus": {
               "kind": "valueSet",
               "values": [
@@ -881,7 +1152,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "f07cfedf4f3effcd9f79e7e9e8b79c22f3e8bd9bbff5e15eadeaab9e42afca0f"
+    "storageHash": "bca853e8c4ca5d0dc2638e3a95e1e414ce68a2dbb989470c1ea724c4a10aaad6"
   },
   "capabilities": {
     "postgres": {

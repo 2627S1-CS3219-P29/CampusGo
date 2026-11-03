@@ -99,8 +99,8 @@
         variant="tonal"
       />
 
-      <!-- Actions the viewer can take right now -->
-      <div v-if="actions.length > 0" class="d-flex flex-wrap ga-2 mb-4">
+      <!-- Actions the viewer can take right now, and the chat with the other person once a courier accepted -->
+      <div v-if="actions.length > 0 || canChat" class="d-flex flex-wrap ga-2 mb-4">
         <v-btn
           v-for="action in actions"
           :key="action.target"
@@ -111,6 +111,16 @@
         >
           {{ action.label }}
         </v-btn>
+
+        <v-badge v-if="canChat" color="error" :content="chatUnread" :model-value="chatUnread > 0">
+          <v-btn
+            prepend-icon="mdi-chat-outline"
+            :to="{ name: 'chat', params: { errandId: order.id } }"
+            variant="tonal"
+          >
+            {{ order.requesterId === myId ? 'Chat with courier' : 'Chat with requester' }}
+          </v-btn>
+        </v-badge>
       </div>
 
       <!-- Details -->
@@ -260,6 +270,7 @@
   import SupplierImage from '@/components/SupplierImage.vue'
   import { useAlertStore } from '@/stores/alerts'
   import { useAuthStore } from '@/stores/auth'
+  import { useChatStore } from '@/stores/chat'
   import { useClock, useExpiryReload } from '@/util/clock'
   import {
     apiErrorMessage,
@@ -334,6 +345,15 @@
     }
     return order.value.courierId === myId.value ? 'You are delivering this' : null
   })
+
+  // a chat exists once a courier accepted, and only its requester and courier can open it
+  const chatStore = useChatStore()
+  const canChat = computed(() => {
+    const o = order.value
+    return o !== null && o.courierId !== null && myId.value !== null
+      && (o.requesterId === myId.value || o.courierId === myId.value)
+  })
+  const chatUnread = computed(() => chatStore.chats.find(c => c.errandId === order.value?.id)?.unreadCount ?? 0)
 
   async function loadOrder (id: string, showLoading: boolean) {
     if (showLoading) {

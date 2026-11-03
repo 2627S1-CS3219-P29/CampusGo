@@ -23,7 +23,8 @@
           <v-card-title class="d-flex flex-wrap align-center ga-2">
             {{ user.nickname }}
             <span class="text-body-2 text-medium-emphasis">#{{ user.id }}</span>
-            <v-chip v-if="user.roles?.includes('admin')" color="primary" label size="x-small">Admin</v-chip>
+            <v-chip v-if="isAdmin" color="primary" label size="x-small">Admin</v-chip>
+            <v-chip v-if="user.isSuspended" color="error" label size="x-small">Suspended</v-chip>
           </v-card-title>
 
           <v-card-subtitle class="text-wrap">
@@ -31,7 +32,44 @@
             <span v-if="user.createdAt"> · Joined {{ formatDate(user.createdAt) }}</span>
           </v-card-subtitle>
         </v-card-item>
+
+        <!-- Admin actions; the user service refuses them on your own account, so they are hidden there -->
+        <v-card-actions v-if="!isSelf" class="flex-wrap ga-2 px-4 pb-4">
+          <v-btn
+            :prepend-icon="isAdmin ? 'mdi-shield-remove-outline' : 'mdi-shield-account-outline'"
+            variant="tonal"
+            @click="pending = isAdmin ? 'demote' : 'promote'"
+          >
+            {{ isAdmin ? 'Remove admin' : 'Make admin' }}
+          </v-btn>
+
+          <v-btn
+            :color="user.isSuspended ? 'success' : 'error'"
+            :prepend-icon="user.isSuspended ? 'mdi-account-check-outline' : 'mdi-account-cancel-outline'"
+            variant="tonal"
+            @click="pending = user.isSuspended ? 'unsuspend' : 'suspend'"
+          >
+            {{ user.isSuspended ? 'Unsuspend' : 'Suspend' }}
+          </v-btn>
+        </v-card-actions>
       </v-card>
+
+      <!-- Confirms the chosen admin action -->
+      <v-dialog max-width="440" :model-value="pending !== null" @update:model-value="value => { if (!value && !isActing) pending = null }">
+        <v-card v-if="pending" rounded="lg">
+          <v-card-title class="text-wrap">{{ ACTIONS[pending].title(user.nickname) }}</v-card-title>
+          <v-card-text>{{ ACTIONS[pending].text }}</v-card-text>
+
+          <v-card-actions>
+            <v-spacer />
+            <v-btn :disabled="isActing" variant="text" @click="pending = null">Cancel</v-btn>
+
+            <v-btn :color="ACTIONS[pending].color" :loading="isActing" variant="flat" @click="confirmAction">
+              {{ ACTIONS[pending].confirm }}
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
 
       <!-- Their errands as requester or as courier -->
       <v-tabs v-model="tab" class="mb-4" color="primary">
@@ -93,13 +131,14 @@
 
 <script lang="ts" setup>
   import axios from 'axios'
-  import { onMounted, ref, watch } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import { listOrders, type Order } from '@/api/order'
-  import { getUserSummary, type UserSummary } from '@/api/user'
+  import { getUserSummary, setSuspended, updateRoles, type UserSummary } from '@/api/user'
   import ErrandCard from '@/components/ErrandCard.vue'
   import UserAvatar from '@/components/UserAvatar.vue'
   import { useAlertStore } from '@/stores/alerts'
+  import { useAuthStore } from '@/stores/auth'
   import { useClock } from '@/util/clock'
   import { ACTIVE_STATUSES, apiErrorMessage, PAST_STATUSES } from '@/util/order'
   import { formatDate } from '@/util/user'
@@ -110,6 +149,67 @@
 
   const user = ref<UserSummary | null>(null)
   const isLoadingUser = ref(true)
+
+  const auth = useAuthStore()
+  const isSelf = computed(() => auth.userId !== null && Number(auth.userId) === userId)
+  const isAdmin = computed(() => user.value?.roles?.includes('admin') ?? false)
+
+  type AdminAction = 'promote' | 'demote' | 'suspend' | 'unsuspend'
+
+  // what each action asks before it runs, and what it says once done
+  const ACTIONS: Record<AdminAction, { title: (name: string) => string, text: string, confirm: string, color: string, done: string }> = {
+    promote: {
+      title: name => `Make ${name} an admin?`,
+      text: 'They will be able to see every user and errand, and suspend or promote other users. It takes effect the next time they log in or their session refreshes.',
+      confirm: 'Make admin',
+      color: 'primary',
+      done: 'is now an admin',
+    },
+    demote: {
+      title: name => `Remove ${name} as admin?`,
+      text: 'They lose access to the admin pages the next time they log in or their session refreshes.',
+      confirm: 'Remove admin',
+      color: 'primary',
+      done: 'is no longer an admin',
+    },
+    suspend: {
+      title: name => `Suspend ${name}?`,
+      text: 'They will not be able to log in. If they are logged in now, they are signed out when their session next refreshes. Their errands are not changed.',
+      confirm: 'Suspend',
+      color: 'error',
+      done: 'is suspended',
+    },
+    unsuspend: {
+      title: name => `Unsuspend ${name}?`,
+      text: 'They will be able to log in again.',
+      confirm: 'Unsuspend',
+      color: 'success',
+      done: 'is no longer suspended',
+    },
+  }
+
+  const pending = ref<AdminAction | null>(null)
+  const isActing = ref(false)
+
+  async function confirmAction () {
+    const action = pending.value
+    if (!action || !user.value) {
+      return
+    }
+    isActing.value = true
+    try {
+      await (action === 'promote' || action === 'demote' ? updateRoles(userId, { admin: action === 'promote' }) : setSuspended(userId, action === 'suspend'))
+      // reload so the page shows what the user service now holds
+      user.value = await getUserSummary(userId)
+      alertStore.success(`${user.value.nickname} ${ACTIONS[action].done}`)
+      pending.value = null
+    } catch (error) {
+      console.error(`Error running ${action}`, error)
+      alertStore.error(apiErrorMessage(error, 'Could not update this user'))
+    } finally {
+      isActing.value = false
+    }
+  }
 
   const tab = ref<'requested' | 'delivering'>('requested')
   const view = ref<'active' | 'past'>('active')

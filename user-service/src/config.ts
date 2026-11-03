@@ -36,6 +36,12 @@ const config = {
         nicknameMaxLength: 25,
     },
     adminInviteCodeExpiryTime: 24 * 60 * 60, // seconds
+    favourite: {
+        maxPerUser: 20,
+        labelMaxLength: 30,
+    },
+    // supplier service on the private docker network (alias supplier_api), used to check bookmarks
+    supplierServiceUrl: Deno.env.get("SUPPLIER_SERVICE_URL") ?? "http://supplier_api:3000",
     dbConnectionString,
     rabbitMqConnectionString,
 };

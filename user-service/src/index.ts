@@ -6,6 +6,7 @@ import log from "./log.ts";
 import { seedEssential } from "./prisma/seed.ts";
 import createUserRouter from "./routes/user.ts";
 import createRoleRouter from "./routes/role.ts";
+import createFavouriteRouter from "./routes/favourite.ts";
 import { generateInviteCodeCli } from "./tasks/cli.ts";
 import { buildDefaultProvider } from "./queue/impl/provider.ts";
 import { repoFactory } from "./prisma/factory.ts";
@@ -80,6 +81,7 @@ const createPublicRouter = () => {
     router.use(createAuthRouter().routes());
     router.use(createUserRouter().routes());
     router.use(createRoleRouter().routes());
+    router.use(createFavouriteRouter().routes());
     return router;
 };
 
