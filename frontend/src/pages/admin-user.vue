@@ -133,6 +133,7 @@
   import axios from 'axios'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
+  import { refreshOnce } from '@/api/http'
   import { listOrders, type Order } from '@/api/order'
   import { getUserSummary, setSuspended, updateRoles, type UserSummary } from '@/api/user'
   import ErrandCard from '@/components/ErrandCard.vue'
@@ -206,6 +207,13 @@
     } catch (error) {
       console.error(`Error running ${action}`, error)
       alertStore.error(apiErrorMessage(error, 'Could not update this user'))
+      // 403: the user service found we are no longer an admin (or are suspended) although our
+      // token still says so. Refresh it so the roles match; losing admin leaves the admin pages
+      // (see initCredentialWatcher), and a suspended account is logged out
+      if (axios.isAxiosError(error) && error.response?.status === 403) {
+        pending.value = null
+        await refreshOnce().catch(() => {})
+      }
     } finally {
       isActing.value = false
     }

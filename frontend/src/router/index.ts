@@ -89,6 +89,14 @@ export const initCredentialWatcher = () => {
             }
         }
     )
+    // a refreshed token without the admin role (e.g. after being demoted) leaves the admin pages
+    watch(
+        () => auth.isAdmin,
+        isAdmin => {
+            if (!isAdmin && auth.isAuthenticated && router.currentRoute.value.meta.isAdminRequired)
+                router.push({ name: "dashboard" });
+        }
+    )
 }
 
 export default router

@@ -52,7 +52,7 @@ export async function tryRefreshToken() {
 
 // all reqs share the same refresh request to prevent dos
 let refreshLock: Promise<string> | null = null;
-function refreshOnce(): Promise<string> {
+export function refreshOnce(): Promise<string> {
 	if (!refreshLock) {
 		refreshLock = tryRefreshToken().finally(() => {
 			refreshLock = null;
