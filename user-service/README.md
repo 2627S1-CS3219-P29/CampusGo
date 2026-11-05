@@ -60,11 +60,19 @@ Paths below are relative to the service (`http://localhost:8001` in Compose deve
 | POST | `/public/user/:id/suspend` | Suspend a user; admin, cannot suspend own account. No body required. |
 | DELETE | `/public/user/:id/suspend` | Unsuspend a user; admin. No body required. |
 | GET | `/public/role/` | List available roles; admin. |
+| GET | `/public/favourite/` | The signed-in user's favourites, newest first, with live supplier/building details. Drops favourites whose supplier or building was deleted (see below). |
+| POST | `/public/favourite/` | Add a favourite: `{ kind: "SUPPLIER", targetId }`, or `{ kind: "LOCATION", targetId, floor, room? }` for a spot such as "Home" (building, floor and room/unit); optional `label`. `201` new, `200` if already a favourite, `404` if the place does not exist, `503` if the supplier service cannot be reached, `400` past 20 favourites. |
+| PATCH | `/public/favourite/:id` | Rename a favourite, `{ label }`; blank or null clears it. Own favourites only. |
+| DELETE | `/public/favourite/:id` | Remove a favourite. Own favourites only. |
 | POST | `/private/auth/invite` | Generate an admin invite; internal route with no bearer check. |
 
 Login and refresh check the current database suspension status and reject suspended accounts with `403` and `{"error":"your account has been suspended"}` without issuing tokens. Login verifies credentials before reporting suspension. Token contents and authentication middleware retain their existing behavior.
 
 Existing access tokens remain usable until they expire. The frontend clears stored tokens and returns to login when refresh is rejected, displaying the suspension message through the shared notification store. After unsuspension, the user can log in again.
+
+### Favourites
+
+A `Favourite` stores only ids: the user, the kind, the supplier or location id in the supplier service, and for a building spot its floor and optional room/unit, plus an optional label such as "Home". Supplier and building details are fetched live from the supplier service (`SUPPLIER_SERVICE_URL`, default `http://supplier_api:3000`) with the user's own token, so edits show straight away. A foreign key cannot reach another service's database, so bookmarks of deleted places are cleaned up when the list is read. A bookmark is deleted only when the supplier service answers that its supplier (`404`) or building (missing from the live list) is gone. It is kept, without details, when the supplier service cannot be reached. Deleting a user cascades to their bookmarks. `floor` is `0` for supplier favourites, since there is no floor 0, and `room` is `""` when there is none, which keeps the `(userId, kind, targetId, floor, room)` unique constraint free of NULLs.
 
 ## Database
 

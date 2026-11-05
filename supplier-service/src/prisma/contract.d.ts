@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'9357d3089b7013134fb5595d1f4722bcbf03dfda3345c1f22710774db8c064cc'>;
+  StorageHashBase<'9e009cbb9e90cf01a9a16ce38d86954005dd799264023993b44dfb65b4c166a4'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -460,8 +460,16 @@ type ContractBase = Omit<
                 };
               };
               primaryKey: { readonly columns: readonly ['id'] };
-              uniques: readonly [{ readonly columns: readonly ['name'] }];
-              indexes: readonly [];
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'location_name_active_5b193f72';
+                  readonly prefix: 'location_name_active';
+                  readonly columns: readonly ['name'];
+                  readonly where: '("deletedAt" IS NULL)';
+                  readonly unique: true;
+                },
+              ];
               foreignKeys: readonly [];
             };
             readonly supplier: {
@@ -544,8 +552,15 @@ type ContractBase = Omit<
                 };
               };
               primaryKey: { readonly columns: readonly ['id'] };
-              uniques: readonly [{ readonly columns: readonly ['name'] }];
+              uniques: readonly [];
               indexes: readonly [
+                {
+                  readonly name: 'supplier_name_active_5b193f72';
+                  readonly prefix: 'supplier_name_active';
+                  readonly columns: readonly ['name'];
+                  readonly where: '("deletedAt" IS NULL)';
+                  readonly unique: true;
+                },
                 {
                   readonly name: 'supplier_locationId_idx_7aae3038';
                   readonly prefix: 'supplier_locationId_idx';

@@ -450,7 +450,76 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
 
+  # chat service (live chat between a requester and the courier who accepted, with images)
+  chat_db:
+    image: postgres:18-alpine
+    container_name: chat_postgres_db
+    networks: [private_net]
+    environment:
+      POSTGRES_PASSWORD: ${CHAT_DB_PW:-mysecretpassword}
+      POSTGRES_DB: chat
+    ports:
+      - "127.0.0.1:5436:5432"
+    volumes:
+      - chat_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d chat"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+  chat_dev:
+    build:
+      context: ./chat-service
+      target: development
+      network: host
+    profiles: ["dev"]
+    ports:
+      - "127.0.0.1:8005:3000"
+    volumes:
+      - ./chat-service:/app
+      - /app/node_modules
+    networks:
+      private_net:
+        aliases:
+          - chat_api
+    depends_on:
+      chat_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:${CHAT_DB_PW:-mysecretpassword}@chat_db:5432/chat
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
+      # minutes after an errand ends before its chat is deleted (180 = 3 hours; use 1 to demo it)
+      CHAT_RETENTION_MINUTES: ${CHAT_RETENTION_MINUTES:-180}
+    # sync the schema, then start with denon (workaround for docker in wsl)
+    command: sh -c "deno task db:update_dev && deno run -A https://deno.land/x/denon/denon.ts dev"
+  chat_prod:
+    build:
+      context: ./chat-service
+      target: production
+      network: host
+    profiles: ["prod"]
+    networks:
+      private_net:
+        aliases:
+          - chat_api
+    depends_on:
+      chat_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:${CHAT_DB_PW:-mysecretpassword}@chat_db:5432/chat
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
+      CHAT_RETENTION_MINUTES: ${CHAT_RETENTION_MINUTES:-180}
+
 volumes:
+  chat_pgdata:
   user_pgdata:
   supplier_pgdata:
   order_pgdata:

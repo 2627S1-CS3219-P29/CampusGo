@@ -2,6 +2,8 @@ import type { RouterContext } from "@oak/oak";
 import { defaultJwtService, type IJwtService, type ValidationResult } from "../util/jwt.ts";
 import { fromRawRole } from "../prisma/roles.ts";
 import type { Role } from "../prisma/common.ts";
+import type { IUserRepository } from "../prisma/users.ts";
+import log from "../log.ts";
 
 /**
  * Chcecks if user roles has enough to cover everything in rolesRequired.
@@ -66,3 +68,36 @@ export const authenticationMiddlewareWithJwtProvider = (jwtService: IJwtService,
  */
 export const authenticationMiddleware = (rolesRequired: ReadonlySet<Role>) =>
     authenticationMiddlewareWithJwtProvider(defaultJwtService, rolesRequired);
+
+/**
+ * Re-checks the caller against the database; use after `authenticationMiddleware`.
+ * The roles in an access token can be up to one token lifetime old, so a demoted or suspended
+ * admin could otherwise keep changing accounts (e.g. promote themselves back) until it expires.
+ * Only for actions that change other accounts; other routes trust the token alone.
+ * - `403` when the caller is suspended or no longer has every role in rolesRequired
+ */
+export const currentRolesMiddleware = (userRepo: IUserRepository, rolesRequired: ReadonlySet<Role>) =>
+    async <R extends string>(ctx: RouterContext<R>, next: () => Promise<unknown>) => {
+        const callerId = parseInt(ctx.state.jwtPayload?.sub ?? "");
+        let caller;
+        try {
+            caller = Number.isNaN(callerId) ? null : await userRepo.getUserByIdPublic(callerId);
+        } catch (e) {
+            log.error(`failed to re-check roles of user ${callerId}: ${e}`);
+            ctx.response.status = 500;
+            ctx.response.body = { error: "internal server error" };
+            return;
+        }
+
+        if (caller?.isSuspended) {
+            ctx.response.status = 403;
+            ctx.response.body = { error: "your account has been suspended" };
+            return;
+        }
+        if (!caller || !checkSufficientPrivileges(rolesRequired, caller.roles)) {
+            ctx.response.status = 403;
+            ctx.response.body = { error: "insufficient permissions to perform action" };
+            return;
+        }
+        await next();
+    };

@@ -19,9 +19,9 @@ export function toHourMinute (time: string | null): string | null {
 export const LOWEST_FLOOR = -10
 export const HIGHEST_FLOOR = 100
 
-// 3 -> "Level 3", -1 -> "B1", as the order service writes errand locations
+// 3 -> "Level 3", -1 -> "Level B1", so basements read the same way as other floors
 export function formatFloor (floor: number): string {
-  return floor < 0 ? `B${-floor}` : `Level ${floor}`
+  return floor < 0 ? `Level B${-floor}` : `Level ${floor}`
 }
 
 // what people type -> stored number: "3" or "L3" -> 3, "B1" -> -1, "G" -> 1; null if it is not a floor
@@ -36,6 +36,14 @@ export function parseFloor (text: string): number | null {
   const level = Number(match[2])
   const floor = match[1]?.toLowerCase() === 'b' ? -level : level
   return floor === 0 || floor < LOWEST_FLOOR || floor > HIGHEST_FLOOR ? null : floor
+}
+
+// a spot in a building as one line, e.g. "Com 3 · B1 · Room 1" or "Central Library · Level 5 · #05-12".
+// The room gets a "Room" prefix unless it is a unit number ("#..."), so it is not mistaken for a floor
+export function formatSpot (building: string, floor: number, room?: string | null): string {
+  const unit = room?.trim()
+  const roomText = unit ? (unit.startsWith('#') ? unit : `Room ${unit}`) : null
+  return [building, formatFloor(floor), roomText].filter(Boolean).join(' · ')
 }
 
 // stored number -> what people type: -1 -> "B1", 3 -> "3"
