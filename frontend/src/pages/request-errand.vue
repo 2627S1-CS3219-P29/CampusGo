@@ -199,6 +199,7 @@
   import { useAlertStore } from '@/stores/alerts'
   import { apiErrorMessage, DEFAULT_EXPIRY_MINUTES, EXPIRY_OPTIONS, formatDateTime } from '@/util/order'
   import { floorInput, formatLocation, parseFloor } from '@/util/supplier'
+  import { randomUUID } from '@/util/uuid'
 
   const SEARCH_DEBOUNCE_MS = 300
 
@@ -313,7 +314,7 @@
   })
 
   // one key per errand being filled in, so a retried submit cannot create a duplicate
-  let idempotencyKey = crypto.randomUUID()
+  let idempotencyKey = randomUUID()
 
   const supplierSearch = ref('')
   const supplierOptions = ref<Supplier[]>([])
@@ -410,7 +411,7 @@
   async function resetForm () {
     form.value = emptyForm()
     serverErrors.value = {}
-    idempotencyKey = crypto.randomUUID()
+    idempotencyKey = randomUUID()
     // wait until the cleared values reach the inputs, otherwise they re-validate as empty and show errors
     await nextTick()
     formRef.value?.resetValidation()
@@ -447,7 +448,7 @@
       }, idempotencyKey)
       alertStore.success(`Errand requested: ${order.itemDescription}`)
       // the next errand gets a fresh key; then show the new errand's details and progress
-      idempotencyKey = crypto.randomUUID()
+      idempotencyKey = randomUUID()
       router.push({ name: 'errand', params: { id: order.id } })
     } catch (error) {
       // field errors from the order service are shown next to their inputs

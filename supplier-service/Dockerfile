@@ -22,4 +22,4 @@ COPY --from=deps /deno-dir /deno-dir
 COPY . .
 
 RUN deno task build
-CMD ["deno", "task", "start"]
+CMD ["deno", "run", "-A", "src/index.ts"]

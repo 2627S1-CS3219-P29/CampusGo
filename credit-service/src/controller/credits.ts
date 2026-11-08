@@ -243,7 +243,9 @@ export const createTransaction = async (ctx: Context) => {
 
     try {
         await resolveCreditAccount(requesterId);
-        await resolveCreditAccount(supplierId);
+        if (supplierId !== null) {
+            await resolveCreditAccount(supplierId);
+        }
         const result = await withTracedTransaction(db, async tx => {
             const credits = await withDatabaseOperation("database.UserCredits.first", async () => tx.orm.public.UserCredits
                 .where({ userId: requesterId })

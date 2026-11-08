@@ -132,3 +132,13 @@ create an outbox reliability monitoring worker in user service. updates should o
 we want to measure the following metrics: pending/ready to be sent/delayed (due to temp failure)/fully failed. oldest unsent item. put the code into the telemetry directory and use the existing helpers in it.
 ```
 - output used: the worker generated was acceptable. a welcome addition was that it also introduced some additional metrics like heartbeats to make it known if the worker actually active. this was an improvement, so it was accepted
+
+
+# 6/11/2026 - AWS deployment revision
+- Tool: OpenAI Codex. Mode: implementation, debugging, deployment and documentation.
+- User selected separate ECS services, Nginx in its own ECS service, and HTTP public-IP entry without CloudFront.
+- Restored teammate gateway, edge and Compose tracked files to repository HEAD. AWS-specific packaging is in scripts/aws/gateway; original API routes are copied at build time.
+- Implemented AWS container packaging, operational helpers and verification. Earlier combined-proxy and single-task implementations were superseded at the user's request.
+- Existing backend deployment fixes and frontend production packaging were also AI-assisted.
+- Verification details and limitations are recorded in scripts/aws/README.md. Human review and full course-policy disclosure remain the team's responsibility; this entry does not certify compliance of earlier architecture discussions.
+- HTTP demo compatibility: added frontend/src/util/uuid.ts and updated the errand form calls. Native randomUUID is unavailable on non-localhost HTTP; fallback retains cryptographic randomness. Type checking, production build and fallback UUID validation passed.
