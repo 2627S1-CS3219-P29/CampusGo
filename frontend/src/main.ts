@@ -10,6 +10,7 @@ import { createApp } from 'vue'
 // Plugins
 import { registerPlugins } from '@/plugins'
 import { initCredentialWatcher } from './router/index.ts'
+import { generatePolyfills } from './util/polyfill.ts';
 
 // Components
 import App from './App.vue'
@@ -18,6 +19,7 @@ import App from './App.vue'
 import 'unfonts.css'
 import '@/styles/tailwind.css'
 
+generatePolyfills();
 const app = createApp(App)
 
 registerPlugins(app)
