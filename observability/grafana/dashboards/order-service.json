@@ -9,7 +9,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 4,
+  "version": 5,
   "editable": false,
   "refresh": "15s",
   "time": {
@@ -664,13 +664,1434 @@
     },
     {
       "type": "row",
+      "title": "Order business snapshot",
+      "collapsed": false,
+      "panels": [],
+      "id": 37,
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "title": "Stored orders \u00b7 all statuses",
+      "description": "Current stored rows across all eight order statuses. Terminal rows remain in this population; not orders created or delivered within the selected time range.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "last"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum by (service_name,deployment_environment_name) (max by (service_name,deployment_environment_name,status) (campusgo_order_orders{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}))) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 38,
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "title": "Pending orders",
+      "description": "Current PENDING population waiting for credit approval; distinct from the order-service outbox backlog.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "last"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum by (service_name,deployment_environment_name) (max by (service_name,deployment_environment_name,status) (campusgo_order_orders{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\",status=~\"PENDING\"}))) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 39,
+      "gridPos": {
+        "x": 6,
+        "y": 10,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "title": "Active orders",
+      "description": "Current OPEN + ACCEPTED + COLLECTED population. PENDING and all terminal states are excluded.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "last"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum by (service_name,deployment_environment_name) (max by (service_name,deployment_environment_name,status) (campusgo_order_orders{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\",status=~\"OPEN|ACCEPTED|COLLECTED\"}))) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 40,
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "title": "Overdue orders",
+      "description": "Existing-deadline breaches: PENDING created before the configured pending timeout (currently 2 minutes, strict comparison); OPEN/ACCEPTED/COLLECTED with expiresAt <= now. Membership updates on the next snapshot poll.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "last"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum by (service_name,deployment_environment_name) (max by (service_name,deployment_environment_name,status) (campusgo_order_overdue{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}))) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 41,
+      "gridPos": {
+        "x": 18,
+        "y": 10,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "title": "Oldest pending order age",
+      "description": "Age since creation of the oldest PENDING order. Zero only for a fresh successfully observed empty pending population; this is not time since entry into a state.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "last"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (service_name,deployment_environment_name) (campusgo_order_oldest_pending_age_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"})) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 42,
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 4
+      }
+    },
+    {
+      "title": "Oldest active order age",
+      "description": "Age since creation of the oldest OPEN/ACCEPTED/COLLECTED order. Zero only for a fresh empty active population; not acceptance, collection, or delivery duration.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "last"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (service_name,deployment_environment_name) (campusgo_order_oldest_active_age_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"})) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 43,
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 4
+      }
+    },
+    {
+      "title": "Stored orders by status \u00b7 current",
+      "description": "Current stored rows across all eight order statuses. Terminal rows remain in this population; not orders created or delivered within the selected time range. REJECTED/CANCELLED/EXPIRED are business statuses, not server failures.",
+      "type": "bargauge",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PENDING"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "OPEN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ACCEPTED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "COLLECTED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "cyan"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DELIVERED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "REJECTED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CANCELLED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "EXPIRED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "last"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (service_name,deployment_environment_name,status) (campusgo_order_orders{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"})) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "{{status}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 44,
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Stored orders by status over time",
+      "description": "Current stored rows across all eight order statuses. Terminal rows remain in this population; not orders created or delivered within the selected time range. REJECTED/CANCELLED/EXPIRED are business statuses, not server failures.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisCenteredZero": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PENDING"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "OPEN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ACCEPTED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "COLLECTED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "cyan"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DELIVERED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "REJECTED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CANCELLED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "EXPIRED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (service_name,deployment_environment_name,status) (campusgo_order_orders{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"})) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "{{status}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 45,
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Overdue orders by status \u00b7 current",
+      "description": "Existing-deadline breaches: PENDING created before the configured pending timeout (currently 2 minutes, strict comparison); OPEN/ACCEPTED/COLLECTED with expiresAt <= now. Membership updates on the next snapshot poll.",
+      "type": "bargauge",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "last"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (service_name,deployment_environment_name,status) (campusgo_order_overdue{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"})) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "{{status}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 46,
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Overdue orders by status over time",
+      "description": "Existing-deadline breaches: PENDING created before the configured pending timeout (currently 2 minutes, strict comparison); OPEN/ACCEPTED/COLLECTED with expiresAt <= now. Membership updates on the next snapshot poll.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisCenteredZero": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PENDING"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "OPEN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ACCEPTED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "COLLECTED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "cyan"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DELIVERED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "REJECTED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CANCELLED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "EXPIRED"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (service_name,deployment_environment_name,status) (campusgo_order_overdue{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"})) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "{{status}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 47,
+      "gridPos": {
+        "x": 12,
+        "y": 26,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Oldest order creation ages",
+      "description": "Age since creation of the oldest PENDING order. Zero only for a fresh successfully observed empty pending population; this is not time since entry into a state. Age since creation of the oldest OPEN/ACCEPTED/COLLECTED order. Zero only for a fresh empty active population; not acceptance, collection, or delivery duration.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Unavailable",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisCenteredZero": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (service_name,deployment_environment_name) (campusgo_order_oldest_pending_age_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"})) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "PENDING",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code"
+        },
+        {
+          "refId": "B",
+          "expr": "(max by (service_name,deployment_environment_name) (campusgo_order_oldest_active_age_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"})) and on(service_name,deployment_environment_name) ((time() - max by (service_name,deployment_environment_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) == 1) and on(service_name,deployment_environment_name) (max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0) and on(service_name,deployment_environment_name) (time() - max by (service_name,deployment_environment_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) <= 90))",
+          "legendFormat": "Active (OPEN/ACCEPTED/COLLECTED)",
+          "instant": false,
+          "range": true,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "links": [
+        {
+          "title": "Order service details",
+          "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+          "targetBlank": false
+        }
+      ],
+      "id": 48,
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 24,
+        "h": 8
+      }
+    },
+    {
+      "type": "row",
       "title": "HTTP requests",
       "collapsed": false,
       "panels": [],
       "id": 8,
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 42,
         "w": 24,
         "h": 1
       }
@@ -766,7 +2187,7 @@
       "id": 9,
       "gridPos": {
         "x": 0,
-        "y": 10,
+        "y": 43,
         "w": 12,
         "h": 8
       }
@@ -908,7 +2329,7 @@
       "id": 10,
       "gridPos": {
         "x": 12,
-        "y": 10,
+        "y": 43,
         "w": 12,
         "h": 8
       }
@@ -1022,7 +2443,7 @@
       "id": 11,
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 51,
         "w": 12,
         "h": 8
       }
@@ -1118,7 +2539,7 @@
       "id": 12,
       "gridPos": {
         "x": 12,
-        "y": 18,
+        "y": 51,
         "w": 12,
         "h": 8
       }
@@ -1448,7 +2869,7 @@
       "id": 13,
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 59,
         "w": 24,
         "h": 10
       }
@@ -1461,7 +2882,7 @@
       "id": 14,
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 69,
         "w": 24,
         "h": 1
       }
@@ -1603,7 +3024,7 @@
       "id": 15,
       "gridPos": {
         "x": 0,
-        "y": 37,
+        "y": 70,
         "w": 12,
         "h": 8
       }
@@ -1699,7 +3120,7 @@
       "id": 16,
       "gridPos": {
         "x": 12,
-        "y": 37,
+        "y": 70,
         "w": 12,
         "h": 8
       }
@@ -1712,7 +3133,7 @@
       "id": 17,
       "gridPos": {
         "x": 0,
-        "y": 45,
+        "y": 78,
         "w": 24,
         "h": 1
       }
@@ -1854,7 +3275,7 @@
       "id": 18,
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 79,
         "w": 12,
         "h": 8
       }
@@ -1950,7 +3371,7 @@
       "id": 19,
       "gridPos": {
         "x": 12,
-        "y": 46,
+        "y": 79,
         "w": 12,
         "h": 8
       }
@@ -1963,7 +3384,7 @@
       "id": 20,
       "gridPos": {
         "x": 0,
-        "y": 54,
+        "y": 87,
         "w": 24,
         "h": 1
       }
@@ -2058,7 +3479,7 @@
       "id": 21,
       "gridPos": {
         "x": 0,
-        "y": 55,
+        "y": 88,
         "w": 8,
         "h": 4
       }
@@ -2153,7 +3574,7 @@
       "id": 22,
       "gridPos": {
         "x": 8,
-        "y": 55,
+        "y": 88,
         "w": 8,
         "h": 4
       }
@@ -2235,7 +3656,7 @@
       "id": 23,
       "gridPos": {
         "x": 16,
-        "y": 55,
+        "y": 88,
         "w": 8,
         "h": 4
       }
@@ -2377,7 +3798,7 @@
       "id": 24,
       "gridPos": {
         "x": 0,
-        "y": 59,
+        "y": 92,
         "w": 12,
         "h": 8
       }
@@ -2473,7 +3894,7 @@
       "id": 25,
       "gridPos": {
         "x": 12,
-        "y": 59,
+        "y": 92,
         "w": 12,
         "h": 8
       }
@@ -2615,7 +4036,7 @@
       "id": 26,
       "gridPos": {
         "x": 0,
-        "y": 67,
+        "y": 100,
         "w": 12,
         "h": 8
       }
@@ -2711,7 +4132,7 @@
       "id": 27,
       "gridPos": {
         "x": 12,
-        "y": 67,
+        "y": 100,
         "w": 12,
         "h": 8
       }
@@ -2807,7 +4228,7 @@
       "id": 28,
       "gridPos": {
         "x": 0,
-        "y": 75,
+        "y": 108,
         "w": 12,
         "h": 8
       }
@@ -2958,7 +4379,7 @@
       "id": 29,
       "gridPos": {
         "x": 12,
-        "y": 75,
+        "y": 108,
         "w": 12,
         "h": 8
       }
@@ -3045,7 +4466,7 @@
           "id": 31,
           "gridPos": {
             "x": 0,
-            "y": 84,
+            "y": 117,
             "w": 12,
             "h": 4
           }
@@ -3140,7 +4561,7 @@
           "id": 32,
           "gridPos": {
             "x": 12,
-            "y": 84,
+            "y": 117,
             "w": 12,
             "h": 4
           }
@@ -3235,7 +4656,7 @@
           "id": 33,
           "gridPos": {
             "x": 0,
-            "y": 88,
+            "y": 121,
             "w": 12,
             "h": 4
           }
@@ -3317,7 +4738,7 @@
           "id": 34,
           "gridPos": {
             "x": 12,
-            "y": 88,
+            "y": 121,
             "w": 12,
             "h": 4
           }
@@ -3459,7 +4880,7 @@
           "id": 35,
           "gridPos": {
             "x": 0,
-            "y": 92,
+            "y": 125,
             "w": 12,
             "h": 8
           }
@@ -3601,16 +5022,505 @@
           "id": 36,
           "gridPos": {
             "x": 12,
-            "y": 92,
+            "y": 125,
             "w": 12,
             "h": 8
           }
+        },
+        {
+          "title": "Order snapshot available",
+          "description": " Independent order business snapshot; account/outbox observations use their own monitors.",
+          "type": "stat",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "noValue": "Unavailable",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "Unavailable",
+                      "color": "gray"
+                    },
+                    "1": {
+                      "text": "Available",
+                      "color": "green"
+                    }
+                  }
+                },
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "Unavailable",
+                      "color": "gray"
+                    }
+                  }
+                },
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "nan",
+                    "result": {
+                      "text": "Unavailable",
+                      "color": "gray"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "last"
+              ]
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "(max by (service_name) (campusgo_order_snapshot_available{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"})) and on(service_name) ((time() - max by (service_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45))",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "time_series",
+              "editorMode": "code"
+            }
+          ],
+          "id": 49,
+          "gridPos": {
+            "x": 0,
+            "y": 133,
+            "w": 12,
+            "h": 4
+          },
+          "links": [
+            {
+              "title": "Order service details",
+              "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+              "targetBlank": false
+            }
+          ]
+        },
+        {
+          "title": "Order last successful snapshot age",
+          "description": " Independent order business snapshot; account/outbox observations use their own monitors.",
+          "type": "stat",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "noValue": "Unavailable",
+              "decimals": 2,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "Unavailable",
+                      "color": "gray"
+                    }
+                  }
+                },
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "nan",
+                    "result": {
+                      "text": "Unavailable",
+                      "color": "gray"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "last"
+              ]
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "((time() - max by (service_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"})) and on(service_name) (max by (service_name) (campusgo_order_snapshot_last_success_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) > 0)) and on(service_name) ((time() - max by (service_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45))",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "time_series",
+              "editorMode": "code"
+            }
+          ],
+          "id": 50,
+          "gridPos": {
+            "x": 12,
+            "y": 133,
+            "w": 12,
+            "h": 4
+          },
+          "links": [
+            {
+              "title": "Order service details",
+              "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+              "targetBlank": false
+            }
+          ]
+        },
+        {
+          "title": "Order snapshot failures",
+          "description": " Independent order business snapshot; account/outbox observations use their own monitors.",
+          "type": "timeseries",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "noValue": "Unavailable",
+              "decimals": 2,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "Unavailable",
+                      "color": "gray"
+                    }
+                  }
+                },
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "nan",
+                    "result": {
+                      "text": "Unavailable",
+                      "color": "gray"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 8,
+                "showPoints": "never",
+                "spanNulls": false,
+                "axisCenteredZero": false,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                }
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*(error|failed|exhausted|timeout|failure|disconnect|malformed|closure|unavailable|redelivered).*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*(retry|rejected|capacity|4[0-9][0-9]).*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "yellow"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*5[0-9][0-9].*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "(sum by (service_name) (rate(campusgo_order_snapshot_failures_total{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}[$__rate_interval]))) and on(service_name) ((time() - max by (service_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45))",
+              "legendFormat": "failures",
+              "instant": false,
+              "range": true,
+              "format": "time_series",
+              "editorMode": "code"
+            }
+          ],
+          "id": 51,
+          "gridPos": {
+            "x": 0,
+            "y": 137,
+            "w": 12,
+            "h": 8
+          },
+          "links": [
+            {
+              "title": "Order service details",
+              "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+              "targetBlank": false
+            }
+          ]
+        },
+        {
+          "title": "Order snapshot collection p95",
+          "description": "Independent read-only aggregate timings. Availability can remain 1 after a failed read while the previous successful snapshot is within 90s. Independent order business snapshot; account/outbox observations use their own monitors.",
+          "type": "timeseries",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "noValue": "Unavailable",
+              "decimals": 2,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "Unavailable",
+                      "color": "gray"
+                    }
+                  }
+                },
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "nan",
+                    "result": {
+                      "text": "Unavailable",
+                      "color": "gray"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 8,
+                "showPoints": "never",
+                "spanNulls": false,
+                "axisCenteredZero": false,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                }
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*(error|failed|exhausted|timeout|failure|disconnect|malformed|closure|unavailable|redelivered).*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*(retry|rejected|capacity|4[0-9][0-9]).*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "yellow"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": ".*5[0-9][0-9].*"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "red"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "(histogram_quantile(0.95, sum by (service_name,outcome,le) (rate(campusgo_order_snapshot_duration_seconds_bucket{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}[$__rate_interval])))) and on(service_name) ((time() - max by (service_name) (campusgo_telemetry_heartbeat_seconds{service_namespace=\"campusgo\",deployment_environment_name=\"${environment}\",service_name=\"order-service\"}) < 45))",
+              "legendFormat": "{{outcome}}",
+              "instant": false,
+              "range": true,
+              "format": "time_series",
+              "editorMode": "code"
+            }
+          ],
+          "id": 52,
+          "gridPos": {
+            "x": 12,
+            "y": 137,
+            "w": 12,
+            "h": 8
+          },
+          "links": [
+            {
+              "title": "Order service details",
+              "url": "/grafana/d/campusgo-order-metrics?from=${__from}&to=${__to}&var-environment=${environment:percentencode}",
+              "targetBlank": false
+            }
+          ]
         }
       ],
       "id": 30,
       "gridPos": {
         "x": 0,
-        "y": 83,
+        "y": 116,
         "w": 24,
         "h": 1
       }
