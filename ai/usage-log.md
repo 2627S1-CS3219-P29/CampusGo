@@ -132,3 +132,9 @@ create an outbox reliability monitoring worker in user service. updates should o
 we want to measure the following metrics: pending/ready to be sent/delayed (due to temp failure)/fully failed. oldest unsent item. put the code into the telemetry directory and use the existing helpers in it.
 ```
 - output used: the worker generated was acceptable. a welcome addition was that it also introduced some additional metrics like heartbeats to make it known if the worker actually active. this was an improvement, so it was accepted
+
+- Prompt:
+```
+refactor the outbox monitoring into a generic snapshot monitoring class to handle the standard lifecycle of this metrics worker. setup the same metrics monitoring code to generate metrics for user service. the metrics should be based on the getMetricsSnapshot funciton in UserRepository.
+```
+- output used: the abstraction generated was adequate and I did some touchup to the code formatting and comments. the user metrics code generated the correct fields based on the function provided.

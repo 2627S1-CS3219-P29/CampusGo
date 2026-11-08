@@ -1,3 +1,6 @@
+// AI assistance (26/9/2026): codex
+// the abstraction generated was adequate and I did some touchup to the code formatting and comments.
+
 import { context, ROOT_CONTEXT, type ObservableGauge, type ObservableResult } from "@opentelemetry/api";
 import log from "../log.ts";
 import { meter, queueDurationOptions } from "./instruments.ts";
