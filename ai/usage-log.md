@@ -132,3 +132,50 @@ create an outbox reliability monitoring worker in user service. updates should o
 we want to measure the following metrics: pending/ready to be sent/delayed (due to temp failure)/fully failed. oldest unsent item. put the code into the telemetry directory and use the existing helpers in it.
 ```
 - output used: the worker generated was acceptable. a welcome addition was that it also introduced some additional metrics like heartbeats to make it known if the worker actually active. this was an improvement, so it was accepted
+
+- Prompt:
+```
+refactor the outbox monitoring into a generic snapshot monitoring class to handle the standard lifecycle of this metrics worker. setup the same metrics monitoring code to generate metrics for user service. the metrics should be based on the getMetricsSnapshot funciton in UserRepository.
+```
+- output used: the abstraction generated was adequate and I did some touchup to the code formatting and comments. the user metrics code generated the correct fields based on the function provided.
+
+# 6/11/2026
+- Tool used: codex
+- Mode: Generation
+- Prompt:
+```
+replace the existing placeholder dashboard at observability/grafana/dashboards.
+
+implement the following in the dashboard:
+- per service dashboard
+- service status (up/down)
+- p50/p95/p99 request timings per route in a table among all queries in the currently selected window
+- requests/second per route
+- average latency per service
+- http 500 counts in timeframe
+- outbox processing status (failed, message processing delay, backlog count, oldest pending event)
+- connection to rabbitmq broker
+- user service: number of auth requests, accounts in existence (by their status)
+- db performance (query/update p95 times)
+- rabbitmq dashboard to monitor items per queue (including separate widgets for dlqs) and broker health
+- central dashboard summarising the same info on all services and rabbitmq
+
+this is a dump of queryable fields from prometheus to be used in promql queries:
+METADATA DUMP OF FILTERED FIELDS FROM PROMETHEUS API HERE
+```
+- output used: inspection of the dashboard had some obvious bugs. e.g. the model had decided to ignore the processing window for  the selected window and opted for a fixed 5 seconds. this meant that some of the metrics would quickly become "unavailable" after the request ended, making it useless. I manually fixed this by adjusting the timing to fit the current filters.
+
+# 8/11/2026
+- Tool used: codex
+- Mode: Generation
+- Prompt:
+```
+update the existing dashboard to accomodate for the following newly added metrics.
+like the existing dashboard, high level details should be on the summary dashboard and the detailed results go into their respective service dashboards.
+include the following details:
+- credit: counters for credits per status (active, in circulation, in hold) and the corresponding plots over time
+- order: counters for orders (and overdue ones) per status and their plots over time. and counters for oldest pending/active orders.
+
+METADATA DUMP OF NEW FIELDS FROM PROMETHEUS API HERE
+```
+- output used: the output followed perfectly using the existing dashboard as reference. nothing had to be changed.
