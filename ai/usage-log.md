@@ -132,3 +132,36 @@ create an outbox reliability monitoring worker in user service. updates should o
 we want to measure the following metrics: pending/ready to be sent/delayed (due to temp failure)/fully failed. oldest unsent item. put the code into the telemetry directory and use the existing helpers in it.
 ```
 - output used: the worker generated was acceptable. a welcome addition was that it also introduced some additional metrics like heartbeats to make it known if the worker actually active. this was an improvement, so it was accepted
+
+# 5/10/2026
+- Tool used: Claude Code (Claude Opus)
+- Mode: Generation
+- Prompt:
+```
+lets create the admin supplier service frontend, specifically I think I mentioned previously, the remaining CRUD operations (create, update, delete)
+```
+- Output used: generated the supplier listing/detail pages and admin supplier + location CRUD UI, wired to the supplier-service API. Search, filter, sort and pagination were designed by the team. I reviewed and tested the pages manually.
+
+# 17/10/2026
+- Tool used: Claude Code (Claude Opus)
+- Mode: Generation
+- Prompt:
+```
+Ok, new design updates, for request errands, Pick up location changed to building or supplier
+Drop off location changed to buildings
+Also, if buildings is chosen as the location, that means it should allow aditional fields, like floor etc
+```
+- Output used: implemented the team's errand design decisions (building/floor locations, shared deadline with no grace period, supplier-hours pop-up), plus the admin users page and logout flow.
+
+# 3/11/2026
+- Tool used: Claude Code (Claude Opus)
+- Mode: Generation, Explanation
+- Prompt:
+```
+Lets create a chat service Ui for it
+```
+- Prompt:
+```
+for N2H, we plan to include bookmarking/favouriting supplier/dropoff/pick up locations. We plan to do this in terms of like an array, including userid, the location details like supplier from supplier_db etc. Is thisa array design choice good?
+```
+- Output used: generated the chat UI and admin suspend/promote UI on existing backends. For favourites, our team planned to store them in user-service due to bounded context. We had discussed both an array (user ID with location or supplier details) and a separate relational table; I consulted the AI on whether the array design still had merit, and we chose the table. For deleted suppliers, I had considered checking favourites on load or periodically (similar to how delivery apps update a store's availability). The AI's recommended design used a check on load, matching what I had considered, which I extended so deleted favourites are removed automatically. I evaluated these, added custom places and rooms, confirmed with the team, and the AI implemented it. For supplier name reuse, I found the bug and researched partial indexes; the AI confirmed the fix and implemented it.
