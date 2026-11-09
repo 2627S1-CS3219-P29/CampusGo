@@ -1,4 +1,4 @@
-import { isExpectedDbError, recordError } from "../telemetry/tracing.ts";
+import { isExpectedDbError, recordError, recordOrderId } from "../telemetry/tracing.ts";
 import { withTracedTransaction } from "../prisma/transaction.ts";
 import { withDatabaseOperation } from "../telemetry/database.ts";
 import log from "../log.ts";
@@ -107,6 +107,7 @@ export const registerUser = async (ctx: Context, userId: number) => {
 
 export const releaseCredits = async (ctx: Context, errandId: string) => {
     if (!validateErrandId(ctx, errandId)) return;
+    recordOrderId(errandId);
 
     try {
         await resolveHoldCreditAccount(errandId, "courierId");
@@ -164,6 +165,7 @@ export const releaseCredits = async (ctx: Context, errandId: string) => {
 
 export const refundCredits = async (ctx: Context, errandId: string) => {
     if (!validateErrandId(ctx, errandId)) return;
+    recordOrderId(errandId);
 
     try {
         await resolveHoldCreditAccount(errandId, "requestorId");
@@ -239,6 +241,7 @@ export const createTransaction = async (ctx: Context) => {
     }
 
     const { errandId, requesterId, amount } = body;
+    recordOrderId(errandId);
     const supplierId: number | null = body.supplierId ?? null;
 
     try {

@@ -11,6 +11,19 @@ const tracer = trace.getTracer("campusgo.credit-service");
 const failedSpans = new WeakSet<Span>();
 const recordedErrors = new WeakMap<Span, Set<unknown>>();
 
+/** record verified initiating identity */
+export function recordUserId(value: unknown): void {
+    const id = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+    if (typeof id === "number" && Number.isSafeInteger(id) && id > 0)
+        trace.getActiveSpan()?.setAttribute("user.id", String(id));
+}
+
+/** Record a known or attempted order ID without coercing arbitrary payload values. */
+export function recordOrderId(value: unknown): void {
+    if (typeof value === "string" && value.trim().length > 0)
+        trace.getActiveSpan()?.setAttribute("campusgo.order.id", value);
+}
+
 /** Return correlation fields for a valid active span; never create a trace for a log. */
 export function traceLogFields(): Record<string, string> {
     const spanContext = trace.getActiveSpan()?.spanContext();

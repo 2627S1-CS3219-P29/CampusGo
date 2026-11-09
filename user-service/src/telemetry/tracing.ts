@@ -11,6 +11,13 @@ const tracer = trace.getTracer("campusgo.user-service");
 const failedSpans = new WeakSet<Span>();
 const recordedErrors = new WeakMap<Span, Set<unknown>>();
 
+/** record verified initiating identity */
+export function recordUserId(value: unknown): void {
+    const id = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+    if (typeof id === "number" && Number.isSafeInteger(id) && id > 0)
+        trace.getActiveSpan()?.setAttribute("user.id", String(id));
+}
+
 /** Return correlation fields for a valid active span; never create a trace for a log. */
 export function traceLogFields(): Record<string, string> {
     const spanContext = trace.getActiveSpan()?.spanContext();

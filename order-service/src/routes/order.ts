@@ -3,6 +3,7 @@ import { createOrder, fetchOrder, fetchOrders, updateOrderStatus } from "../cont
 import { authenticationMiddleware } from "../middleware/auth.ts";
 import { validateBody, validateQuery } from "../middleware/schema.ts";
 import { createOrderSchema, listOrdersQuerySchema, updateOrderStatusSchema } from "../schema/order.ts";
+import { recordOrderId } from "../telemetry/tracing.ts";
 
 const router = new Router({ prefix: "/orders" });
 
@@ -18,6 +19,10 @@ router.get(
 router.get(
     "/:id",
     authenticationMiddleware(new Set()),
+    async (ctx, next) => {
+        recordOrderId(ctx.params.id);
+        await next();
+    },
     async ctx => {
         await fetchOrder(ctx);
     }
@@ -35,6 +40,10 @@ router.post(
 router.patch(
     "/:id/status",
     authenticationMiddleware(new Set()),
+    async (ctx, next) => {
+        recordOrderId(ctx.params.id);
+        await next();
+    },
     validateBody(updateOrderStatusSchema),
     async ctx => {
         await updateOrderStatus(ctx);
