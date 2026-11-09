@@ -2,7 +2,7 @@ import log from "../../log.ts";
 import { SpanKind } from "@opentelemetry/api";
 import { withMessagingSpan } from "../../telemetry/messaging.ts";
 import { extractTraceContext } from "../../telemetry/propagation.ts";
-import { recordError } from "../../telemetry/tracing.ts";
+import { recordError, recordOrderId } from "../../telemetry/tracing.ts";
 import type amqp from "amqplib";
 import { ensureCreditsReleased } from "../../services/credits.ts";
 import { isNonEmptyString } from "../../util/isNonEmptyString.ts";
@@ -26,6 +26,7 @@ export async function consumeOrderReleased(ch: amqp.ConfirmChannel): Promise<voi
                         throw new Error("credit.order-released must contain valid errandId");
                     }
                     payload = { errandId: parsed.errandId };
+                    recordOrderId(payload.errandId);
                 } catch (error) {
                     recordError(error);
                     log.error("Invalid credit.order-released event", error);

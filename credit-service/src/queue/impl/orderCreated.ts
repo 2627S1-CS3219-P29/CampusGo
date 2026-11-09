@@ -2,7 +2,7 @@ import log from "../../log.ts";
 import { SpanKind } from "@opentelemetry/api";
 import { withMessagingSpan } from "../../telemetry/messaging.ts";
 import { extractTraceContext } from "../../telemetry/propagation.ts";
-import { recordError } from "../../telemetry/tracing.ts";
+import { recordError, recordOrderId } from "../../telemetry/tracing.ts";
 import type amqp from "amqplib";
 import { ensureCreditsHeld } from "../../services/credits.ts";
 import { isPositiveInt } from "../../util/isPositiveInt.ts";
@@ -31,6 +31,7 @@ export async function consumeOrderCreated(ch: amqp.ConfirmChannel): Promise<void
                         throw new Error("credit.order-created must contain valid errandId, requestorId, amount");
                     }
                     payload = { errandId: parsed.errandId, requestorId: parsed.requestorId, amount: parsed.amount };
+                    recordOrderId(payload.errandId);
                 } catch (error) {
                     recordError(error);
                     log.error("Invalid credit.order-created event", error);

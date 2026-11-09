@@ -2,6 +2,7 @@ import log from "../log.ts";
 import type { Context } from "@oak/oak";
 import { defaultJwtService, type IJwtService } from "../util/jwt.ts";
 import { fromRawRole, Role } from "../common.ts";
+import { recordUserId } from "../telemetry/tracing.ts";
 
 export interface AuthenticatedUser {
     id: number;
@@ -42,6 +43,7 @@ export const authenticationMiddlewareWithJwtProvider = (jwtService: IJwtService,
 
         const user: AuthenticatedUser = { id: userId, roles };
         ctx.state.user = user;
+        recordUserId(user.id);
 
         if ([...rolesRequired].some(role => !roles.includes(role))) {
             reject(ctx, 403, "insufficient permissions to perform action", userId);

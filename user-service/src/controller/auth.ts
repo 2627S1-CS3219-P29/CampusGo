@@ -16,6 +16,7 @@ import { isTransaction, type DbTxUnion } from "../prisma/db.ts";
 import type { IRepoFactory } from "../prisma/factory.ts";
 import type { IOutboxRepository } from "../prisma/outbox.ts";
 import { withTracedTransaction } from "../prisma/transaction.ts";
+import { recordUserId } from "../telemetry/tracing.ts";
 
 // TODO: clarify if need to be specifically university email
 export const registrationSchema = z.object({
@@ -116,6 +117,7 @@ export class AuthController {
                 return;
             }
 
+            recordUserId(user.id);
             const tokens = await this.jwtService.generateJwtTokenPair(user.id.toString(), user.roles);
             ctx.response.body = tokens;
         } catch (e) {
@@ -136,6 +138,7 @@ export class AuthController {
             ctx.response.body = { error: "server previously issued malformed token" };
             return;
         }
+        recordUserId(decodedToken.payload.sub);
         const userId = parseInt(decodedToken.payload.sub);
 
         try {

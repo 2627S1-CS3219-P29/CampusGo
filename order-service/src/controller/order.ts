@@ -1,4 +1,4 @@
-import { recordError } from "../telemetry/tracing.ts";
+import { recordError, recordOrderId } from "../telemetry/tracing.ts";
 import type { Context, RouterContext } from "@oak/oak";
 import config from "../config.ts";
 import log from "../log.ts";
@@ -141,6 +141,7 @@ export const createOrder = async (ctx: Context) => {
         if (idempotencyKey) {
             const existing = await findOrderByIdempotencyKey(idempotencyKey);
             if (existing) {
+                recordOrderId(existing.id);
                 respond(ctx, 200, { order: existing, deduplicated: true });
                 return;
             }
@@ -222,10 +223,12 @@ export const createOrder = async (ctx: Context) => {
             const existing = idempotencyKey ? await findOrderByIdempotencyKey(idempotencyKey) : null;
             if (!existing)
                 throw e;
+            recordOrderId(existing.id);
             respond(ctx, 200, { order: existing, deduplicated: true });
             return;
         }
 
+        recordOrderId(order.id);
         // The credit hold happens asynchronously (order.created -> credits.held / credits.hold.rejected).
         // The order is PENDING until then; clients poll it and see OPEN or REJECTED.
         respond(ctx, 201, order);

@@ -2,6 +2,7 @@ import type { RouterContext } from "@oak/oak";
 import { defaultJwtService, type IJwtService, type ValidationResult } from "../util/jwt.ts";
 import { fromRawRole } from "../prisma/roles.ts";
 import type { Role } from "../prisma/common.ts";
+import { recordUserId } from "../telemetry/tracing.ts";
 
 /**
  * Chcecks if user roles has enough to cover everything in rolesRequired.
@@ -43,6 +44,7 @@ export const authenticationMiddlewareWithJwtProvider = (jwtService: IJwtService,
         const decodedJwt = genericJwtHandler(ctx, validationResult);
         if (!decodedJwt)
             return;
+        recordUserId(decodedJwt.payload.sub);
         const userRoles = <string[]>decodedJwt.payload.role ?? [];
         const parsedRoles = userRoles.map(fromRawRole).filter(r => r !== null);
         const isAuthorisedAction = checkSufficientPrivileges(rolesRequired, parsedRoles);

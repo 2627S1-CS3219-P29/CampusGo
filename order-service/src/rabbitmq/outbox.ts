@@ -1,6 +1,6 @@
 import { context, ROOT_CONTEXT } from "@opentelemetry/api";
 import { extractTraceContext } from "../telemetry/propagation.ts";
-import { withSpan, recordError } from "../telemetry/tracing.ts";
+import { withSpan, recordError, recordOrderId } from "../telemetry/tracing.ts";
 import { outboxAttempts, outboxConfirmationDelay, outboxBatchFailures, outboxLastPoll, outboxWorkerRunning } from "../telemetry/queue.ts";
 // src/rabbitmq/outbox.ts
 // Relays outbox rows (written in the same transaction as the order change they describe) to
@@ -24,6 +24,7 @@ export const relayOnce = async (): Promise<number> => {
         for (const row of rows) {
             await withSpan("outbox.relay", { attributes: { "outbox.id": row.id, "outbox.retry_count": row.retryCount } }, async span => {
                 try {
+                    recordOrderId((row.payload as any)?.errandId);
                     // messageId is stable per row, so a re-publish after a crash carries the same id
                     await publishEvent(row.topic, row.type, row.payload, `order-outbox-${row.id}`);
                     const createdAt = Date.parse(row.createdAt.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00"));
