@@ -57,15 +57,16 @@ export const deleteLocation = async (ctx: Context, id: number) => {
             }
             return;
         }
-        // Include soft-deleted suppliers: they still reference this location.
+        // Only active suppliers block it: deleted ones may keep pointing at a deleted location,
+        // since past errands still resolve both by id.
         const associatedSupplier = await withDatabaseOperation("database.Supplier.first", async () => db.orm.public.Supplier
-            .where({ locationId: id })
+            .where({ locationId: id, deletedAt: null })
             .first());
 
         if (associatedSupplier) {
             ctx.response.status = 409;
             ctx.response.body = {
-                error: "Cannot delete a location that is associated with suppliers"
+                error: "Cannot delete a location that has active suppliers"
             };
             return;
         }

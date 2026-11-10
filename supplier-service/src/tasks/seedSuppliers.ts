@@ -178,7 +178,8 @@ export async function main() {
         const result = await db.transaction(async tx => {
             // Serialize seed runs and other writes while checking existing names.
             await tx.execute(db.raw.sql`LOCK TABLE location, supplier IN SHARE ROW EXCLUSIVE MODE`.affectedCount().build());
-            const locations = await tx.query(db.raw.sql`SELECT id, name FROM location`
+            // active locations only: a building named like a deleted one gets a new location
+            const locations = await tx.query(db.raw.sql`SELECT id, name FROM location WHERE "deletedAt" IS NULL`
                 .returnsRow({ id: "pg/int4@1", name: "pg/text@1" }).build());
             const locationIds = new Map<string, number>();
             for (const location of locations) {

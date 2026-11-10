@@ -10,6 +10,8 @@ export interface UserProfile {
 // a user as listed for admins (GET /user), with their roles and when they joined
 export interface UserSummary extends UserProfile {
   roles: string[]
+  // a suspended user cannot log in or refresh their session
+  isSuspended: boolean
   // timestamp text from the user service; read it with parseTimestamp (util/user)
   createdAt: string
 }
@@ -47,4 +49,17 @@ export async function updateUser (
   body: { nickname: string, contact: string | null },
 ) {
   await client.put(`/public/user/user/${id}`, body)
+}
+
+// admins only; an admin cannot suspend themselves
+export async function setSuspended (id: number, isSuspended: boolean) {
+  await (isSuspended
+    ? client.post(`/public/user/user/${id}/suspend`)
+    : client.delete(`/public/user/user/${id}/suspend`))
+}
+
+// admins only: true adds a role, false removes it, and roles left out stay as they are.
+// An admin cannot change their own admin role. The user gets the change at their next login or refresh
+export async function updateRoles (id: number, roles: Partial<Record<'admin' | 'requestor' | 'courier', boolean>>) {
+  await client.patch(`/public/user/user/${id}/role`, roles)
 }

@@ -114,6 +114,10 @@
             <v-card-subtitle>
               <v-icon size="small" start>mdi-map-marker-outline</v-icon>{{ formatLocation(supplier, locations) }}
             </v-card-subtitle>
+
+            <template #append>
+              <supplier-star-button size="small" :supplier-id="supplier.id" />
+            </template>
           </v-card-item>
 
           <v-card-text class="d-flex flex-wrap ga-1">
@@ -160,6 +164,7 @@
   import LocationManagerDialog from '@/components/LocationManagerDialog.vue'
   import SupplierFormDialog from '@/components/SupplierFormDialog.vue'
   import SupplierImage from '@/components/SupplierImage.vue'
+  import SupplierStarButton from '@/components/SupplierStarButton.vue'
   import { useAlertStore } from '@/stores/alerts'
   import { useAuthStore } from '@/stores/auth'
   import { formatLocation, openStatus, supplierTypeInfo } from '@/util/supplier'

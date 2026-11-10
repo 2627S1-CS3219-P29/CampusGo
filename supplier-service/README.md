@@ -119,11 +119,13 @@ at the same moment.
 ### Soft delete and preserving history (FR 5.9)
 
 A delete sets `deletedAt` rather than removing the row, so supplier ids stored in old
-errands still resolve. Every read filters on `"deletedAt" IS NULL`. Because `name` is
-unique across all rows, a deleted supplier's name stays reserved. The API tells the admin
-so (`409`, *"COM3" belongs to a deleted supplier, choose another name*). We chose this
-over renaming the row on delete so that old errands keep showing the name the supplier
-had at the time.
+errands still resolve. Every read filters on `"deletedAt" IS NULL`. Names are unique
+among **active** rows only, enforced by partial unique indexes (`supplier_name_active`,
+`location_name_active`, both `WHERE "deletedAt" IS NULL`). A deleted supplier's name can
+therefore be used again: the new supplier gets a new id, and old errands keep pointing at
+the deleted row and the name it had at the time. We chose this over renaming the row on
+delete, which would change what old errands show. A location can be deleted once none of
+its suppliers are active.
 
 As a second safeguard, the order service should also copy the supplier's name and
 location into the errand when it is created. A completed errand then shows the details

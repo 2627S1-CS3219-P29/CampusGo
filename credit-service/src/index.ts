@@ -1,4 +1,6 @@
 import { OutboxRepository } from "./prisma/outbox.ts";
+import { getCreditSnapshot } from "./prisma/credits.ts";
+import { CreditMetricsMonitor } from "./telemetry/credit.ts";
 import { rabbitAvailable, outboxWorkerRunning } from "./telemetry/queue.ts";
 import { OutboxMetricsMonitor } from "./telemetry/outbox.ts";
 import { createHttpHandler, httpTelemetryMiddleware } from "./middleware/telemetry.ts";
@@ -23,6 +25,9 @@ outboxWorkerRunning.record(0);
 const outboxMonitor = new OutboxMetricsMonitor(() => new OutboxRepository(db).getMetricsSnapshot());
 outboxMonitor.start();
 globalThis.addEventListener("unload", () => { void outboxMonitor.stop(); });
+const creditMonitor = new CreditMetricsMonitor(getCreditSnapshot);
+creditMonitor.start();
+globalThis.addEventListener("unload", () => { void creditMonitor.stop(); });
 
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));

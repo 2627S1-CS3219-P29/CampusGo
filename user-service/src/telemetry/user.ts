@@ -1,3 +1,6 @@
+// AI assistance (26/9/2026): codex
+// the user metrics code generated the correct fields based on the function provided.
+
 import { meter } from "./instruments.ts";
 import { SnapshotMonitor, type SnapshotMonitorOptions } from "./snapshot.ts";
 
@@ -30,8 +33,6 @@ const authRoutes = new Map([
 
 /**
  * Called once after Oak produces the final response, including validation rejections.
- * Count only POSTs to known route templates. Outcomes describe HTTP responses, not root causes;
- * no body, credentials, token, user ID, or arbitrary URL becomes a metric dimension.
  */
 export function recordAuthResponse(method: string, route: string, status: number): void {
     const operation = authRoutes.get(route);

@@ -147,3 +147,81 @@ we want to measure the following metrics: pending/ready to be sent/delayed (due 
 - Tool: OpenAI Codex. Inspected live HTTP responses and the running ECS task configuration.
 - Prepared `scripts/aws/user-tracing.json` and a preview-first deployment helper to enable Deno tracing on user-service while preserving its existing task configuration.
 - After user approval, deployed revision `campusgo-user:3` and waited for ECS service stability. Live gateway checks confirmed a generated X-Trace-Id on an empty login POST (HTTP 400) and the supplied W3C trace ID on health (HTTP 200). Successful authenticated login was not tested. Console telemetry uses the existing CloudWatch logging driver.
+# 5/10/2026
+- Tool used: Claude Code (Claude Opus)
+- Mode: Generation
+- Prompt:
+```
+lets create the admin supplier service frontend, specifically I think I mentioned previously, the remaining CRUD operations (create, update, delete)
+```
+- Output used: generated the supplier listing/detail pages and admin supplier + location CRUD UI, wired to the supplier-service API. Search, filter, sort and pagination were designed by the team. I reviewed and tested the pages manually.
+
+# 17/10/2026
+- Tool used: Claude Code (Claude Opus)
+- Mode: Generation
+- Prompt:
+```
+Ok, new design updates, for request errands, Pick up location changed to building or supplier
+Drop off location changed to buildings
+Also, if buildings is chosen as the location, that means it should allow aditional fields, like floor etc
+```
+- Output used: implemented the team's errand design decisions (building/floor locations, shared deadline with no grace period, supplier-hours pop-up), plus the admin users page and logout flow.
+
+# 3/11/2026
+- Tool used: Claude Code (Claude Opus)
+- Mode: Generation, Explanation
+- Prompt:
+```
+Lets create a chat service Ui for it
+```
+- Prompt:
+```
+for N2H, we plan to include bookmarking/favouriting supplier/dropoff/pick up locations. We plan to do this in terms of like an array, including userid, the location details like supplier from supplier_db etc. Is thisa array design choice good?
+```
+- Output used: generated the chat UI and admin suspend/promote UI on existing backends. For favourites, our team planned to store them in user-service due to bounded context. We had discussed both an array (user ID with location or supplier details) and a separate relational table; I consulted the AI on whether the array design still had merit, and we chose the table. For deleted suppliers, I had considered checking favourites on load or periodically (similar to how delivery apps update a store's availability). The AI's recommended design used a check on load, matching what I had considered, which I extended so deleted favourites are removed automatically. I evaluated these, added custom places and rooms, confirmed with the team, and the AI implemented it. For supplier name reuse, I found the bug and researched partial indexes; the AI confirmed the fix and implemented it.
+- Prompt:
+```
+refactor the outbox monitoring into a generic snapshot monitoring class to handle the standard lifecycle of this metrics worker. setup the same metrics monitoring code to generate metrics for user service. the metrics should be based on the getMetricsSnapshot funciton in UserRepository.
+```
+- output used: the abstraction generated was adequate and I did some touchup to the code formatting and comments. the user metrics code generated the correct fields based on the function provided.
+
+# 6/11/2026
+- Tool used: codex
+- Mode: Generation
+- Prompt:
+```
+replace the existing placeholder dashboard at observability/grafana/dashboards.
+
+implement the following in the dashboard:
+- per service dashboard
+- service status (up/down)
+- p50/p95/p99 request timings per route in a table among all queries in the currently selected window
+- requests/second per route
+- average latency per service
+- http 500 counts in timeframe
+- outbox processing status (failed, message processing delay, backlog count, oldest pending event)
+- connection to rabbitmq broker
+- user service: number of auth requests, accounts in existence (by their status)
+- db performance (query/update p95 times)
+- rabbitmq dashboard to monitor items per queue (including separate widgets for dlqs) and broker health
+- central dashboard summarising the same info on all services and rabbitmq
+
+this is a dump of queryable fields from prometheus to be used in promql queries:
+METADATA DUMP OF FILTERED FIELDS FROM PROMETHEUS API HERE
+```
+- output used: inspection of the dashboard had some obvious bugs. e.g. the model had decided to ignore the processing window for  the selected window and opted for a fixed 5 seconds. this meant that some of the metrics would quickly become "unavailable" after the request ended, making it useless. I manually fixed this by adjusting the timing to fit the current filters.
+
+# 8/11/2026
+- Tool used: codex
+- Mode: Generation
+- Prompt:
+```
+update the existing dashboard to accomodate for the following newly added metrics.
+like the existing dashboard, high level details should be on the summary dashboard and the detailed results go into their respective service dashboards.
+include the following details:
+- credit: counters for credits per status (active, in circulation, in hold) and the corresponding plots over time
+- order: counters for orders (and overdue ones) per status and their plots over time. and counters for oldest pending/active orders.
+
+METADATA DUMP OF NEW FIELDS FROM PROMETHEUS API HERE
+```
+- output used: the output followed perfectly using the existing dashboard as reference. nothing had to be changed.

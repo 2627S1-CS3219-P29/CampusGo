@@ -2,7 +2,7 @@ import log from "../log.ts";
 import type { IQueueProvider } from "./provider.ts";
 import { context, ROOT_CONTEXT } from "@opentelemetry/api";
 import { extractTraceContext } from "../telemetry/propagation.ts";
-import { recordError, withSpan } from "../telemetry/tracing.ts";
+import { recordError, recordOrderId, withSpan } from "../telemetry/tracing.ts";
 import { outboxAttempts, outboxBatchFailures, outboxConfirmationDelay, outboxLastPoll, outboxWorkerRunning } from "../telemetry/queue.ts";
 
 export const BATCH_SIZE = 50;
@@ -104,6 +104,7 @@ export class OutboxWorker {
             attributes: { "outbox.id": row.id, "outbox.retry_count": row.retryCount },
         }, async span => {
             try {
+                recordOrderId((row.payload as { errandId?: unknown } | null)?.errandId);
                 await this.msgQueue.publishEvent(row.topic, {
                     type: row.type,
                     ...row.payload,
