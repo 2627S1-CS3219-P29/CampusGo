@@ -4,6 +4,7 @@ import { fromRawRole } from "../prisma/roles.ts";
 import type { Role } from "../prisma/common.ts";
 import type { IUserRepository } from "../prisma/users.ts";
 import log from "../log.ts";
+import { recordUserId } from "../telemetry/tracing.ts";
 
 /**
  * Chcecks if user roles has enough to cover everything in rolesRequired.
@@ -45,6 +46,7 @@ export const authenticationMiddlewareWithJwtProvider = (jwtService: IJwtService,
         const decodedJwt = genericJwtHandler(ctx, validationResult);
         if (!decodedJwt)
             return;
+        recordUserId(decodedJwt.payload.sub);
         const userRoles = <string[]>decodedJwt.payload.role ?? [];
         const parsedRoles = userRoles.map(fromRawRole).filter(r => r !== null);
         const isAuthorisedAction = checkSufficientPrivileges(rolesRequired, parsedRoles);

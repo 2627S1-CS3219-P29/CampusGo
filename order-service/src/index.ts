@@ -1,4 +1,6 @@
 import { getOutboxSnapshot } from "./prisma/outbox.ts";
+import { getOrderSnapshot } from "./prisma/orderMetrics.ts";
+import { OrderMetricsMonitor } from "./telemetry/order.ts";
 import { OutboxMetricsMonitor } from "./telemetry/outbox.ts";
 import { createHttpHandler, httpTelemetryMiddleware } from "./middleware/telemetry.ts";
 import { startHeartbeat } from "./telemetry/heartbeat.ts";
@@ -21,6 +23,9 @@ globalThis.addEventListener("unload", stopHeartbeat);
 const outboxMonitor = new OutboxMetricsMonitor(getOutboxSnapshot);
 outboxMonitor.start();
 globalThis.addEventListener("unload", () => { void outboxMonitor.stop(); });
+const orderMonitor = new OrderMetricsMonitor(() => getOrderSnapshot(config.order.pendingTimeoutMinutes));
+orderMonitor.start();
+globalThis.addEventListener("unload", () => { void orderMonitor.stop(); });
 
 
 const publicRouter = new Router({ prefix: "/public" });

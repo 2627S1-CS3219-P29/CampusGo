@@ -1,7 +1,7 @@
 import { SpanKind } from "@opentelemetry/api";
 import { captureTraceContext, extractTraceContext } from "../telemetry/propagation.ts";
 import { withMessagingSpan } from "../telemetry/messaging.ts";
-import { recordError } from "../telemetry/tracing.ts";
+import { recordError, recordOrderId } from "../telemetry/tracing.ts";
 import { rabbitAvailable, rabbitTransitions } from "../telemetry/queue.ts";
 // src/rabbitmq/client.ts
 // Connection, topology, consumer (Credit -> Order replies) and the confirmed publish used by
@@ -166,6 +166,7 @@ export const publishEvent = (
 const handleIncomingMessage = async (msg: amqplib.ConsumeMessage) => {
     const routingKey = msg.fields.routingKey;
     const payload = JSON.parse(msg.content.toString());
+    recordOrderId(payload?.errandId);
     const errandId = String(payload.errandId);
     log.info(`Received ${routingKey} for errand ${errandId}`);
 
