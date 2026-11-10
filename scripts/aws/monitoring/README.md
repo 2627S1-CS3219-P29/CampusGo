@@ -184,3 +184,14 @@ all four Prometheus scrape targets reported `up=1`. The password was resolved by
 AWS's `asm-exec` at runtime and never printed. CloudFormation template validation
 passed; cfn-lint 1.41.0 reported only W2001 for the intentionally retained compatibility
 parameter. cfn-guard compliance checks were not run.
+
+Expired SSO: run `aws sso login --profile campusgo` before Open. Close always
+releases the local active-state lock after stopping local tunnels. Unconfirmed
+remote sessions are retained in `campusgo-dashboard-pending-cleanup.json` under
+the temporary directory and retried by the next Close or Open after sign-in.
+Queued remote cleanup does not prevent new local tunnels.
+
+Application telemetry uses `OTEL_METRIC_EXPORT_INTERVAL=1000` (milliseconds).
+The dashboard freshness threshold is 45 seconds; collector batching and Prometheus
+scraping add latency beyond the export interval. Existing tasks need replacement
+to pick up interval changes; rebuilding images is unnecessary for this setting.

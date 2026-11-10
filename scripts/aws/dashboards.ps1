@@ -2,6 +2,7 @@
 param([ValidateSet('Open','Close')][string]$Action='Open')
 $ErrorActionPreference='Stop'
 $stateFile=Join-Path $env:TEMP 'campusgo-dashboard-tunnels.json'
+$pendingFile=Join-Path $env:TEMP 'campusgo-dashboard-pending-cleanup.json'
 $accessScript=Join-Path $PSScriptRoot 'dashboard-access.ps1'
 function Close-RemoteTunnel([string]$sessionId) {
     # Windows PowerShell turns redirected native stderr into error records.
@@ -57,26 +58,47 @@ if ($Action -eq 'Close') {
     if (Test-Path -LiteralPath $stateFile) { $records=@(Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json) }
     # Stop descendants while their ancestry is still intact, then close AWS sessions.
     foreach ($shell in $shells) { Stop-TunnelTree $shell }
-    $remoteFailed=$false
+    $pending=@()
+    if (Test-Path -LiteralPath $pendingFile) { $pending=@(Get-Content -LiteralPath $pendingFile -Raw | ConvertFrom-Json) }
+    foreach ($record in $records) {
+        if (Test-Path -LiteralPath $record.output) {
+            $match=Select-String -LiteralPath $record.output -Pattern 'Starting session with SessionId: (\S+)' | Select-Object -Last 1
+            if ($match) { $pending+=$match.Matches[0].Groups[1].Value }
+        }
+    }
+    $pending=@($pending | Sort-Object -Unique)
+    # Persist remote obligations before releasing the local active-state lock.
+    ConvertTo-Json -InputObject $pending | Set-Content -LiteralPath $pendingFile -Encoding utf8
+    if (Test-Path -LiteralPath $stateFile) { Remove-Item -LiteralPath $stateFile }
+    $remaining=@()
     try {
-        foreach ($record in $records) {
-            if (Test-Path -LiteralPath $record.output) {
-                $session=Select-String -LiteralPath $record.output -Pattern 'Starting session with SessionId: (\S+)' | Select-Object -Last 1
-                if ($session) {
-                    if (-not (Close-RemoteTunnel $session.Matches[0].Groups[1].Value)) { $remoteFailed=$true }
-                }
-            }
+        foreach ($id in $pending) {
+            if (-not (Close-RemoteTunnel $id)) { $remaining+=$id }
         }
     } finally {
         # Remote termination alone may leave the Windows plugin listening locally.
         foreach ($shell in $shells) { Stop-TunnelTree $shell }
     }
-    if ($remoteFailed) { throw 'Local tunnel processes stopped. Remote cleanup could not be confirmed. Check the AWS warnings above and run Close again. Saved state was retained.' }
-    if (Test-Path -LiteralPath $stateFile) { Remove-Item -LiteralPath $stateFile }
-    Write-Output 'Dashboard tunnels closed and local processes stopped.'
+    if ($remaining.Count) {
+        ConvertTo-Json -InputObject @($remaining) | Set-Content -LiteralPath $pendingFile -Encoding utf8
+        Write-Warning 'Local tunnels are closed. Remote cleanup is queued. Run aws sso login --profile campusgo, then run Close again. Reopening is not blocked by queued cleanup.'
+    } else {
+        Remove-Item -LiteralPath $pendingFile -ErrorAction SilentlyContinue
+    }
+    Write-Output 'Local dashboard tunnels closed.'
     return
 }
-if (Test-Path -LiteralPath $stateFile) { throw 'Saved tunnels exist. Run this script with -Action Close before reopening.' }
+$ErrorActionPreference='Continue'
+$identity=@(& aws.exe sts get-caller-identity --profile campusgo --region ap-southeast-1 --no-cli-pager 2>&1)
+$identityExit=$LASTEXITCODE
+$ErrorActionPreference='Stop'
+if ($identityExit -ne 0) { throw 'AWS access is unavailable. Run aws sso login --profile campusgo, then retry Open.' }
+if (Test-Path -LiteralPath $stateFile) {
+    if ((Get-TunnelShells).Count) { throw 'Dashboard tunnels are already running. Run with -Action Close first.' }
+    & $PSCommandPath -Action Close
+} elseif (Test-Path -LiteralPath $pendingFile) {
+    & $PSCommandPath -Action Close
+}
 foreach ($port in @(3000,15672)) {
     $probe=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$port)
     try { $probe.Start() }
