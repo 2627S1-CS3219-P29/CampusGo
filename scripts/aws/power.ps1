@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param([ValidateSet('Start','Stop','Status')][string]$Action='Status')
 . "$PSScriptRoot/common.ps1"
-$services=@('monitoring-service','api-gateway-service','frontend-service','user-service','supplier-service','order-service','credit-service')
+$services=@('monitoring-service','api-gateway-service','frontend-service','user-service','supplier-service','order-service','credit-service','chat-service')
 $stack=(Aws @('cloudformation','describe-stacks','--stack-name','campusgo-network-broker')).Stacks[0]
 $instanceId=($stack.Outputs | Where-Object OutputKey -eq BrokerId).OutputValue
 if (-not $instanceId) { throw 'Cannot find broker instance' }
