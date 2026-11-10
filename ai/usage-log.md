@@ -142,3 +142,8 @@ we want to measure the following metrics: pending/ready to be sent/delayed (due 
 - Existing backend deployment fixes and frontend production packaging were also AI-assisted.
 - Verification details and limitations are recorded in scripts/aws/README.md. Human review and full course-policy disclosure remain the team's responsibility; this entry does not certify compliance of earlier architecture discussions.
 - HTTP demo compatibility: added frontend/src/util/uuid.ts and updated the errand form calls. Native randomUUID is unavailable on non-localhost HTTP; fallback retains cryptographic randomness. Type checking, production build and fallback UUID validation passed.
+
+# 9/11/2026 - User-service trace header investigation
+- Tool: OpenAI Codex. Inspected live HTTP responses and the running ECS task configuration.
+- Prepared `scripts/aws/user-tracing.json` and a preview-first deployment helper to enable Deno tracing on user-service while preserving its existing task configuration.
+- After user approval, deployed revision `campusgo-user:3` and waited for ECS service stability. Live gateway checks confirmed a generated X-Trace-Id on an empty login POST (HTTP 400) and the supplied W3C trace ID on health (HTTP 200). Successful authenticated login was not tested. Console telemetry uses the existing CloudWatch logging driver.

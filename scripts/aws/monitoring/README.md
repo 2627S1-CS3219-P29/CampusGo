@@ -1,0 +1,147 @@
+# Monitoring deployment and dashboard access
+
+Status: deployed and verified on 10 November 2026. CloudFormation stacks
+`campusgo-monitoring-images` and `campusgo-monitoring` own the image repositories
+and monitoring service. RabbitMQ was not restarted. A separate private metrics
+relay publishes 15692 only for the monitoring security group; the dashboard
+tunnel reaches RabbitMQ's container directly.
+
+Local validation completed on 10 November 2026: all four image targets built and
+started using a shared network namespace, matching ECS task networking.
+Prometheus `promtool check config` passed; Grafana and Tempo health checks passed.
+Both Grafana datasource checks returned OK and five provisioned dashboards loaded.
+A synthetic OTLP trace was retrieved from Tempo and a synthetic metric with value
+42 was queried from Prometheus. Test containers were removed afterward.
+Images remain locally tagged `campusgo-monitoring-{grafana,tempo,collector,prometheus}:review`.
+Live verification passed: all four scrape targets are up (collector, Prometheus,
+RabbitMQ, RabbitMQ queues); application metrics are present for all four backends;
+the public login response's trace ID was retrieved from Tempo. Both localhost
+dashboard tunnels returned HTTP 200. The Session Manager plugin is installed
+on this computer (version 1.2.896.0). Sustained-load/resource sizing has not been tested.
+
+Completed backend task revisions: user 4, supplier 6, order 3, credit 3.
+`application-rollout.json` records their previous revisions for rollback.
+
+## Deployment
+
+`stack.json` creates one `monitoring-service` Fargate service with four containers:
+Grafana, Prometheus, Tempo, and OpenTelemetry Collector (1 vCPU, 2 GiB total).
+Images bake in this repository's provisioned dashboards and datasource UIDs.
+They share task networking: collector receives OTLP on 4318, while Tempo receives
+collector exports on 4319 to avoid a port collision.
+
+The security group admits Grafana port 3000 only from the broker security group
+and OTLP 4318 only from the application security group. Public IP assignment is
+for outbound image pulls in the existing subnets; no public ingress is allowed.
+Grafana is a provisioned, read-only Viewer UI behind SSM access, with no login
+form or initial admin user. Anyone allowed to tunnel through the broker can view
+it. RabbitMQ keeps its existing login and permissions.
+
+This is a demo deployment with **ephemeral monitoring storage**. Replacing or
+stopping the monitoring task loses metrics, traces, and Grafana UI state. The
+dashboards themselves are rebuilt from source. Retention is capped at seven days
+for metrics and 48 hours for traces within a task lifetime. Prometheus storage is
+also capped at 5 GB. Durable storage requires a separate design; do not put
+Prometheus's local TSDB on EFS/NFS.
+
+`broker-metrics-relay.sh` is a separately approved host change. It creates an
+Nginx relay bound to the broker's private address on 15692. The template admits
+that port only from the monitoring security group. This does not restart RabbitMQ.
+If RabbitMQ is recreated with a different container IP, recreate the relay after
+inspection. The dashboard access script resolves RabbitMQ's IP each invocation.
+
+## One-time teammate setup (Windows)
+
+1. Install [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+2. Configure the `campusgo` profile using the team's IAM Identity Center start URL,
+   SSO region, assigned account and role:
+   `aws configure sso --profile campusgo`. Use `ap-southeast-1` as the workload
+   region. See [AWS SSO setup](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html).
+3. Install the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html),
+   then reopen PowerShell. Verify `session-manager-plugin --version`.
+4. Sign in using `aws sso login --profile campusgo` and verify with
+   `aws sts get-caller-identity --profile campusgo`.
+
+Each teammate needs an assigned SSO role; a local profile does not grant access.
+That role needs scoped CloudFormation stack reads, ECS list/describe operations,
+SSM StartSession/ResumeSession/TerminateSession, and SendCommand/GetCommandInvocation
+for the RabbitMQ address lookup on the broker host and `AWS-RunShellScript` document.
+The tunnel uses `AWS-StartPortForwardingSessionToRemoteHost`. No SSH keys or inbound
+SSH rules are needed. SSO login must be repeated when the session expires.
+
+## Open both dashboards
+
+From the repository root:
+
+```powershell
+./scripts/aws/dashboards.ps1
+# Grafana: http://localhost:3000
+# RabbitMQ: http://localhost:15672
+
+./scripts/aws/dashboards.ps1 -Action Close
+```
+
+The helper runs both tunnels in hidden background processes and keeps their
+session IDs in temporary output files for targeted cleanup. If a tunnel fails,
+close saved sessions before retrying. RabbitMQ uses the existing broker login;
+Grafana provides read-only viewing through the SSO-protected tunnel.
+
+`Close` stops and waits for this script's local tunnel process trees as well as
+terminating their AWS sessions. It can recover leftover dashboard shell processes
+even if the saved state file was removed. Other applications using the same ports
+are not stopped. An immediate Open/Close/Open cycle was verified with HTTP 200
+responses from both dashboards.
+
+Alternatively, run these in **two PowerShell terminals** and leave both open.
+Ctrl+C closes each foreground tunnel. The script never installs software or signs
+in automatically, and fails clearly if a prerequisite or local port is unavailable.
+
+```powershell
+# Terminal 1
+./scripts/aws/dashboard-access.ps1 -Dashboard RabbitMQ
+# Open http://localhost:15672
+
+# Terminal 2 (after the monitoring service is deployed)
+./scripts/aws/dashboard-access.ps1 -Dashboard Grafana
+# Open http://localhost:3000
+```
+
+Use `-LocalPort 13000` if the default conflicts with local development. Restart
+the tunnel after an ECS task or RabbitMQ container is replaced. Use `-Check` to
+check local prerequisites and AWS identity without opening a session.
+
+The Windows access script selects the plugin's built-in TCP-loopback fallback for
+its internal multiplexing socket. On this machine the normal AF_UNIX initialization
+stalled after the SSM handshake; the TCP fallback was verified end to end. Only
+the child process's temporary-directory environment is changed and then restored.
+
+## Redeployment sequence
+
+1. Validate the template and build the four Dockerfile targets from the repository
+   root. Start Docker Desktop before building. Example:
+   `docker build -f scripts/aws/monitoring/Dockerfile --target grafana -t campusgo-monitoring-grafana:review .`.
+   Repeat for `tempo`, `collector`, and `prometheus`. Verify the upstream image
+   tags are available and run their config validation before publishing.
+2. Publish the reviewed images to ECR and supply immutable image digests for the
+   four image parameters in `stack.json`. Create the monitoring CloudFormation
+   stack with parameters discovered from `campusgo-network-broker` and the active
+   user-service task's execution role. Do not reapply the broker's existing stack.
+3. Separately approve/run the metrics relay script through SSM with the inspected
+   `BROKER_PRIVATE_IP`. The inspected address was `10.0.17.76`; rediscover it before
+   applying. The existing RabbitMQ volume and container must remain intact.
+4. After monitoring readiness checks, apply `application-telemetry.json` to new
+   revisions of user, supplier, order and credit tasks, also setting each task's
+   `OTEL_SERVICE_NAME` to its service name. Preserve existing task settings and
+   record each previous revision for rollback. This switches user-service from
+   console export to the collector and enables export on the other services.
+5. `power.ps1` now includes `monitoring-service` in daily start/stop operations.
+   Monitoring shutdown loses the task-local history described above.
+6. Verify Grafana `/api/health`, both datasource health checks, Prometheus scrape
+   targets including RabbitMQ, and a trace generated through the public login
+   endpoint appearing in Tempo. Verify both tunnels locally. A running ECS task
+   alone does not establish that metrics and traces are working.
+
+Rollback: restore the recorded application revisions, stop the monitoring ECS
+service, and remove only `campusgo-metrics-relay` if that addition was approved.
+Deleting the monitoring stack removes its ingress rules and discovery entry;
+CloudWatch logs are retained. Do not remove or recreate RabbitMQ.

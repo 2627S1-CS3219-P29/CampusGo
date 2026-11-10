@@ -1,0 +1,329 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "CampusGo demo monitoring with SSM-only dashboard ingress and ephemeral history",
+  "Parameters": {
+    "VpcId": {
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "Subnets": {
+      "Type": "List<AWS::EC2::Subnet::Id>"
+    },
+    "ApplicationSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup::Id"
+    },
+    "BrokerSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup::Id"
+    },
+    "BrokerPrivateIp": {
+      "Type": "String"
+    },
+    "NamespaceId": {
+      "Type": "String"
+    },
+    "ExecutionRoleArn": {
+      "Type": "String"
+    },
+    "GrafanaImage": {
+      "Type": "String"
+    },
+    "TempoImage": {
+      "Type": "String"
+    },
+    "CollectorImage": {
+      "Type": "String"
+    },
+    "PrometheusImage": {
+      "Type": "String"
+    },
+    "Cluster": {
+      "Type": "String",
+      "Default": "campusgo"
+    }
+  },
+  "Resources": {
+    "Logs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "RetentionInDays": 7
+      },
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain"
+    },
+    "SecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Monitoring access from application tasks and SSM broker host",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 4318,
+            "ToPort": 4318,
+            "SourceSecurityGroupId": {
+              "Ref": "ApplicationSecurityGroup"
+            }
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 3000,
+            "ToPort": 3000,
+            "SourceSecurityGroupId": {
+              "Ref": "BrokerSecurityGroup"
+            }
+          }
+        ]
+      }
+    },
+    "BrokerMetricsIngress": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "BrokerSecurityGroup"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": 15692,
+        "ToPort": 15692,
+        "SourceSecurityGroupId": {
+          "Ref": "SecurityGroup"
+        }
+      }
+    },
+    "Discovery": {
+      "Type": "AWS::ServiceDiscovery::Service",
+      "Properties": {
+        "Name": "monitoring",
+        "DnsConfig": {
+          "NamespaceId": {
+            "Ref": "NamespaceId"
+          },
+          "DnsRecords": [
+            {
+              "Type": "A",
+              "TTL": 10
+            }
+          ],
+          "RoutingPolicy": "MULTIVALUE"
+        },
+        "HealthCheckCustomConfig": {
+          "FailureThreshold": 1
+        }
+      }
+    },
+    "Task": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Cpu": "1024",
+        "Memory": "2048",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "ExecutionRoleArn": {
+          "Ref": "ExecutionRoleArn"
+        },
+        "RuntimePlatform": {
+          "CpuArchitecture": "X86_64",
+          "OperatingSystemFamily": "LINUX"
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "grafana",
+            "Image": {
+              "Ref": "GrafanaImage"
+            },
+            "Essential": true,
+            "Memory": 512,
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": {
+                  "Ref": "Logs"
+                },
+                "awslogs-region": {
+                  "Ref": "AWS::Region"
+                },
+                "awslogs-stream-prefix": "grafana"
+              }
+            },
+            "Environment": [
+              {
+                "Name": "GF_AUTH_ANONYMOUS_ENABLED",
+                "Value": "true"
+              },
+              {
+                "Name": "GF_AUTH_ANONYMOUS_ORG_ROLE",
+                "Value": "Viewer"
+              },
+              {
+                "Name": "GF_AUTH_DISABLE_LOGIN_FORM",
+                "Value": "true"
+              },
+              {
+                "Name": "GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION",
+                "Value": "true"
+              },
+              {
+                "Name": "GF_USERS_ALLOW_SIGN_UP",
+                "Value": "false"
+              },
+              {
+                "Name": "GF_ANALYTICS_REPORTING_ENABLED",
+                "Value": "false"
+              }
+            ],
+            "PortMappings": [
+              {
+                "ContainerPort": 3000
+              }
+            ]
+          },
+          {
+            "Name": "tempo",
+            "Image": {
+              "Ref": "TempoImage"
+            },
+            "Essential": true,
+            "Memory": 768,
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": {
+                  "Ref": "Logs"
+                },
+                "awslogs-region": {
+                  "Ref": "AWS::Region"
+                },
+                "awslogs-stream-prefix": "tempo"
+              }
+            },
+            "Command": [
+              "-target=all",
+              "-config.file=/etc/tempo/config.yaml"
+            ]
+          },
+          {
+            "Name": "collector",
+            "Image": {
+              "Ref": "CollectorImage"
+            },
+            "Essential": true,
+            "Memory": 256,
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": {
+                  "Ref": "Logs"
+                },
+                "awslogs-region": {
+                  "Ref": "AWS::Region"
+                },
+                "awslogs-stream-prefix": "collector"
+              }
+            },
+            "Command": [
+              "--config=/etc/otelcol/config.yaml"
+            ],
+            "PortMappings": [
+              {
+                "ContainerPort": 4318
+              }
+            ]
+          },
+          {
+            "Name": "prometheus",
+            "Image": {
+              "Ref": "PrometheusImage"
+            },
+            "Essential": true,
+            "Memory": 512,
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": {
+                  "Ref": "Logs"
+                },
+                "awslogs-region": {
+                  "Ref": "AWS::Region"
+                },
+                "awslogs-stream-prefix": "prometheus"
+              }
+            },
+            "Environment": [
+              {
+                "Name": "BROKER_METRICS_HOST",
+                "Value": {
+                  "Ref": "BrokerPrivateIp"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "Service": {
+      "Type": "AWS::ECS::Service",
+      "Properties": {
+        "ServiceName": "monitoring-service",
+        "Cluster": {
+          "Ref": "Cluster"
+        },
+        "TaskDefinition": {
+          "Ref": "Task"
+        },
+        "DesiredCount": 1,
+        "LaunchType": "FARGATE",
+        "DeploymentConfiguration": {
+          "MinimumHealthyPercent": 0,
+          "MaximumPercent": 100,
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true
+          }
+        },
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "Subnets": {
+              "Ref": "Subnets"
+            },
+            "SecurityGroups": [
+              {
+                "Ref": "SecurityGroup"
+              }
+            ]
+          }
+        },
+        "ServiceRegistries": [
+          {
+            "RegistryArn": {
+              "Fn::GetAtt": [
+                "Discovery",
+                "Arn"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "CollectorEndpoint": {
+      "Value": "http://monitoring.campusgo.local:4318"
+    },
+    "ServiceName": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Service",
+          "Name"
+        ]
+      }
+    },
+    "LogGroup": {
+      "Value": {
+        "Ref": "Logs"
+      }
+    }
+  }
+}

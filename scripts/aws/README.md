@@ -98,3 +98,57 @@ Live revisions after this update: `campusgo-api-gateway:2` and
 `campusgo-frontend:2`; the four backend revisions were retained. The full errand
 smoke test passed at the gateway public IP. The frontend login screen and its
 JavaScript/CSS assets loaded successfully after the frontend rollout.
+
+## User-service trace header fix (deployed 9 November 2026)
+
+The inspected running revision `campusgo-user:2` has no `OTEL_*` environment
+settings. The application emits `X-Trace-Id` only when a valid active trace exists.
+The proposed settings in `user-tracing.json` enable Deno tracing and W3C trace
+propagation. The console exporter sends telemetry to stderr, which the existing
+`awslogs` driver captures in CloudWatch; this increases log volume. It does not
+configure a collector or a Tempo dashboard. `OTEL_DENO_CONSOLE=ignore` keeps
+ordinary application console output from also being exported as OTEL log records.
+
+Preview locally (no AWS calls):
+
+```powershell
+./scripts/aws/enable-user-tracing.ps1
+```
+
+After separate deployment approval:
+
+```powershell
+./scripts/aws/enable-user-tracing.ps1 -Deploy
+```
+
+The deployment script checks the reviewed source revision and completed rollout,
+copies the existing task configuration, adds the six tracing settings, registers
+a new revision, and updates only `user-service`. It preserves the application
+image reference, existing environment settings, roles, resources and networking.
+It prints the previous revision for rollback without printing the full task
+definition. Revision `campusgo-user:3` was deployed with user approval; ECS reached
+service stability. The live empty login POST returned HTTP 400 with a generated
+`X-Trace-Id`, and the health endpoint returned HTTP 200 with the exact trace ID
+sent in `traceparent`. No successful authenticated login was performed.
+The default expected source revision deliberately remains `campusgo-user:2`;
+review the current configuration before attempting another deployment.
+
+After rollout, verify the health endpoint and an empty login POST through the
+public gateway for `X-Trace-Id`, then check W3C `traceparent` propagation. An empty
+login request should still return HTTP 400. Successful authenticated login is a
+separate check. If needed, roll back using the printed previous task definition
+with `aws ecs update-service`, after obtaining approval.
+
+## Monitoring dashboards (10 November 2026)
+
+Grafana, Prometheus, Tempo and the OpenTelemetry Collector now run in the separate
+`monitoring-service` ECS service. All four backends export telemetry to it, and
+RabbitMQ metrics are scraped through a private relay without restarting the broker.
+Use `./scripts/aws/dashboards.ps1` to open both SSM tunnels, and
+`./scripts/aws/dashboards.ps1 -Action Close` to close them. Grafana is available at
+`http://localhost:3000`, RabbitMQ at `http://localhost:15672`.
+
+See [monitoring setup and operations](monitoring/README.md) for one-time teammate
+SSO/plugin setup, validation results, and rollback details. `power.ps1` includes
+monitoring. Its metrics and trace history are ephemeral across task replacement
+or shutdown; dashboards are provisioned from the image. CloudWatch logs are retained.
