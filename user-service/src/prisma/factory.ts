@@ -6,6 +6,7 @@ import { RoleRepository } from "../prisma/roles.ts";
 import { InviteRepository } from "../prisma/invite.ts";
 import { UserRepository } from "../prisma/users.ts";
 import { OutboxRepository, type IOutboxRepository } from "./outbox.ts";
+import { FavouriteRepository, type IFavouriteRepository } from "./favourites.ts";
 import { instrumentRepository } from "../telemetry/database.ts";
 
 export interface Repos {
@@ -13,6 +14,7 @@ export interface Repos {
     role: IRoleRepository;
     user: IUserRepository;
     outbox: IOutboxRepository;
+    favourite: IFavouriteRepository;
 }
 
 export interface IRepoFactory {
@@ -26,6 +28,7 @@ class RepoFactory implements IRepoFactory {
             role: instrumentRepository("role", new RoleRepository(db)),
             user: instrumentRepository("user", new UserRepository(db)),
             outbox: instrumentRepository("outbox", new OutboxRepository(db)),
+            favourite: instrumentRepository("favourite", new FavouriteRepository(db)),
         };
     }
 }

@@ -6,11 +6,11 @@ import { Application, Router } from "@oak/oak";
 import { assertEquals, assertRejects } from "@std/assert";
 import { spy } from "@std/testing/mock";
 import { validateBody, validateQuery } from "../src/middleware/schema.ts";
-import { CtxOpts, FakeCtx, makeJwtService } from "./util.ts";
+import { CtxOpts, FakeCtx, makeJwtService, makePublicUser, makeUserRepo } from "./util.ts";
 import { JWTPayload } from "jose";
 import { Role } from "../src/prisma/common.ts";
 import { ValidationResult } from "../src/util/jwt.ts";
-import { authenticationMiddlewareWithJwtProvider } from "../src/middleware/auth.ts";import z from "zod";
+import { authenticationMiddlewareWithJwtProvider, currentRolesMiddleware } from "../src/middleware/auth.ts";import z from "zod";
 
 const makeAuthCtx = (opts: CtxOpts = {}) => new FakeCtx({
     ...opts,
@@ -124,6 +124,78 @@ describe("authentication middleware", () => {
 
         assertEquals(next.calls.length, 1);
         assertEquals((ctx.state.jwtPayload as JWTPayload).role, validRoles);
+    });
+});
+
+describe("current roles middleware", () => {
+    // the token was issued while the caller was an admin
+    const makeAdminTokenCtx = () => new FakeCtx({ jwtPayload: { sub: "1", role: [Role.Admin] } });
+
+    it("calls next when the caller is still an admin in the database", async () => {
+        const getUserByIdPublic = spy(async () => makePublicUser(1, { roles: [Role.Admin, Role.Courier] }));
+        const mw = currentRolesMiddleware(makeUserRepo({ getUserByIdPublic }), new Set([Role.Admin]));
+        const ctx = makeAdminTokenCtx();
+        const next = spy(async () => {});
+
+        await mw(ctx.asCtx(), next);
+
+        assertEquals(getUserByIdPublic.calls[0].args, [1]);
+        assertEquals(next.calls.length, 1);
+    });
+
+    it("returns 403 when the caller was demoted after the token was issued", async () => {
+        const mw = currentRolesMiddleware(
+            makeUserRepo({ getUserByIdPublic: async () => makePublicUser(1, { roles: [Role.Requestor] }) }),
+            new Set([Role.Admin]),
+        );
+        const ctx = makeAdminTokenCtx();
+        const next = spy(async () => {});
+
+        await mw(ctx.asCtx(), next);
+
+        assertEquals(ctx.response.status, 403);
+        assertEquals(ctx.response.body, { error: "insufficient permissions to perform action" });
+        assertEquals(next.calls.length, 0);
+    });
+
+    it("returns 403 when the caller was suspended after the token was issued", async () => {
+        const mw = currentRolesMiddleware(
+            makeUserRepo({ getUserByIdPublic: async () => makePublicUser(1, { roles: [Role.Admin], isSuspended: true }) }),
+            new Set([Role.Admin]),
+        );
+        const ctx = makeAdminTokenCtx();
+        const next = spy(async () => {});
+
+        await mw(ctx.asCtx(), next);
+
+        assertEquals(ctx.response.status, 403);
+        assertEquals(ctx.response.body, { error: "your account has been suspended" });
+        assertEquals(next.calls.length, 0);
+    });
+
+    it("returns 403 when the caller no longer exists", async () => {
+        const mw = currentRolesMiddleware(makeUserRepo({ getUserByIdPublic: async () => null }), new Set([Role.Admin]));
+        const ctx = makeAdminTokenCtx();
+        const next = spy(async () => {});
+
+        await mw(ctx.asCtx(), next);
+
+        assertEquals(ctx.response.status, 403);
+        assertEquals(next.calls.length, 0);
+    });
+
+    it("returns 500 when the lookup fails", async () => {
+        const mw = currentRolesMiddleware(
+            makeUserRepo({ getUserByIdPublic: async () => { throw new Error("db down"); } }),
+            new Set([Role.Admin]),
+        );
+        const ctx = makeAdminTokenCtx();
+        const next = spy(async () => {});
+
+        await mw(ctx.asCtx(), next);
+
+        assertEquals(ctx.response.status, 500);
+        assertEquals(next.calls.length, 0);
     });
 });
 

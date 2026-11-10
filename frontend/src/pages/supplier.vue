@@ -25,25 +25,29 @@
     <v-card v-else rounded="lg">
       <supplier-image :height="260" :supplier="supplier" />
 
-      <!-- Supplier name, with edit and delete buttons for admins -->
+      <!-- Supplier name, a star to save it, and edit and delete buttons for admins -->
       <v-card-item>
         <v-card-title class="text-h5 text-wrap">{{ supplier.name }}</v-card-title>
 
-        <template v-if="auth.isAdmin" #append>
-          <v-btn
-            aria-label="Edit supplier"
-            icon="mdi-pencil"
-            variant="text"
-            @click="isEditOpen = true"
-          />
+        <template #append>
+          <supplier-star-button :supplier-id="supplier.id" />
 
-          <v-btn
-            aria-label="Delete supplier"
-            color="error"
-            icon="mdi-delete-outline"
-            variant="text"
-            @click="isDeleteOpen = true"
-          />
+          <template v-if="auth.isAdmin">
+            <v-btn
+              aria-label="Edit supplier"
+              icon="mdi-pencil"
+              variant="text"
+              @click="isEditOpen = true"
+            />
+
+            <v-btn
+              aria-label="Delete supplier"
+              color="error"
+              icon="mdi-delete-outline"
+              variant="text"
+              @click="isDeleteOpen = true"
+            />
+          </template>
         </template>
       </v-card-item>
 
@@ -116,6 +120,7 @@
   import { deleteSupplier, getSupplier, listLocations, type Location, type Supplier } from '@/api/supplier'
   import SupplierFormDialog from '@/components/SupplierFormDialog.vue'
   import SupplierImage from '@/components/SupplierImage.vue'
+  import SupplierStarButton from '@/components/SupplierStarButton.vue'
   import { useAlertStore } from '@/stores/alerts'
   import { useAuthStore } from '@/stores/auth'
   import { formatHours, formatLocation, openStatus, supplierTypeInfo } from '@/util/supplier'

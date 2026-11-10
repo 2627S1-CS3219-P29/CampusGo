@@ -31,7 +31,7 @@ enum SupplierAuditAction {
 // Opening and closing times must either both be provided or both be null.
 model Supplier {
     id Int @id @default(autoincrement())
-    name String @unique
+    name String
     type SupplierType[]
     floor Int?
     imageUrl String?
@@ -58,14 +58,19 @@ model Supplier {
 
     @@check(expression: "(\"opensAt\" IS NULL) = (\"closesAt\" IS NULL)", name: "supplier_hours_paired")
     @@check(expression: "length(btrim(name)) > 0", name: "supplier_name_not_blank") // prevents empty string as supplier name
+    // names are unique among active suppliers only, so a deleted supplier's name can be reused
+    @@index([name], where: "(\"deletedAt\" IS NULL)", unique: true, name: "supplier_name_active")
 }
 
 model Location {
     id Int @id @default(autoincrement())
-    name String @unique
+    name String
 
     deletedAt TimestamptzString?
     suppliers Supplier[]
+
+    // names are unique among active locations only, so a deleted location's name can be reused
+    @@index([name], where: "(\"deletedAt\" IS NULL)", unique: true, name: "location_name_active")
 }
 
 // append-only history of supplier changes (FR 5.12)

@@ -33,6 +33,7 @@
               {{ user.nickname }}
               <span class="text-caption text-medium-emphasis">#{{ user.id }}</span>
               <v-chip v-if="user.roles.includes('admin')" color="primary" label size="x-small">Admin</v-chip>
+              <v-chip v-if="user.isSuspended" color="error" label size="x-small">Suspended</v-chip>
             </v-list-item-title>
 
             <v-list-item-subtitle>

@@ -428,19 +428,23 @@
                 }
               },
               "foreignKeys": [],
-              "indexes": [],
+              "indexes": [
+                {
+                  "columns": [
+                    "name"
+                  ],
+                  "name": "location_name_active_5b193f72",
+                  "prefix": "location_name_active",
+                  "unique": true,
+                  "where": "(\"deletedAt\" IS NULL)"
+                }
+              ],
               "primaryKey": {
                 "columns": [
                   "id"
                 ]
               },
-              "uniques": [
-                {
-                  "columns": [
-                    "name"
-                  ]
-                }
-              ]
+              "uniques": []
             },
             "supplier": {
               "checks": [
@@ -582,6 +586,15 @@
                   "name": "supplier_locationId_idx_7aae3038",
                   "prefix": "supplier_locationId_idx",
                   "unique": false
+                },
+                {
+                  "columns": [
+                    "name"
+                  ],
+                  "name": "supplier_name_active_5b193f72",
+                  "prefix": "supplier_name_active",
+                  "unique": true,
+                  "where": "(\"deletedAt\" IS NULL)"
                 }
               ],
               "primaryKey": {
@@ -589,13 +602,7 @@
                   "id"
                 ]
               },
-              "uniques": [
-                {
-                  "columns": [
-                    "name"
-                  ]
-                }
-              ]
+              "uniques": []
             },
             "supplierAuditLog": {
               "checks": [
@@ -711,7 +718,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "9357d3089b7013134fb5595d1f4722bcbf03dfda3345c1f22710774db8c064cc"
+    "storageHash": "9e009cbb9e90cf01a9a16ce38d86954005dd799264023993b44dfb65b4c166a4"
   },
   "capabilities": {
     "postgres": {

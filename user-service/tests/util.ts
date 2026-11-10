@@ -8,6 +8,7 @@ import { Role } from "../src/prisma/common.ts";
 import { IRepoFactory, Repos } from "../src/prisma/factory.ts";
 import { IInviteRepository } from "../src/prisma/invite.ts";
 import { IOutboxRepository } from "../src/prisma/outbox.ts";
+import { IFavouriteRepository } from "../src/prisma/favourites.ts";
 import { Db, DbTxUnion, Tx } from "../src/prisma/db.ts";
 import { IInviteCodeGenerator } from "../src/util/invite.ts";
 import { IQueueProvider } from "../src/queue/provider.ts";
@@ -104,6 +105,9 @@ export const makeInviteRepo = (overrides: Partial<IInviteRepository> = {}): IInv
 export const makeOutboxRepo = (overrides: Partial<IOutboxRepository> = {}): IOutboxRepository =>
     makeGenericMockRepo("outbox", overrides);
 
+export const makeFavouriteRepo = (overrides: Partial<IFavouriteRepository> = {}): IFavouriteRepository =>
+    makeGenericMockRepo("favourite", overrides);
+
 // not really a repo but whatever
 export const makeQueue = (overrides: Partial<IQueueProvider> = {}): IQueueProvider =>
     makeGenericMockRepo("queue", overrides);
@@ -114,6 +118,7 @@ export const makeRepoFactory = (overrides: Partial<Repos> = {}): IRepoFactory =>
         role: overrides.role ?? makeRoleRepo(),
         user: overrides.user ?? makeUserRepo(),
         outbox: overrides.outbox ?? makeOutboxRepo(),
+        favourite: overrides.favourite ?? makeFavouriteRepo(),
     }),
 });
 

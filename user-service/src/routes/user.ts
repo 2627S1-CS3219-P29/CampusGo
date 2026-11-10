@@ -1,6 +1,6 @@
 import { Router, type RouterContext } from "@oak/oak";
 import { UserController, listUsersQuerySchema, userUpdateBasicSchema, userUpdatePasswordSchema, userUpdateRoleSchema } from "../controller/user.ts"
-import { authenticationMiddleware } from "../middleware/auth.ts";
+import { authenticationMiddleware, currentRolesMiddleware } from "../middleware/auth.ts";
 import { validateBody, validateQuery } from "../middleware/schema.ts";
 import { Role } from "../prisma/common.ts";
 import { defaultHasher } from "../util/hash.ts";
@@ -9,6 +9,9 @@ import { db } from "../prisma/db.ts";
 
 const { user, role } = repoFactory.buildRepos(db);
 const userController = new UserController(user, role, defaultHasher);
+// role and suspension changes also check the caller's current roles in the database,
+// so a token issued before the caller was demoted or suspended no longer works for them
+const currentAdmin = currentRolesMiddleware(user, new Set([Role.Admin]));
 const createUserRouter = () => {
     const router = new Router({ prefix: "/user" });
 
@@ -33,6 +36,7 @@ const createUserRouter = () => {
     router.patch(
         "/:id/role",
         authenticationMiddleware(new Set([Role.Admin])),
+        currentAdmin,
         validateBody(userUpdateRoleSchema),
         async ctx => {
             await userController.updateUserRole(ctx);
@@ -51,6 +55,7 @@ const createUserRouter = () => {
     router.post(
         "/:id/suspend",
         authenticationMiddleware(new Set([Role.Admin])),
+        currentAdmin,
         async ctx => {
             await userController.suspendUser(ctx);
         }
@@ -59,6 +64,7 @@ const createUserRouter = () => {
     router.delete(
         "/:id/suspend",
         authenticationMiddleware(new Set([Role.Admin])),
+        currentAdmin,
         async ctx => {
             await userController.unsuspendUser(ctx);
         }

@@ -17,6 +17,15 @@
         <v-list-item to="/errands/new" prepend-icon="mdi-plus-box-outline" title="Request Errand" />
         <v-list-item to="/errands" prepend-icon="mdi-bike-fast" title="Open Errands" exact />
         <v-list-item to="/my-errands" prepend-icon="mdi-clipboard-list-outline" title="My Errands" />
+        <v-list-item to="/favourites" prepend-icon="mdi-star-outline" title="Favourites" />
+        <!-- unread messages across all chats, on the icon so it shows on the collapsed rail too -->
+        <v-list-item to="/chats" title="Chats">
+          <template #prepend>
+            <v-badge color="error" :content="chats.totalUnread" floating :model-value="chats.totalUnread > 0">
+              <v-icon>mdi-chat-outline</v-icon>
+            </v-badge>
+          </template>
+        </v-list-item>
         <v-list-item v-if="auth.isAdmin" to="/admin/users" prepend-icon="mdi-account-group" title="Users" />
       </v-list>
 
@@ -89,6 +98,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { useDisplay } from 'vuetify';
 import { useAuthStore } from '@/stores/auth';
 import { useCreditStore } from '@/stores/credit';
+import { useChatStore } from '@/stores/chat';
+import { useFavouriteStore } from '@/stores/favourites';
 
 // credits change as errands are requested, completed or cancelled
 const CREDIT_REFRESH_MS = 30_000;
@@ -123,6 +134,19 @@ const creditTimer = setInterval(() => {
     credits.refresh();
 }, CREDIT_REFRESH_MS);
 onUnmounted(() => clearInterval(creditTimer));
+
+// one live chat connection for the whole app while signed in: new messages and unread counts
+// arrive on any page, not only on the chat pages
+const chats = useChatStore();
+// favourites belong to the signed-in user; forget them when someone else signs in
+const favourites = useFavouriteStore();
+watch(() => auth.userId, userId => {
+  chats.disconnect();
+  favourites.reset();
+  if (userId)
+    chats.connect();
+}, { immediate: true });
+onUnmounted(() => chats.disconnect());
 
 const isLogoutOpen = ref(false);
 
