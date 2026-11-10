@@ -167,6 +167,15 @@ Also, if buildings is chosen as the location, that means it should allow adition
 ```
 - Output used: implemented the team's errand design decisions (building/floor locations, shared deadline with no grace period, supplier-hours pop-up), plus the admin users page and logout flow.
 
+# 2/11/2026
+- Tool used: Claude Code (Sonnet 5.5)
+- Mode: Generation
+- Prompt:
+```
+nice-to-have is live messaging (written down as WebRTC and a signalling server), please design and implement the chat service for me then walk me through it. The chat opens once a courier accepts the order, is between requester and courier without revealing phone numbers, stays open until 3 hours after the errand is completed and is then deleted, needs message history, no voice calling, only text and images.
+```
+- Output used: chat service with backend, database, RabbitMQ events, image support, deletion after 3 hours, the chat README 
+
 # 3/11/2026
 - Tool used: Claude Code (Claude Opus)
 - Mode: Generation, Explanation
