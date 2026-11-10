@@ -14,11 +14,10 @@ withdrawn, or exchanged for money, and only circulate within the platform.
 
 | Name | Role |
 | ----- | ----- |
-| Your Name | Your ownership |
-| Your Name | Your ownership |
-| Your Name | Your ownership |
-| Your Name | Your ownership |
-| Your Name | Your ownership |
+| Marcus | User service, Local infrastructure management (docker, compose, nginx), Frontend login and token management, N2H - Observability and tracing |
+| Jun Yi | Supplier Service backend, Credit Service backend, Credit Service rabbitMQ integration, Cloud Deployment, Profile Management UI |
+| Sukanya | Order Service backend, Order service RabbitMQ events, N2H - Chat service backend (live chat with message history and image support) |
+| Nicholas | Order Service backend, Frontend for Supplier, Order, Credit, Live Chat and Admin Dashboard, N2H - Order History, Reordering Errand, Favourites/Bookmarking, Admin UI |
 
 ---
 
