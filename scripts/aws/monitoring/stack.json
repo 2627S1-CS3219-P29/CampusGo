@@ -21,7 +21,8 @@
       "Type": "String"
     },
     "ExecutionRoleArn": {
-      "Type": "String"
+      "Type": "String",
+      "Description": "Legacy application execution role parameter; monitoring now uses its own scoped role."
     },
     "GrafanaImage": {
       "Type": "String"
@@ -121,7 +122,10 @@
           "FARGATE"
         ],
         "ExecutionRoleArn": {
-          "Ref": "ExecutionRoleArn"
+          "Fn::GetAtt": [
+            "MonitoringExecutionRole",
+            "Arn"
+          ]
         },
         "RuntimePlatform": {
           "CpuArchitecture": "X86_64",
@@ -158,11 +162,11 @@
               },
               {
                 "Name": "GF_AUTH_DISABLE_LOGIN_FORM",
-                "Value": "true"
+                "Value": "false"
               },
               {
                 "Name": "GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION",
-                "Value": "true"
+                "Value": "false"
               },
               {
                 "Name": "GF_USERS_ALLOW_SIGN_UP",
@@ -171,11 +175,23 @@
               {
                 "Name": "GF_ANALYTICS_REPORTING_ENABLED",
                 "Value": "false"
+              },
+              {
+                "Name": "GF_SECURITY_ADMIN_USER",
+                "Value": "admin"
               }
             ],
             "PortMappings": [
               {
                 "ContainerPort": 3000
+              }
+            ],
+            "Secrets": [
+              {
+                "Name": "GF_SECURITY_ADMIN_PASSWORD",
+                "ValueFrom": {
+                  "Fn::Sub": "${GrafanaAdminSecret}:password::"
+                }
               }
             ]
           },
@@ -260,6 +276,15 @@
             ]
           }
         ]
+      },
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Anonymous viewing plus authenticated administration; dashboards baked into the immutable image.",
+          "must": [
+            "Keep anonymous role Viewer.",
+            "Task replacement loses metrics, traces and UI changes; source dashboards remain authoritative."
+          ]
+        }
       }
     },
     "Service": {
@@ -306,6 +331,194 @@
           }
         ]
       }
+    },
+    "GrafanaSecretKey": {
+      "Type": "AWS::KMS::Key",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Encrypt the retained Grafana bootstrap credential independently of task storage.",
+          "must": [
+            "Retain key while the admin secret exists."
+          ]
+        }
+      },
+      "Properties": {
+        "Description": "Grafana administrator secret encryption",
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+                }
+              },
+              "Action": "kms:*",
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "GrafanaAdminSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Generated bootstrap login survives replacement of ephemeral Grafana tasks.",
+          "must": [
+            "Never store the password in template parameters, outputs or plaintext task environment.",
+            "Rotate the secret and replace Grafana together; changing only the secret does not update a running Grafana database."
+          ]
+        }
+      },
+      "Properties": {
+        "Description": "CampusGo Grafana administrator login",
+        "KmsKeyId": {
+          "Ref": "GrafanaSecretKey"
+        },
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{\"username\":\"admin\"}",
+          "GenerateStringKey": "password",
+          "PasswordLength": 32,
+          "ExcludePunctuation": true
+        },
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "AWS::StackName"
+            }
+          }
+        ]
+      }
+    },
+    "MonitoringExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Dedicated monitoring execution role prevents application tasks from gaining access to the Grafana admin password.",
+          "must": [
+            "Limit secret access to GrafanaAdminSecret."
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole",
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                },
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "MonitoringRuntime",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "ecr:GetAuthorizationToken",
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ecr:BatchCheckLayerAvailability",
+                    "ecr:GetDownloadUrlForLayer",
+                    "ecr:BatchGetImage"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/campusgo/monitoring-grafana"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/campusgo/monitoring-tempo"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/campusgo/monitoring-collector"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/campusgo/monitoring-prometheus"
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Logs",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "secretsmanager:GetSecretValue",
+                    "secretsmanager:DescribeSecret"
+                  ],
+                  "Resource": {
+                    "Ref": "GrafanaAdminSecret"
+                  },
+                  "Condition": {
+                    "Bool": {
+                      "aws:SecureTransport": "true"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "kms:Decrypt",
+                    "kms:DescribeKey"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "GrafanaSecretKey",
+                      "Arn"
+                    ]
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "kms:ViaService": {
+                        "Fn::Sub": "secretsmanager.${AWS::Region}.amazonaws.com"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
     }
   },
   "Outputs": {
@@ -324,6 +537,17 @@
       "Value": {
         "Ref": "Logs"
       }
+    },
+    "GrafanaAdminSecretArn": {
+      "Description": "Secret containing Grafana admin username and password",
+      "Value": {
+        "Ref": "GrafanaAdminSecret"
+      }
+    }
+  },
+  "Metadata": {
+    "AWSToolsMetrics": {
+      "AWSAgentToolkit": "aws-cloudformation@3"
     }
   }
 }

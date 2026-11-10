@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([string]$ImageTag = '20261110')
+param(
+    [string]$ImageTag = '20261110',
+    [string]$GrafanaImageTag = '20261110-dashboard-fix'
+)
 . "$PSScriptRoot/../common.ps1"
 $network = (Aws @('cloudformation','describe-stacks','--stack-name','campusgo-network-broker')).Stacks[0]
 $outputs = @{}
@@ -21,10 +24,11 @@ $parameters = @{
 }
 foreach ($name in @('Grafana','Tempo','Collector','Prometheus')) {
     $repository='campusgo/monitoring-'+$name.ToLowerInvariant()
-    $image=(Aws @('ecr','describe-images','--repository-name',$repository,'--image-ids',"imageTag=$ImageTag")).imageDetails[0]
+    $tag = if ($name -eq 'Grafana') { $GrafanaImageTag } else { $ImageTag }
+    $image=(Aws @('ecr','describe-images','--repository-name',$repository,'--image-ids',"imageTag=$tag")).imageDetails[0]
     $parameters[$name+'Image']="807733922601.dkr.ecr.${Region}.amazonaws.com/${repository}@$($image.imageDigest)"
 }
-$arguments=@('cloudformation','deploy','--stack-name','campusgo-monitoring','--template-file',"$PSScriptRoot/stack.json",'--no-fail-on-empty-changeset','--parameter-overrides')
+$arguments=@('cloudformation','deploy','--stack-name','campusgo-monitoring','--template-file',"$PSScriptRoot/stack.json",'--no-fail-on-empty-changeset','--capabilities','CAPABILITY_IAM','--parameter-overrides')
 foreach ($key in $parameters.Keys) { $arguments += "$key=$($parameters[$key])" }
 & aws.exe @arguments --profile $Profile --region $Region
 if ($LASTEXITCODE -ne 0) { throw 'Monitoring stack deployment failed.' }

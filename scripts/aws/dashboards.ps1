@@ -3,6 +3,26 @@ param([ValidateSet('Open','Close')][string]$Action='Open')
 $ErrorActionPreference='Stop'
 $stateFile=Join-Path $env:TEMP 'campusgo-dashboard-tunnels.json'
 $accessScript=Join-Path $PSScriptRoot 'dashboard-access.ps1'
+function Close-RemoteTunnel([string]$sessionId) {
+    # Windows PowerShell turns redirected native stderr into error records.
+    $ErrorActionPreference='Continue'
+    $termination=@(& aws.exe ssm terminate-session --session-id $sessionId --profile campusgo --region ap-southeast-1 --no-cli-pager 2>&1)
+    if ($LASTEXITCODE -eq 0) { return $true }
+
+    # Stopping the local plugin may already have ended the remote session.
+    # Only accept an explicitly terminal status; empty history is not proof.
+    $history=@(& aws.exe ssm describe-sessions --state History --filters "key=SessionId,value=$sessionId" --profile campusgo --region ap-southeast-1 --output json --no-cli-pager 2>&1)
+    if ($LASTEXITCODE -eq 0) {
+        try {
+            $result=($history -join "`n") | ConvertFrom-Json -ErrorAction Stop
+            if (@($result.Sessions | Where-Object { $_.SessionId -eq $sessionId -and $_.Status -in @('Terminated','Failed') }).Count -gt 0) {
+                return $true
+            }
+        } catch { Write-Warning "Could not parse session history for ${sessionId}: $_" }
+    } else { Write-Warning ($history -join "`n") }
+    Write-Warning "Could not confirm cleanup for ${sessionId}: $($termination -join "`n")"
+    return $false
+}
 function Get-TunnelShells {
     $filePattern='-File\s+"?' + [regex]::Escape($accessScript) + '"?\s+-Dashboard\s+(Grafana|RabbitMQ)(?:\s|$)'
     @(Get-CimInstance Win32_Process | Where-Object {
@@ -43,8 +63,7 @@ if ($Action -eq 'Close') {
             if (Test-Path -LiteralPath $record.output) {
                 $session=Select-String -LiteralPath $record.output -Pattern 'Starting session with SessionId: (\S+)' | Select-Object -Last 1
                 if ($session) {
-                    & aws.exe ssm terminate-session --session-id $session.Matches[0].Groups[1].Value --profile campusgo --region ap-southeast-1 --no-cli-pager | Out-Null
-                    if ($LASTEXITCODE -ne 0) { $remoteFailed=$true }
+                    if (-not (Close-RemoteTunnel $session.Matches[0].Groups[1].Value)) { $remoteFailed=$true }
                 }
             }
         }
@@ -52,7 +71,7 @@ if ($Action -eq 'Close') {
         # Remote termination alone may leave the Windows plugin listening locally.
         foreach ($shell in $shells) { Stop-TunnelTree $shell }
     }
-    if ($remoteFailed) { throw 'Local tunnel processes stopped. Remote cleanup failed; sign in and run Close again. Saved state was retained.' }
+    if ($remoteFailed) { throw 'Local tunnel processes stopped. Remote cleanup could not be confirmed. Check the AWS warnings above and run Close again. Saved state was retained.' }
     if (Test-Path -LiteralPath $stateFile) { Remove-Item -LiteralPath $stateFile }
     Write-Output 'Dashboard tunnels closed and local processes stopped.'
     return

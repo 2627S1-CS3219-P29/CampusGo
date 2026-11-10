@@ -9,7 +9,8 @@ tunnel reaches RabbitMQ's container directly.
 Local validation completed on 10 November 2026: all four image targets built and
 started using a shared network namespace, matching ECS task networking.
 Prometheus `promtool check config` passed; Grafana and Tempo health checks passed.
-Both Grafana datasource checks returned OK and five provisioned dashboards loaded.
+Both Grafana datasource checks returned OK. The original image had five provisioned dashboards;
+the dashboard refresh adds Overview and updates all service dashboards.
 A synthetic OTLP trace was retrieved from Tempo and a synthetic metric with value
 42 was queried from Prometheus. Test containers were removed afterward.
 Images remain locally tagged `campusgo-monitoring-{grafana,tempo,collector,prometheus}:review`.
@@ -33,9 +34,22 @@ collector exports on 4319 to avoid a port collision.
 The security group admits Grafana port 3000 only from the broker security group
 and OTLP 4318 only from the application security group. Public IP assignment is
 for outbound image pulls in the existing subnets; no public ingress is allowed.
-Grafana is a provisioned, read-only Viewer UI behind SSM access, with no login
-form or initial admin user. Anyone allowed to tunnel through the broker can view
-it. RabbitMQ keeps its existing login and permissions.
+Grafana allows anonymous Viewer access behind the SSM tunnel and authenticated
+administration through the Sign in link. The username is `admin`; CloudFormation
+generates its password in Secrets Manager and outputs `GrafanaAdminSecretArn`.
+Open that secret in the AWS console and choose **Retrieve secret value**. ECS injects
+only the password key at startup using a dedicated monitoring execution role.
+The retained secret and its encryption key survive task replacement. Do not put
+passwords in task environment values, source files, command output, or chat.
+
+The admin password is a bootstrap credential: changing it only inside Grafana is
+not durable because Grafana storage is ephemeral. To rotate it, update the secret
+and replace the monitoring task together. Automatic password rotation is not configured.
+Provisioned dashboard files remain source-controlled; publish a rebuilt Grafana
+image to update them. Anyone allowed to tunnel through the broker can view
+dashboards. RabbitMQ keeps its existing login and permissions. Its bootstrap
+username is `campusgo`; its password is the SecureString parameter
+`/campusgo/rabbitmq/password` in Systems Manager Parameter Store, Singapore region.
 
 This is a demo deployment with **ephemeral monitoring storage**. Replacing or
 stopping the monitoring task loses metrics, traces, and Grafana UI state. The
@@ -84,7 +98,7 @@ From the repository root:
 The helper runs both tunnels in hidden background processes and keeps their
 session IDs in temporary output files for targeted cleanup. If a tunnel fails,
 close saved sessions before retrying. RabbitMQ uses the existing broker login;
-Grafana provides read-only viewing through the SSO-protected tunnel.
+Grafana provides anonymous viewing and admin sign-in through the SSO-protected tunnel.
 
 `Close` stops and waits for this script's local tunnel process trees as well as
 terminating their AWS sessions. It can recover leftover dashboard shell processes
@@ -145,3 +159,28 @@ Rollback: restore the recorded application revisions, stop the monitoring ECS
 service, and remove only `campusgo-metrics-relay` if that addition was approved.
 Deleting the monitoring stack removes its ingress rules and discovery entry;
 CloudWatch logs are retained. Do not remove or recreate RabbitMQ.
+
+## Dashboard and login refresh
+
+The Grafana image tag is `20261110-dashboard-fix`; the other three images retain
+`20261110`. `deploy.ps1` accepts `-GrafanaImageTag` independently of `-ImageTag`
+and resolves tags to immutable digests. The template owns the admin secret, its
+KMS key, and the dedicated execution role. Deployment requires `CAPABILITY_IAM`.
+The prior application execution-role parameter remains for caller compatibility
+but no longer grants monitoring access to application secrets.
+
+After a rollout, restart existing dashboard tunnels because they target the old
+task IP, then refresh Grafana and sign in for administration, connections and Explore:
+
+```powershell
+./scripts/aws/dashboards.ps1 -Action Close
+./scripts/aws/dashboards.ps1
+```
+
+Verified after the refresh on 10 November 2026: real password login succeeded and
+`/api/user` confirmed Grafana administrator access; all six current dashboard titles
+were returned by `/api/search`; Prometheus and Tempo datasource health checks passed;
+all four Prometheus scrape targets reported `up=1`. The password was resolved by
+AWS's `asm-exec` at runtime and never printed. CloudFormation template validation
+passed; cfn-lint 1.41.0 reported only W2001 for the intentionally retained compatibility
+parameter. cfn-guard compliance checks were not run.
